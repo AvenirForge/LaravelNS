@@ -59,7 +59,7 @@ class NoteController extends Controller
 
         // Obsługa pliku
         $file = $request->file('file');
-        $filePath = $file->store('notes_files'); // Przechowujemy plik na serwerze w folderze 'notes_files'
+        $filePath = $file->store('/private/notes_files'); // Przechowujemy plik na serwerze w folderze 'notes_files'
         $note->file_path = $filePath; // Zapisywanie ścieżki do bazy danych
 
         // Zapisanie notatki do bazy danych
@@ -153,8 +153,14 @@ class NoteController extends Controller
             return response()->json(['error' => 'Note not found'], 404);
         }
 
+        // Sprawdzenie, czy użytkownik jest właścicielem notatki
+        $user = auth()->user(); // Pobranie aktualnie zalogowanego użytkownika
+        if ($note->user_id !== $user->id) {
+            return response()->json(['error' => 'Unauthorized to access this note'], 403);
+        }
+
         // Ścieżka do pliku, który jest przechowywany w folderze storage/app/private/notes_files
-        $filePath = storage_path("app/private/{$note->file_path}");
+        $filePath = storage_path("app/{$note->file_path}");
 
         // Sprawdzenie, czy plik istnieje w systemie
         if (!file_exists($filePath)) {
@@ -164,9 +170,5 @@ class NoteController extends Controller
         // Zwrócenie pliku do pobrania
         return response()->download($filePath);
     }
-
-
-
-
 
 }
