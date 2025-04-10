@@ -143,5 +143,30 @@ class NoteController extends Controller
         return response()->json(['message' => 'Note deleted successfully']);
     }
 
+    public function download($id): \Symfony\Component\HttpFoundation\BinaryFileResponse|\Illuminate\Http\JsonResponse
+    {
+        // Znalezienie notatki po ID
+        $note = Note::find($id);
+
+        // Sprawdzenie, czy notatka istnieje
+        if (!$note) {
+            return response()->json(['error' => 'Note not found'], 404);
+        }
+
+        // Ścieżka do pliku, który jest przechowywany w folderze storage/app/private/notes_files
+        $filePath = storage_path("app/private/{$note->file_path}");
+
+        // Sprawdzenie, czy plik istnieje w systemie
+        if (!file_exists($filePath)) {
+            return response()->json(['error' => 'File not found', 'path' => $filePath], 404);
+        }
+
+        // Zwrócenie pliku do pobrania
+        return response()->download($filePath);
+    }
+
+
+
+
 
 }

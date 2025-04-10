@@ -16,6 +16,7 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/logout', [UserController::class, 'logout']);
 
         Route::get('/notes', [NoteController::class, 'index']);
+        Route::get('/notes/{id}', [NoteController::class, 'download']);
         Route::post('/notes', [NoteController::class, 'store']);
         Route::put('/notes/{id}', [NoteController::class, 'update']);
         Route::delete('/notes/{id}', [NoteController::class, 'destroy']);
