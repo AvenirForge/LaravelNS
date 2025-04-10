@@ -17,7 +17,7 @@ class UserSeeder extends Seeder
         $faker = Faker::create();
 
         // Tworzenie 50 użytkowników
-        for ($i = 0; $i < 50; $i++) {
+        for ($i = 0; $i < 600; $i++) {
             User::create([
                 'name' => $faker->name,  // Generowanie losowego imienia
                 'email' => $faker->unique()->safeEmail,  // Generowanie unikalnego emaila
@@ -29,8 +29,14 @@ class UserSeeder extends Seeder
         // Dodajemy przykładowego admina
         User::create([
             'name' => 'Admin User',
-            'email' => 'admin@example.com',
-            'password' => Hash::make('password123'),
+            'email' => 'mkordys98@gmail.com',
+            'password' => Hash::make('STRONGPASSWORD321'),
+            'avatar' => 'avatars/default.png',  // Ustawienie domyślnego avataru
+        ]);
+        User::create([
+            'name' => 'Admin User',
+            'email' => 'mkordys98@gmail.com',
+            'password' => Hash::make('STRONGPASSWORD321'),
             'avatar' => 'avatars/default.png',  // Ustawienie domyślnego avataru
         ]);
     }

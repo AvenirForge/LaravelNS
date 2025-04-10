@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\User;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
@@ -13,20 +14,9 @@ use Illuminate\Support\Facades\Storage;
 
 class UserController extends Controller
 {
-    public function index(Request $request): \Illuminate\Http\JsonResponse
-    {
-        $user = auth()->user();
-
-        $allowedEmails = ['mkordys98@gmail.com', 'a.kartman25@wp.pl'];
-
-        if (!in_array($user->email, $allowedEmails)) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-
-        $users = User::all();
-        return response()->json($users);
-    }
-
+    /**
+     * User registration
+     */
     public function store(Request $request): \Illuminate\Http\JsonResponse
     {
         $validator = Validator::make($request->all(), [
@@ -59,7 +49,10 @@ class UserController extends Controller
         ], 201);
     }
 
-    public function login(Request $request)
+    /**
+     * User login
+     */
+    public function login(Request $request): \Illuminate\Http\JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'email' => 'required|string|email',
@@ -85,35 +78,24 @@ class UserController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
-
-    public function show($id): \Illuminate\Http\JsonResponse
+    /**
+     * Show authenticated user's profile
+ *
+* public function show(): \Illuminate\Http\JsonResponse
+    * {
+        * return response()->json(Auth::user());
+    * }
+     * /
+     * /**
+     * Update authenticated user's profile
+     */
+    public function update(Request $request): \Illuminate\Http\JsonResponse
     {
         $user = Auth::user();
-
-        if ($user->id != (int)$id) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-
-        $userToShow = User::find($id);
-
-        if (!$userToShow) {
-            return response()->json(['error' => 'User not found'], 404);
-        }
-
-        return response()->json($userToShow);
-    }
-
-    public function update(Request $request, $id): \Illuminate\Http\JsonResponse
-    {
-        $user = Auth::user();
-
-        if ($user->id !== (int)$id) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
 
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
-            'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $id,
+            'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $user->id,
             'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ]);
 
@@ -127,19 +109,15 @@ class UserController extends Controller
             $user->changeAvatar($request->file('avatar'));
         }
 
-        return response()->json([
-            'message' => 'User updated successfully!',
-            'user' => $user
-        ]);
+        return response()->json(['message' => 'User updated successfully!', 'user' => $user]);
     }
 
-    public function destroy($id): \Illuminate\Http\JsonResponse
+    /**
+     * Delete authenticated user's account
+     */
+    public function destroy(): \Illuminate\Http\JsonResponse
     {
         $user = Auth::user();
-
-        if ($user->id !== (int)$id) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
 
         if ($user->avatar) {
             Storage::delete($user->avatar);
@@ -150,10 +128,14 @@ class UserController extends Controller
         return response()->json(['message' => 'User deleted successfully']);
     }
 
+    /**
+     * Logout user
+     */
     public function logout(): \Illuminate\Http\JsonResponse
     {
         Auth::logout();
 
         return response()->json(['message' => 'User logged out successfully']);
     }
+
 }
