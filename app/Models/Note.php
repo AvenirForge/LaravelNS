@@ -29,6 +29,13 @@ class Note extends Model
     }
 
     /**
+     * Relacja many-to-one z kursami.
+     */
+    public function course(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Course::class);
+    }
+    /**
      * Get the file URL for the note.
      *
      * @return string

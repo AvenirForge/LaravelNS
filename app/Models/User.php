@@ -31,13 +31,37 @@ class User extends Authenticatable implements JWTSubject
     /**
      * Get the notes associated with the user.
      */
-    public function notes(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function invitations(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->hasMany(Note::class);
+        return $this->hasMany(Invitation::class, 'inviter_id');
+    }
+
+    public function tests()
+    {
+        return $this->hasMany(Test::class);
+    }
+
+    public function answers()
+    {
+        return $this->hasMany(TestsAnswer::class); // Relacja z odpowiedziami
     }
 
     /**
-     * Get the URL for the user's avatar.
+     * Relacja do kursów przez pivot table (course_user)
+     */
+    public function courses()
+    {
+        return $this->belongsToMany(Course::class, 'courses_users')
+            ->withPivot('role')
+            ->withTimestamps();
+    }
+
+    // Posty użytkownika
+    public function posts(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Post::class);
+    }
+     /* Get the URL for the user's avatar.
      *
      * @return string|null
      */
@@ -60,6 +84,11 @@ class User extends Authenticatable implements JWTSubject
 
         $this->avatar = $file->store('avatars');
         $this->save();
+    }
+
+    public function hasRole($role)
+    {
+        return $this->courses()->wherePivot('role', $role)->exists();
     }
 
     /**

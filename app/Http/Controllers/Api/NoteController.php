@@ -27,14 +27,12 @@ class NoteController extends Controller
      */
     public function store(Request $request)
     {
-        // Pobieramy aktualnie zalogowanego użytkownika
         $user = auth()->user();
 
-        // Walidacja danych
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'description' => 'nullable|string|max:5000',
-            'file' => 'required|file|mimes:pdf,xlsx,jpg,jpeg,png|max:2048', // Dodajemy walidację, aby plik był wymagany
+            'file' => 'required|file|mimes:pdf,xlsx,jpg,jpeg,png|max:2048',
             'is_private' => 'nullable|boolean',
         ]);
 
@@ -42,27 +40,23 @@ class NoteController extends Controller
             return response()->json(['error' => $validator->errors()], 400);
         }
 
-        // Jeśli is_private nie jest w danych, domyślnie ustawiamy je na true
         $isPrivate = $request->input('is_private', true);
 
-        // Sprawdzanie, czy plik został przesłany
         if (!$request->hasFile('file')) {
-            return response()->json(['error' => 'No file uploaded'], 400);  // Zwrócenie błędu, jeśli nie ma pliku
+            return response()->json(['error' => 'No file uploaded'], 400);
         }
 
-        // Tworzenie notatki
         $note = new Note();
         $note->title = $request->input('title');
         $note->description = $request->input('description');
         $note->is_private = $isPrivate;
-        $note->user_id = $user->id; // Dodajemy ID użytkownika
+        $note->user_id = $user->id;
 
-        // Obsługa pliku
+        // Zapis pliku w public/storage/users/notes
         $file = $request->file('file');
-        $filePath = $file->store('/private/notes_files'); // Przechowujemy plik na serwerze w folderze 'notes_files'
-        $note->file_path = $filePath; // Zapisywanie ścieżki do bazy danych
+        $filePath = $file->store('users/notes', 'public'); // <-- użycie dysku 'public'
+        $note->file_path = $filePath;
 
-        // Zapisanie notatki do bazy danych
         $note->save();
 
         return response()->json([
@@ -70,7 +64,6 @@ class NoteController extends Controller
             'note' => $note,
         ]);
     }
-
 
 
     /**
@@ -120,6 +113,26 @@ class NoteController extends Controller
     /**
      * Remove the specified note.
      */
+
+    public function shareNoteWithCourse(Request $request, $noteId, $courseId): \Illuminate\Http\JsonResponse
+    {
+        $user = Auth::user();
+
+        // Sprawdzenie, czy notatka należy do użytkownika
+        $note = Note::where('user_id', $user->id)->findOrFail($noteId);
+
+        // Sprawdzenie, czy kurs istnieje
+        $course = Course::findOrFail($courseId);
+
+        // Zaktualizowanie statusu notatki na publiczną i przypisanie do kursu
+        $note->update([
+            'status' => 'public', // Zmieniamy status na publiczny
+            'course_id' => $courseId,
+        ]);
+
+        return response()->json(['message' => 'Notatka udostępniona w kursie'], 200);
+    }
+
     public function destroy($id): \Illuminate\Http\JsonResponse
     {
         $user = auth()->user();
@@ -145,30 +158,26 @@ class NoteController extends Controller
 
     public function download($id): \Symfony\Component\HttpFoundation\BinaryFileResponse|\Illuminate\Http\JsonResponse
     {
-        // Znalezienie notatki po ID
         $note = Note::find($id);
 
-        // Sprawdzenie, czy notatka istnieje
         if (!$note) {
             return response()->json(['error' => 'Note not found'], 404);
         }
 
-        // Sprawdzenie, czy użytkownik jest właścicielem notatki
-        $user = auth()->user(); // Pobranie aktualnie zalogowanego użytkownika
+        $user = auth()->user();
+
         if ($note->user_id !== $user->id) {
-            return response()->json(['error' => 'Unauthorized to access this note'], 403);
+            return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        // Ścieżka do pliku, który jest przechowywany w folderze storage/app/private/notes_files
-        $filePath = storage_path("app/{$note->file_path}");
+        $filePath = storage_path("app/public/{$note->file_path}");
 
-        // Sprawdzenie, czy plik istnieje w systemie
         if (!file_exists($filePath)) {
-            return response()->json(['error' => 'File not found', 'path' => $filePath], 404);
+            return response()->json(['error' => 'File not found'], 404);
         }
 
-        // Zwrócenie pliku do pobrania
         return response()->download($filePath);
     }
+
 
 }
