@@ -19,6 +19,7 @@ Route::middleware('auth:api')->group(function () {
         // Profile
         Route::get('/profile', [UserController::class, 'show']);
         Route::get('/profile/avatar', [UserController::class, 'downloadAvatar']);
+        Route::post('/profile/avatar', [UserController::class, 'updateAvatar']);
         Route::put('/profile', [UserController::class, 'update']);
         Route::delete('/profile', [UserController::class, 'destroy']);
         Route::post('/logout', [UserController::class, 'logout']);

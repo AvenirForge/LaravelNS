@@ -70,13 +70,17 @@ class UserController extends Controller
         ], 201);
     }
 
-    public function update(Request $request, User $user): \Illuminate\Http\JsonResponse
+    public function update(Request $request): \Illuminate\Http\JsonResponse
     {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|string|max:255',
             'email' => 'sometimes|string|email|max:255|unique:users,email,' . $user->id,
             'password' => 'sometimes|string|min:8|confirmed',
-            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ]);
 
         if ($validator->fails()) {
@@ -95,15 +99,6 @@ class UserController extends Controller
             $user->password = Hash::make($request->input('password'));
         }
 
-        if ($request->hasFile('avatar')) {
-            if ($user->avatar && Storage::disk('public')->exists($user->avatar)) {
-                Storage::disk('public')->delete($user->avatar);
-            }
-
-            $avatarPath = $request->file('avatar')->store('users/avatars', 'public');
-            $user->avatar = $avatarPath;
-        }
-
         $user->save();
 
         return response()->json([
@@ -112,6 +107,42 @@ class UserController extends Controller
         ]);
     }
 
+    public function updateAvatar(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        // Sprawdzenie czy plik istnieje
+        if (!$request->hasFile('avatar')) {
+            return response()->json(['error' => ['avatar' => ['The avatar file is required.']]], 400);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'avatar' => 'required|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->errors()], 400);
+        }
+
+        // Usunięcie starego avatara, jeśli istnieje
+        if ($user->avatar && Storage::disk('public')->exists($user->avatar)) {
+            Storage::disk('public')->delete($user->avatar);
+        }
+
+        // Zapis nowego avatara
+        $avatarPath = $request->file('avatar')->store('users/avatars', 'public');
+        $user->avatar = $avatarPath;
+        $user->save();
+
+        return response()->json([
+            'message' => 'Avatar updated successfully!',
+            'avatar_url' => Storage::url($avatarPath),
+            'user' => $user,
+        ]);
+    }
     public function downloadAvatar(): \Symfony\Component\HttpFoundation\BinaryFileResponse|\Illuminate\Http\JsonResponse
     {
         $user = Auth::user();
