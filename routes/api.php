@@ -26,9 +26,10 @@ Route::middleware('auth:api')->group(function () {
 
         // Notes
         Route::get('/notes', [NoteController::class, 'index']);
-        Route::get('/notes/{id}', [NoteController::class, 'download']);
+        Route::put('/notes/{id}', [NoteController::class, 'updateContent']);
+        Route::get('/notes/{id}/download', [NoteController::class, 'download']); //
+        Route::post('/notes/{id}/replace', [NoteController::class, 'replaceFile']); //
         Route::post('/notes', [NoteController::class, 'store']);
-        Route::put('/notes/{id}', [NoteController::class, 'update']);
         Route::delete('/notes/{id}', [NoteController::class, 'destroy']);
 
         Route::post('/notes/{noteId}/share/{courseId}', [NoteController::class, 'shareNoteWithCourse']);

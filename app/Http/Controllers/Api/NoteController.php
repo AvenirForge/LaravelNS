@@ -14,14 +14,27 @@ class NoteController extends Controller
     /**
      * Display a listing of notes for the authenticated user.
      */
-    public function index(): \Illuminate\Http\JsonResponse
+    public function index(Request $request): \Illuminate\Http\JsonResponse
     {
         $user = Auth::user();
-        $notes = $user->notes; // Pobierz notki powiązane z użytkownikiem
 
-        return response()->json($notes);
+        // Odczyt parametrów paginacji z zapytania
+        $top = (int) $request->query('top', 10);   // ile rekordów zwrócić (domyślnie 10)
+        $skip = (int) $request->query('skip', 0);  // ile pominąć (domyślnie 0)
+
+        // Pobranie notatek z relacji z użyciem paginacji
+        $notes = $user->notes()
+            ->skip($skip)
+            ->take($top)
+            ->get();
+
+        return response()->json([
+            'data' => $notes,
+            'skip' => $skip,
+            'top' => $top,
+            'count' => $user->notes()->count()
+        ]);
     }
-
     /**
      * Store a newly created note.
      */
@@ -87,7 +100,7 @@ class NoteController extends Controller
     /**
      * Update the specified note.
      */
-    public function update(Request $request, $id): \Illuminate\Http\JsonResponse
+    public function updateContent(Request $request, $id): \Illuminate\Http\JsonResponse
     {
         $note = Note::find($id);
 
@@ -99,16 +112,55 @@ class NoteController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
+        $request->validate([
+            'title' => 'nullable|string|max:255',
+            'description' => 'nullable|string',
+            'is_private' => 'nullable|boolean',
+        ]);
+
         $note->update($request->only('title', 'description', 'is_private'));
 
-        if ($request->hasFile('file')) {
-            Storage::delete($note->file_path);
-            $filePath = $request->file('file')->store('notes');
-            $note->file_path = $filePath;
+        return response()->json([
+            'message' => 'Note text updated successfully!',
+            'note' => $note,
+        ]);
+    }
+    public function replaceFile(Request $request, $id): \Illuminate\Http\JsonResponse
+    {
+        $note = Note::find($id);
+
+        if (!$note) {
+            return response()->json(['error' => 'Note not found'], 404);
         }
 
-        return response()->json(['message' => 'Note updated successfully!', 'note' => $note]);
+        if ($note->user_id !== Auth::id()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $request->validate([
+            'file' => 'required|file|max:2048|mimes:jpg,jpeg,png,pdf,doc,docx',
+        ], [
+            'file.required' => 'Nie dodano pliku.',
+            'file.mimes' => 'Dozwolone formaty to jpg, png, pdf, doc, docx.',
+            'file.max' => 'Plik nie może być większy niż 2MB.',
+        ]);
+
+        // Usuń stary plik, jeśli istnieje
+        if ($note->file_path && Storage::disk('public')->exists($note->file_path)) {
+            Storage::disk('public')->delete($note->file_path);
+        }
+
+        // Zapisz nowy plik do 'public/users/notes'
+        $filePath = $request->file('file')->store('users/notes', 'public');
+        $note->file_path = $filePath;
+        $note->save();
+
+        return response()->json([
+            'message' => 'Note file updated successfully!',
+            'note' => $note,
+        ]);
     }
+
 
     /**
      * Remove the specified note.

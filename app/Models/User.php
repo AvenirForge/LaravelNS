@@ -67,7 +67,7 @@ class User extends Authenticatable implements JWTSubject
      */
     public function getAvatarUrlAttribute(): ?string
     {
-        return $this->avatar ? Storage::url($this->avatar) : null;
+        return ($this->avatar && $this->avatar !== 'NONE') ? Storage::url($this->avatar) : null;
     }
 
     /**
@@ -96,7 +96,12 @@ class User extends Authenticatable implements JWTSubject
      *
      * @return mixed
      */
-    public function getJWTIdentifier()
+
+    public function notes(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Note::class);
+    }
+    public function getJWTIdentifier(): mixed
     {
         return $this->getKey();
     }
@@ -106,7 +111,7 @@ class User extends Authenticatable implements JWTSubject
      *
      * @return array
      */
-    public function getJWTCustomClaims()
+    public function getJWTCustomClaims(): array
     {
         return [];
     }
