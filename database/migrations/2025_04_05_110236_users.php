@@ -22,11 +22,11 @@ return new class extends Migration
             $table->string('email', 191)->unique();
             $table->timestamp('email_verified_at')->nullable();
 
-            // Hasło (hash po stronie aplikacji)
-            $table->string('password');
+            // Hasło (hash po stronie aplikacji; w modelu masz casts['password' => 'hashed'])
+            $table->string('password', 255);
 
-            // Avatar – domyślna ścieżka, możliwość null
-            $table->string('avatar', 255)->nullable()->default('avatars/default.png');
+            // Avatar – domyślna ścieżka zgodna z User::DEFAULT_AVATAR_RELATIVE
+            $table->string('avatar', 255)->nullable()->default('users/avatars/default.png');
 
             // Remember-me token
             $table->rememberToken();
@@ -39,7 +39,16 @@ return new class extends Migration
         });
 
         /**
-         * CACHE (database cache store)
+         * PASSWORD RESET TOKENS (standard Laravel)
+         */
+        Schema::create('password_reset_tokens', function (Blueprint $table) {
+            $table->string('email', 191)->primary();
+            $table->string('token', 255);
+            $table->timestamp('created_at')->nullable();
+        });
+
+        /**
+         * CACHE (database cache store — nie przeszkadza, nawet jeśli używasz file)
          */
         Schema::create('cache', function (Blueprint $table) {
             $table->string('key')->primary();
@@ -48,7 +57,8 @@ return new class extends Migration
         });
 
         /**
-         * SESSIONS (database session store)
+         * SESSIONS (database session store — kompatybilne z defaultem Laravela)
+         * FK do users — przy kasowaniu usera sesja zostaje z user_id=NULL.
          */
         Schema::create('sessions', function (Blueprint $table) {
             $table->string('id')->primary();
@@ -58,7 +68,6 @@ return new class extends Migration
             $table->longText('payload');
             $table->integer('last_activity')->index();
 
-            // Powiązanie z users; w razie usunięcia usera zostawiamy sesję z null
             $table->foreign('user_id')
                 ->references('id')->on('users')
                 ->onDelete('set null');
@@ -68,10 +77,10 @@ return new class extends Migration
          * JOBS (queue:database)
          */
         Schema::create('jobs', function (Blueprint $table) {
-            $table->id();
-            $table->string('queue')->index();
+            $table->bigIncrements('id');
+            $table->string('queue', 191)->index();
             $table->longText('payload');
-            $table->tinyInteger('attempts')->unsigned();
+            $table->unsignedTinyInteger('attempts');
             $table->unsignedInteger('reserved_at')->nullable();
             $table->unsignedInteger('available_at');
             $table->unsignedInteger('created_at');
@@ -91,11 +100,11 @@ return new class extends Migration
         });
 
         /**
-         * PERSONAL ACCESS TOKENS (Laravel Sanctum / tokens API)
+         * PERSONAL ACCESS TOKENS (neutralne dla JWT; nie używane = nie przeszkadzają)
          */
         Schema::create('personal_access_tokens', function (Blueprint $table) {
             $table->id();
-            $table->morphs('tokenable'); // tokenable_type, tokenable_id (indexed)
+            $table->morphs('tokenable'); // tokenable_type, tokenable_id
             $table->string('name');
             $table->string('token', 64)->unique();
             $table->text('abilities')->nullable();
@@ -116,21 +125,10 @@ return new class extends Migration
         Schema::dropIfExists('jobs');
 
         // sessions ma FK do users → drop przed users
-        if (Schema::hasTable('sessions')) {
-            // Bezpiecznie usuń constraint (dla niektórych DB wymagane)
-            try {
-                Schema::table('sessions', function (Blueprint $table) {
-                    // Nazwa indeksu FK może być różna między DBMS — brak błędu jeśli nie istnieje
-                    // W większości przypadków droppowanie całej tabeli wystarczy,
-                    // ale część środowisk lubi najpierw dropnąć FK.
-                });
-            } catch (\Throwable $e) {
-                // Ignoruj – i tak dropujemy tabelę
-            }
-        }
         Schema::dropIfExists('sessions');
 
         Schema::dropIfExists('cache');
+        Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('users');
     }
 };
