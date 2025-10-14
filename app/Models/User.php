@@ -31,6 +31,7 @@ class User extends Authenticatable implements JWTSubject
             ->withPivot(['role', 'status'])
             ->withTimestamps();
     }
+
     // ===== Atrybuty =====
     public function getAvatarUrlAttribute(): ?string
     {

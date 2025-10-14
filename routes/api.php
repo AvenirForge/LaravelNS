@@ -2,15 +2,17 @@
 
 use App\Http\Controllers\Api\CourseController;
 use App\Http\Controllers\Api\InvitationController;
-use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\TestController;
 use App\Http\Controllers\Api\UserController;
-use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\NoteController;
 use Illuminate\Support\Facades\Route;
 
+// Public
 Route::post('/login', [UserController::class, 'login']);
 Route::post('/users/register', [UserController::class, 'store']);
+
+// Token refresh (wymaga przesłania aktualnego/wygaśniętego tokenu w Authorization)
+Route::post('/refresh', [UserController::class, 'refresh']);
 
 Route::middleware('auth:api')->group(function () {
 
@@ -28,13 +30,13 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/courses',                 [CourseController::class, 'index']);
         Route::get('/courses/{id}/avatar',     [CourseController::class, 'downloadAvatar']);
         Route::post('/courses',                [CourseController::class, 'store']);
-        Route::patch('/courses/{id}',            [CourseController::class, 'update']);
+        Route::patch('/courses/{id}',          [CourseController::class, 'update']);
         Route::delete('/courses/{id}',         [CourseController::class, 'destroy']);
 
         // NOTES — dodany GET /notes/{id}
         Route::get('/notes',                   [NoteController::class, 'index']);
         Route::post('/notes',                  [NoteController::class, 'store']);
-        Route::get('/notes/{id}',              [NoteController::class, 'show']);      // ★ NOWE
+        Route::get('/notes/{id}',              [NoteController::class, 'show']);
         Route::patch('/notes/{id}',            [NoteController::class, 'edit']);
         Route::delete('/notes/{id}',           [NoteController::class, 'destroy']);
         Route::post('/notes/{id}/patch',       [NoteController::class, 'patchFile']);
@@ -58,7 +60,8 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/tests/{testId}/share',   [TestController::class, 'shareTestWithCourse']);
 
     });
-// COURSES – akcje poza /me
+
+    // COURSES – akcje poza /me
     Route::post('/courses/{courseId}/invite-user', [InvitationController::class, 'inviteUser']);
     Route::post('/courses/{courseId}/remove-user', [CourseController::class, 'removeUser']);
 
@@ -68,11 +71,10 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/invitations/{token}/accept', [InvitationController::class, 'acceptInvitation']);
     Route::post('/invitations/{token}/reject', [InvitationController::class, 'rejectInvitation']);
 
-    // (zostawiamy też routy dla tests in courses, jeśli używasz)
+    // tests in courses
     Route::get('/courses/{courseId}/tests',                 [TestController::class, 'indexForCourse']);
     Route::post('/courses/{courseId}/tests',                [TestController::class, 'storeForCourse']);
     Route::get('/courses/{courseId}/tests/{testId}',        [TestController::class, 'showForCourse']);
     Route::put('/courses/{courseId}/tests/{testId}',        [TestController::class, 'updateForCourse']);
     Route::delete('/courses/{courseId}/tests/{testId}',     [TestController::class, 'destroyForCourse']);
-
 });

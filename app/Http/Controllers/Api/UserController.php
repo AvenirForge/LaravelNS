@@ -5,15 +5,17 @@ namespace App\Http\Controllers\Api;
 use App\Models\User;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
-use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Illuminate\Http\JsonResponse;
+use Tymon\JWTAuth\Facades\JWTAuth;
+use Tymon\JWTAuth\Exceptions\JWTException;
 
 class UserController extends Controller
 {
-    public function login(Request $request): \Illuminate\Http\JsonResponse
+    // POST /api/login
+    public function login(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'email'    => 'required|string|email',
@@ -23,23 +25,28 @@ class UserController extends Controller
             return response()->json(['error' => $validator->errors()], 400);
         }
 
-        $credentials = $request->only('email', 'password');
-        if (!$token = JWTAuth::attempt($credentials)) {
+        $credentials = $validator->validated();
+
+        // Guard 'api' = JWT (config/auth.php)
+        if (!$token = auth('api')->attempt($credentials)) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        /** @var User $user */
-        $user = Auth::user();
+        // W tym request nie ma jeszcze Authorization header – pobierz usera z nowo wydanego tokenu
+        $user = auth('api')->setToken($token)->user();
 
         return response()->json([
-            'message' => 'Login successful',
-            'userId'  => $user->id,
-            'token'   => $token,
-            'user'    => $user->only(['id', 'name', 'email']) + ['avatar_url' => $user->avatar_url],
+            'message'     => 'Login successful',
+            'userId'      => $user->id,
+            'token'       => $token,
+            'token_type'  => 'Bearer',
+            'expires_in'  => auth('api')->factory()->getTTL() * 60, // sekundy
+            'user'        => $user->only(['id', 'name', 'email']) + ['avatar_url' => $user->avatar_url],
         ]);
     }
 
-    public function store(Request $request): \Illuminate\Http\JsonResponse
+    // POST /api/users/register
+    public function store(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'name'                  => 'required|string|max:255',
@@ -54,12 +61,11 @@ class UserController extends Controller
         $user->name     = (string) $request->input('name');
         $user->email    = (string) $request->input('email');
 
-        // Dzięki $casts['password' => 'hashed'] możemy przypisać „gołe” hasło – Eloquent je zhashuje
+        // Dzięki casts ['password' => 'hashed'] hasło zostanie zahashowane automatycznie
         $user->password = (string) $request->input('password');
 
-        // Ustawiamy avatar domyślny (stała zdefiniowana w modelu User)
+        // Domyślny avatar
         $user->avatar   = User::DEFAULT_AVATAR_RELATIVE;
-
         $user->save();
 
         return response()->json([
@@ -68,13 +74,11 @@ class UserController extends Controller
         ], 201);
     }
 
-    /**
-     * PATCH /api/me/profile
-     */
-    public function update(Request $request): \Illuminate\Http\JsonResponse
+    // PATCH /api/me/profile
+    public function update(Request $request): JsonResponse
     {
         /** @var User|null $user */
-        $user = Auth::user();
+        $user = $request->user(); // spójnie z middleware 'auth:api'
         if (!$user) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -83,22 +87,14 @@ class UserController extends Controller
             'name'     => 'sometimes|present|string|max:255',
             'email'    => 'sometimes|present|string|email|max:255|unique:users,email,' . $user->id,
             'password' => 'sometimes|present|string|min:8|confirmed',
-            // avatar edytujemy wyłącznie przez /me/profile/avatar
         ]);
         if ($validator->fails()) {
             return response()->json(['error' => $validator->errors()], 400);
         }
 
-        if ($request->has('name')) {
-            $user->name = (string) $request->input('name');
-        }
-        if ($request->has('email')) {
-            $user->email = (string) $request->input('email');
-        }
-        if ($request->has('password')) {
-            // cast 'hashed' zrobi resztę
-            $user->password = (string) $request->input('password');
-        }
+        if ($request->has('name'))     { $user->name     = (string) $request->input('name'); }
+        if ($request->has('email'))    { $user->email    = (string) $request->input('email'); }
+        if ($request->has('password')) { $user->password = (string) $request->input('password'); } // cast 'hashed'
 
         $user->save();
         $user->refresh();
@@ -109,10 +105,11 @@ class UserController extends Controller
         ]);
     }
 
-    public function updateAvatar(Request $request): \Illuminate\Http\JsonResponse
+    // POST /api/me/profile/avatar
+    public function updateAvatar(Request $request): JsonResponse
     {
         /** @var User|null $user */
-        $user = Auth::user();
+        $user = $request->user();
         if (!$user) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -146,17 +143,17 @@ class UserController extends Controller
         ]);
     }
 
-    public function downloadAvatar(): BinaryFileResponse|\Illuminate\Http\JsonResponse
+    // GET /api/me/profile/avatar
+    public function downloadAvatar(): BinaryFileResponse|JsonResponse
     {
         /** @var User|null $user */
-        $user = Auth::user();
+        $user = request()->user();
         if (!$user) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
         $relative = $user->avatar ?: User::DEFAULT_AVATAR_RELATIVE;
 
-        // Jeżeli brak pliku użytkownika – próbujemy default
         if (!Storage::disk('public')->exists($relative)) {
             $relative = User::DEFAULT_AVATAR_RELATIVE;
             if (!Storage::disk('public')->exists($relative)) {
@@ -168,10 +165,11 @@ class UserController extends Controller
         return response()->download($absolute);
     }
 
-    public function destroy(): \Illuminate\Http\JsonResponse
+    // DELETE /api/me/profile
+    public function destroy(): JsonResponse
     {
         /** @var User|null $user */
-        $user = Auth::user();
+        $user = request()->user();
         if (!$user) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -187,26 +185,31 @@ class UserController extends Controller
         return response()->json(['message' => 'User deleted successfully']);
     }
 
-    public function logout(): \Illuminate\Http\JsonResponse
+    // POST /api/me/logout
+    public function logout(): JsonResponse
     {
         try {
-            $token = JWTAuth::getToken();
-            if ($token) {
-                JWTAuth::invalidate($token);
+            auth('api')->logout(); // unieważnij bieżący JWT
+        } catch (JWTException $e) {
+            // fallback – jeśli guard nie miał tokenu, spróbuj jawnie
+            try {
+                $token = JWTAuth::getToken();
+                if ($token) {
+                    JWTAuth::invalidate($token);
+                }
+            } catch (\Throwable $t) {
+                // no-op
             }
-        } catch (\Throwable $e) {
-            // no-op
         }
-
-        Auth::logout();
 
         return response()->json(['message' => 'User logged out successfully']);
     }
 
-    public function show(): \Illuminate\Http\JsonResponse
+    // GET /api/me/profile (alias show)
+    public function show(): JsonResponse
     {
         /** @var User|null $user */
-        $user = Auth::user();
+        $user = request()->user();
         if (!$user) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
