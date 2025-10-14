@@ -7,112 +7,60 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class User extends Authenticatable implements JWTSubject
 {
     use HasFactory, Notifiable;
 
-    protected $fillable = [
-        'name',
-        'email',
-        'password',
-        'avatar',
-    ];
+    public const DEFAULT_AVATAR_RELATIVE = 'users/avatars/default.png';
 
-    protected $hidden = [
-        'password',
-        'remember_token',
-    ];
+    protected $fillable = ['name', 'email', 'password', 'avatar'];
+    protected $hidden   = ['password', 'remember_token'];
+    protected $casts    = ['email_verified_at' => 'datetime', 'password' => 'hashed'];
 
-    protected $casts = [
-        'email_verified_at' => 'datetime',
-    ];
-
-    /**
-     * Get the notes associated with the user.
-     */
-    public function invitations(): \Illuminate\Database\Eloquent\Relations\HasMany
-    {
-        return $this->hasMany(Invitation::class, 'inviter_id');
-    }
-
-    public function tests()
-    {
-        return $this->hasMany(Test::class);
-    }
-
-    public function answers()
-    {
-        return $this->hasMany(TestsAnswer::class); // Relacja z odpowiedziami
-    }
-
-    /**
-     * Relacja do kursów przez pivot table (course_user)
-     */
-    public function courses()
+    // ===== Relacje =====
+    public function invitations(): HasMany   { return $this->hasMany(Invitation::class, 'inviter_id'); }
+    public function tests(): HasMany         { return $this->hasMany(Test::class); }
+    public function answers(): HasMany       { return $this->hasMany(TestsAnswer::class); }
+    public function notes(): HasMany         { return $this->hasMany(Note::class); }
+    public function courses(): BelongsToMany
     {
         return $this->belongsToMany(Course::class, 'courses_users')
-            ->withPivot('role')
+            ->withPivot(['role', 'status'])
             ->withTimestamps();
     }
-
-    // Posty użytkownika
-    public function posts(): \Illuminate\Database\Eloquent\Relations\HasMany
-    {
-        return $this->hasMany(Post::class);
-    }
-     /* Get the URL for the user's avatar.
-     *
-     * @return string|null
-     */
+    // ===== Atrybuty =====
     public function getAvatarUrlAttribute(): ?string
     {
-        return ($this->avatar && $this->avatar !== 'NONE') ? Storage::url($this->avatar) : null;
+        $rel = $this->avatar ?: self::DEFAULT_AVATAR_RELATIVE;
+        return Storage::disk('public')->exists($rel) ? Storage::url($rel) : null;
     }
 
-    /**
-     * Method to change the avatar for the user.
-     *
-     * @param  \Illuminate\Http\UploadedFile  $file
-     * @return void
-     */
+    // ===== Avatar =====
     public function changeAvatar($file): void
     {
-        if ($this->avatar) {
-            Storage::delete($this->avatar); // Delete old avatar
+        $disk = Storage::disk('public');
+        if ($this->avatar && $this->avatar !== self::DEFAULT_AVATAR_RELATIVE && $disk->exists($this->avatar)) {
+            $disk->delete($this->avatar);
         }
-
-        $this->avatar = $file->store('avatars');
-        $this->save();
+        $this->forceFill(['avatar' => $file->store('users/avatars', 'public')])->save();
     }
 
-    public function hasRole($role)
+    // ===== Role =====
+    public function hasRole(string $role): bool
     {
         return $this->courses()->wherePivot('role', $role)->exists();
     }
 
-    /**
-     * JWTSubject method to get the identifier for JWT.
-     *
-     * @return mixed
-     */
-
-    public function notes(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function roleInCourse(Course $course): ?string
     {
-        return $this->hasMany(Note::class);
-    }
-    public function getJWTIdentifier(): mixed
-    {
-        return $this->getKey();
+        $row = $this->courses()->where('course_id', $course->id)->first();
+        return $row?->pivot?->role;
     }
 
-    /**
-     * JWTSubject method to get the custom claims for JWT.
-     *
-     * @return array
-     */
-    public function getJWTCustomClaims(): array
-    {
-        return [];
-    }
+    // ===== JWT =====
+    public function getJWTIdentifier(): mixed { return $this->getKey(); }
+    public function getJWTCustomClaims(): array { return []; }
 }

@@ -6,13 +6,16 @@ use App\Http\Controllers\Controller;
 use App\Models\Test;
 use App\Models\TestsQuestion;
 use App\Models\TestsAnswer;
+use App\Models\Course;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class TestController extends Controller
 {
-    // =================== PRIVATE TESTS ===================
+    // =================== PRIVATE TESTS (ME) ===================
 
     public function indexForUser()
     {
@@ -26,22 +29,23 @@ class TestController extends Controller
 
         return response()->json($tests);
     }
+
     public function storeForUser(Request $request): \Illuminate\Http\JsonResponse
     {
         $user = Auth::user();
 
         $validated = $request->validate([
-            'title' => 'required|string|max:255',
+            'title'       => 'required|string|max:255',
             'description' => 'nullable|string|max:1000',
-            'status' => 'required|in:private,public',
+            'status'      => 'required|in:private,public',
         ]);
 
         $test = Test::create([
-            'user_id' => $user->id,
-            'course_id' => null, // test prywatny
-            'title' => $validated['title'],
+            'user_id'     => $user->id,
+            'course_id'   => null, // prywatny
+            'title'       => $validated['title'],
             'description' => $validated['description'] ?? null,
-            'status' => $validated['status'],
+            'status'      => $validated['status'],
         ]);
 
         return response()->json($test, 201);
@@ -49,20 +53,28 @@ class TestController extends Controller
 
     public function showForUser($id)
     {
-        $test = Test::where('id', $id)->where('user_id', Auth::user()->id)->with('questions.answers')->firstOrFail();
+        $test = Test::where('id', $id)
+            ->where('user_id', Auth::user()->id)
+            ->with('questions.answers')
+            ->firstOrFail();
+
         return response()->json($test);
     }
 
     public function updateForUser(Request $request, $id)
     {
-        $test = Test::where('id', $id)->where('user_id', Auth::user()->id)->firstOrFail();
+        $test = Test::where('id', $id)
+            ->where('user_id', Auth::user()->id)
+            ->firstOrFail();
 
         $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
+            'title'       => 'required|string|max:255',
+            'description' => 'nullable|string|max:1000',
         ]);
 
-        if ($validator->fails()) return response()->json(['errors' => $validator->errors()], 422);
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
 
         $test->update($request->only(['title', 'description']));
 
@@ -71,47 +83,102 @@ class TestController extends Controller
 
     public function destroyForUser($id)
     {
-        $test = Test::where('id', $id)->where('user_id', Auth::user()->id)->firstOrFail();
+        $test = Test::where('id', $id)
+            ->where('user_id', Auth::user()->id)
+            ->firstOrFail();
+
         $test->delete();
 
         return response()->json(['message' => 'Test deleted.']);
     }
 
+    /**
+     * GET /api/me/tests/{testId}/questions
+     * Płaskie tablice + jawne pola (stabilna serializacja).
+     */
     public function questionsForUser($testId)
     {
         $user = Auth::user();
+
         $test = Test::where('id', $testId)
             ->where('user_id', $user->id)
             ->whereNull('course_id')
             ->firstOrFail();
 
-        $questions = $test->questions()->with('answers')->get();
+        $questions = TestsQuestion::where('test_id', $test->id)
+            ->orderBy('id')
+            ->get()
+            ->map(function (TestsQuestion $q) {
+                $answers = TestsAnswer::where('question_id', $q->id)
+                    ->orderBy('id')
+                    ->get(['id','question_id','answer','is_correct','created_at','updated_at'])
+                    ->map(function (TestsAnswer $a) {
+                        return [
+                            'id'          => $a->id,
+                            'question_id' => $a->question_id,
+                            'answer'      => $a->answer,
+                            'is_correct'  => (bool) $a->is_correct,
+                            'created_at'  => $a->created_at,
+                            'updated_at'  => $a->updated_at,
+                        ];
+                    })->all();
+
+                return [
+                    'id'         => $q->id,
+                    'test_id'    => $q->test_id,
+                    'question'   => $q->question,
+                    'created_at' => $q->created_at,
+                    'updated_at' => $q->updated_at,
+                    'answers'    => $answers,
+                ];
+            })->all();
 
         return response()->json(['questions' => $questions], 200);
     }
 
     // =================== COURSE TESTS ===================
 
+    /**
+     * GET /api/courses/{courseId}/tests
+     * Agregacja: tests.course_id + legacy pivot course_test (jeśli istnieje).
+     */
     public function indexForCourse($courseId)
     {
-        $tests = Test::where('course_id', $courseId)->with('questions.answers')->get();
+        $pivotIds = [];
+        if (Schema::hasTable('course_test')) {
+            $pivotIds = DB::table('course_test')
+                ->where('course_id', $courseId)
+                ->pluck('test_id')
+                ->all();
+        }
+
+        $tests = Test::where(function ($q) use ($courseId, $pivotIds) {
+            $q->where('course_id', $courseId);
+            if (!empty($pivotIds)) {
+                $q->orWhereIn('id', $pivotIds);
+            }
+        })
+            ->with(['questions.answers'])
+            ->get();
+
         return response()->json($tests);
     }
 
     public function storeForCourse(Request $request, $courseId)
     {
         $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
+            'title'       => 'required|string|max:255',
+            'description' => 'nullable|string|max:1000',
         ]);
 
         if ($validator->fails()) return response()->json(['errors' => $validator->errors()], 422);
 
         $test = Test::create([
-            'user_id' => Auth::user()->id,
-            'title' => $request->title,
+            'user_id'     => Auth::user()->id,
+            'course_id'   => $courseId,
+            'title'       => $request->title,
             'description' => $request->description,
-            'course_id' => $courseId,
+            'status'      => Test::STATUS_PRIVATE, // ★ tu wymagało stałej
         ]);
 
         return response()->json($test, 201);
@@ -119,17 +186,23 @@ class TestController extends Controller
 
     public function showForCourse($courseId, $testId)
     {
-        $test = Test::where('id', $testId)->where('course_id', $courseId)->with('questions.answers')->firstOrFail();
+        $test = Test::where('id', $testId)
+            ->where('course_id', $courseId)
+            ->with('questions.answers')
+            ->firstOrFail();
+
         return response()->json($test);
     }
 
     public function updateForCourse(Request $request, $courseId, $testId)
     {
-        $test = Test::where('id', $testId)->where('course_id', $courseId)->firstOrFail();
+        $test = Test::where('id', $testId)
+            ->where('course_id', $courseId)
+            ->firstOrFail();
 
         $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
+            'title'       => 'required|string|max:255',
+            'description' => 'nullable|string|max:1000',
         ]);
 
         if ($validator->fails()) return response()->json(['errors' => $validator->errors()], 422);
@@ -141,7 +214,10 @@ class TestController extends Controller
 
     public function destroyForCourse($courseId, $testId)
     {
-        $test = Test::where('id', $testId)->where('course_id', $courseId)->firstOrFail();
+        $test = Test::where('id', $testId)
+            ->where('course_id', $courseId)
+            ->firstOrFail();
+
         $test->delete();
 
         return response()->json(['message' => 'Test deleted.']);
@@ -155,7 +231,7 @@ class TestController extends Controller
             ->where('user_id', Auth::user()->id)
             ->firstOrFail();
 
-        // Sprawdzenie, czy test ma już 20 pytań
+        // Limit 20 pytań
         $questionCount = TestsQuestion::where('test_id', $test->id)->count();
         if ($questionCount >= 20) {
             return response()->json([
@@ -163,7 +239,6 @@ class TestController extends Controller
             ], 400);
         }
 
-        // Walidacja
         $validator = Validator::make($request->all(), [
             'question' => 'required|string',
         ]);
@@ -172,9 +247,8 @@ class TestController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // Tworzenie pytania
         $question = TestsQuestion::create([
-            'test_id' => $test->id,
+            'test_id'  => $test->id,
             'question' => $request->question,
         ]);
 
@@ -183,8 +257,14 @@ class TestController extends Controller
 
     public function updateQuestion(Request $request, $testId, $questionId)
     {
-        $question = TestsQuestion::where('id', $questionId)->where('test_id', $testId)->firstOrFail();
-        $test = Test::where('id', $testId)->where('user_id', Auth::user()->id)->firstOrFail();
+        $question = TestsQuestion::where('id', $questionId)
+            ->where('test_id', $testId)
+            ->firstOrFail();
+
+        // autoryzacja właściciela testu
+        $test = Test::where('id', $testId)
+            ->where('user_id', Auth::user()->id)
+            ->firstOrFail();
 
         $validator = Validator::make($request->all(), [
             'question' => 'required|string',
@@ -199,8 +279,14 @@ class TestController extends Controller
 
     public function destroyQuestion($testId, $questionId)
     {
-        $question = TestsQuestion::where('id', $questionId)->where('test_id', $testId)->firstOrFail();
-        $test = Test::where('id', $testId)->where('user_id', Auth::user()->id)->firstOrFail();
+        $question = TestsQuestion::where('id', $questionId)
+            ->where('test_id', $testId)
+            ->firstOrFail();
+
+        // autoryzacja właściciela
+        $test = Test::where('id', $testId)
+            ->where('user_id', Auth::user()->id)
+            ->firstOrFail();
 
         $question->delete();
 
@@ -208,84 +294,66 @@ class TestController extends Controller
     }
 
     // =================== ANSWERS ===================
+
     public function storeAnswer(Request $request, $testId, $questionId)
     {
         $user = Auth::user();
 
-        // Sprawdzenie, czy test należy do użytkownika
         $test = Test::where('user_id', $user->id)->findOrFail($testId);
-
-        // Sprawdzenie, czy pytanie istnieje w tym teście
         $question = TestsQuestion::where('test_id', $test->id)->findOrFail($questionId);
 
-        // Sprawdzenie, ile odpowiedzi użytkownik już dodał do tego pytania
-        $existingAnswersCount = TestsAnswer::where('question_id', $question->id)
-            ->count();
-
-        // Ograniczenie do 4 odpowiedzi na pytanie
+        $existingAnswersCount = TestsAnswer::where('question_id', $question->id)->count();
         if ($existingAnswersCount >= 4) {
             return response()->json(['message' => 'Możesz dodać maksymalnie 4 odpowiedzi'], 400);
         }
 
-        // Walidacja danych odpowiedzi
         $validated = $request->validate([
-            'answer' => 'required|string|max:1000',
-            'is_correct' => 'required|boolean',  // Sprawdzamy, czy odpowiedź jest poprawna
+            'answer'     => 'required|string|max:1000',
+            'is_correct' => 'required|boolean',
         ]);
 
-        // Sprawdzamy, czy odpowiedź jest już zapisana
         $existingAnswer = TestsAnswer::where('question_id', $question->id)
             ->where('answer', $validated['answer'])
             ->first();
-
         if ($existingAnswer) {
             return response()->json(['message' => 'Taka odpowiedź już istnieje'], 400);
         }
 
-        // Sprawdzamy, czy w pytaniu jest już przynajmniej jedna poprawna odpowiedź
         $existingCorrectAnswer = TestsAnswer::where('question_id', $question->id)
             ->where('is_correct', true)
             ->first();
 
-        if ($validated['is_correct']) {
-            // Jeśli odpowiedź jest poprawna, sprawdzamy, czy już istnieje odpowiedź poprawna
-            if (!$existingCorrectAnswer) {
-                // Jeśli nie ma żadnej poprawnej odpowiedzi, zapisujemy tę odpowiedź jako poprawną
-                $validated['is_correct'] = true;
-            }
-        } else {
-            // Jeżeli odpowiedź nie jest poprawna, ale jeszcze nie ma żadnej poprawnej,
-            // nie pozwalamy dodać odpowiedzi, ponieważ przynajmniej jedna musi być poprawna
-            if (!$existingCorrectAnswer) {
-                return response()->json(['message' => 'Musisz dodać przynajmniej jedną poprawną odpowiedź'], 400);
-            }
+        if (!$validated['is_correct'] && !$existingCorrectAnswer) {
+            return response()->json(['message' => 'Musisz dodać przynajmniej jedną poprawną odpowiedź'], 400);
         }
 
-        // Tworzenie odpowiedzi
         $answer = TestsAnswer::create([
             'question_id' => $question->id,
-            'answer' => $validated['answer'],
-            'is_correct' => $validated['is_correct'], // Zapisujemy informację o poprawności
+            'answer'      => $validated['answer'],
+            'is_correct'  => (bool) $validated['is_correct'],
         ]);
 
-        return response()->json(['message' => 'Odpowiedź została zapisana', 'answer' => $answer], 201);
+        return response()->json([
+            'message' => 'Odpowiedź została zapisana',
+            'answer'  => $answer
+        ], 201);
     }
+
     public function getAnswersForQuestion($testId, $questionId)
     {
         $user = Auth::user();
 
-        // Sprawdzenie czy test należy do użytkownika
         $test = Test::where('id', $testId)
             ->where('user_id', $user->id)
             ->firstOrFail();
 
-        // Sprawdzenie czy pytanie należy do tego testu
         $question = TestsQuestion::where('id', $questionId)
             ->where('test_id', $test->id)
             ->firstOrFail();
 
-        // Pobranie odpowiedzi powiązanych z pytaniem
-        $answers = TestsAnswer::where('question_id', $question->id)->get();
+        $answers = TestsAnswer::where('question_id', $question->id)
+            ->select('id','question_id','answer','is_correct','created_at','updated_at')
+            ->get();
 
         if ($answers->isEmpty()) {
             return response()->json(['message' => 'Brak odpowiedzi dla tego pytania.'], 404);
@@ -296,20 +364,28 @@ class TestController extends Controller
 
     public function updateAnswer(Request $request, $testId, $questionId, $answerId)
     {
-        $answer = TestsAnswer::where('id', $answerId)->where('question_id', $questionId)->firstOrFail();
-        $question = TestsQuestion::where('id', $questionId)->where('test_id', $testId)->firstOrFail();
-        $test = Test::where('id', $testId)->where('user_id', Auth::user()->id)->firstOrFail();
+        $answer = TestsAnswer::where('id', $answerId)
+            ->where('question_id', $questionId)
+            ->firstOrFail();
+
+        $question = TestsQuestion::where('id', $questionId)
+            ->where('test_id', $testId)
+            ->firstOrFail();
+
+        $test = Test::where('id', $testId)
+            ->where('user_id', Auth::user()->id)
+            ->firstOrFail();
 
         $validator = Validator::make($request->all(), [
-            'answer' => 'required|string',
+            'answer'     => 'required|string',
             'is_correct' => 'required|boolean',
         ]);
 
         if ($validator->fails()) return response()->json(['errors' => $validator->errors()], 422);
 
         $answer->update([
-            'answer' => $request->answer,
-            'is_correct' => $request->is_correct,
+            'answer'     => $request->answer,
+            'is_correct' => (bool) $request->is_correct,
         ]);
 
         return response()->json($answer);
@@ -317,15 +393,24 @@ class TestController extends Controller
 
     public function destroyAnswer($testId, $questionId, $answerId)
     {
-        $answer = TestsAnswer::where('id', $answerId)->where('question_id', $questionId)->firstOrFail();
-        $question = TestsQuestion::where('id', $questionId)->where('test_id', $testId)->firstOrFail();
-        $test = Test::where('id', $testId)->where('user_id', Auth::user()->id)->firstOrFail();
+        $answer = TestsAnswer::where('id', $answerId)
+            ->where('question_id', $questionId)
+            ->firstOrFail();
+
+        $question = TestsQuestion::where('id', $questionId)
+            ->where('test_id', $testId)
+            ->firstOrFail();
+
+        $test = Test::where('id', $testId)
+            ->where('user_id', Auth::user()->id)
+            ->firstOrFail();
 
         $answer->delete();
 
         return response()->json(['message' => 'Answer deleted.']);
     }
 
+    // =================== SHARE TEST -> COURSE ===================
 
     public function shareTestWithCourse(Request $request, $testId): \Illuminate\Http\JsonResponse
     {
@@ -335,34 +420,35 @@ class TestController extends Controller
             'course_id' => 'required|exists:courses,id',
         ]);
 
-        // Pobierz test użytkownika
+        // Test użytkownika
         $test = Test::where('id', $testId)
             ->where('user_id', $user->id)
             ->firstOrFail();
 
-        // Sprawdź status testu
-        if ($test->status !== 'public') {
+        // Test musi być publiczny
+        if ($test->status !== Test::STATUS_PUBLIC) {
             return response()->json(['message' => 'Test musi być publiczny, aby go udostępnić.'], 403);
         }
 
-        // Sprawdź, czy użytkownik jest członkiem kursu
-        $isCourseMember = DB::table('course_user')
-            ->where('course_id', $validated['course_id'])
+        $course = Course::findOrFail($validated['course_id']);
+
+        // Owner OR member
+        $isOwner  = ((int) $course->user_id === (int) $user->id);
+        $isMember = DB::table('courses_users')
+            ->where('course_id', $course->id)
             ->where('user_id', $user->id)
             ->exists();
 
-        if (!$isCourseMember) {
+        if (!$isOwner && !$isMember) {
             return response()->json(['message' => 'Nie jesteś członkiem wybranego kursu.'], 403);
         }
 
-        // Udostępnienie testu w kursie
-        $test->course_id = $validated['course_id'];
+        $test->course_id = $course->id;
         $test->save();
 
         return response()->json([
             'message' => 'Test został udostępniony w kursie.',
-            'test' => $test
+            'test'    => $test
         ], 200);
     }
-
 }

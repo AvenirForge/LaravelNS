@@ -6,117 +6,117 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class UserController extends Controller
 {
     public function login(Request $request): \Illuminate\Http\JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'email' => 'required|string|email',
+            'email'    => 'required|string|email',
             'password' => 'required|string',
         ]);
-
         if ($validator->fails()) {
             return response()->json(['error' => $validator->errors()], 400);
         }
 
         $credentials = $request->only('email', 'password');
-
-        if ($token = JWTAuth::attempt($credentials)) {
-            $user = Auth::user();
-
-            return response()->json([
-                'message' => 'Login successful',
-                'userId' => $user->id,
-                'token' => $token,
-            ]);
+        if (!$token = JWTAuth::attempt($credentials)) {
+            return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        return response()->json(['error' => 'Unauthorized'], 401);
+        /** @var User $user */
+        $user = Auth::user();
+
+        return response()->json([
+            'message' => 'Login successful',
+            'userId'  => $user->id,
+            'token'   => $token,
+            'user'    => $user->only(['id', 'name', 'email']) + ['avatar_url' => $user->avatar_url],
+        ]);
     }
 
     public function store(Request $request): \Illuminate\Http\JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8|confirmed',
-            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+            'name'                  => 'required|string|max:255',
+            'email'                 => 'required|string|email|max:255|unique:users,email',
+            'password'              => 'required|string|min:8|confirmed',
         ]);
-
         if ($validator->fails()) {
             return response()->json(['error' => $validator->errors()], 400);
         }
 
         $user = new User();
-        $user->name = $request->input('name');
-        $user->email = $request->input('email');
-        $user->password = Hash::make($request->input('password'));
+        $user->name     = (string) $request->input('name');
+        $user->email    = (string) $request->input('email');
 
-        if ($request->hasFile('avatar')) {
-            $avatarPath = $request->file('avatar')->store('users/avatars', 'public');
-            $user->avatar = $avatarPath;
-        } else {
-            $user->avatar = 'NONE';
-        }
+        // Dzięki $casts['password' => 'hashed'] możemy przypisać „gołe” hasło – Eloquent je zhashuje
+        $user->password = (string) $request->input('password');
+
+        // Ustawiamy avatar domyślny (stała zdefiniowana w modelu User)
+        $user->avatar   = User::DEFAULT_AVATAR_RELATIVE;
 
         $user->save();
 
         return response()->json([
             'message' => 'User created successfully!',
-            'user' => $user,
+            'user'    => $user->only(['id', 'name', 'email']) + ['avatar_url' => $user->avatar_url],
         ], 201);
     }
 
+    /**
+     * PATCH /api/me/profile
+     */
     public function update(Request $request): \Illuminate\Http\JsonResponse
     {
+        /** @var User|null $user */
         $user = Auth::user();
         if (!$user) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
-            'email' => 'sometimes|string|email|max:255|unique:users,email,' . $user->id,
-            'password' => 'sometimes|string|min:8|confirmed',
+            'name'     => 'sometimes|present|string|max:255',
+            'email'    => 'sometimes|present|string|email|max:255|unique:users,email,' . $user->id,
+            'password' => 'sometimes|present|string|min:8|confirmed',
+            // avatar edytujemy wyłącznie przez /me/profile/avatar
         ]);
-
         if ($validator->fails()) {
             return response()->json(['error' => $validator->errors()], 400);
         }
 
         if ($request->has('name')) {
-            $user->name = $request->input('name');
+            $user->name = (string) $request->input('name');
         }
-
         if ($request->has('email')) {
-            $user->email = $request->input('email');
+            $user->email = (string) $request->input('email');
         }
-
         if ($request->has('password')) {
-            $user->password = Hash::make($request->input('password'));
+            // cast 'hashed' zrobi resztę
+            $user->password = (string) $request->input('password');
         }
 
         $user->save();
+        $user->refresh();
 
         return response()->json([
             'message' => 'User updated successfully!',
-            'user' => $user,
+            'user'    => $user->only(['id', 'name', 'email']) + ['avatar_url' => $user->avatar_url],
         ]);
     }
 
     public function updateAvatar(Request $request): \Illuminate\Http\JsonResponse
     {
+        /** @var User|null $user */
         $user = Auth::user();
         if (!$user) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        // Sprawdzenie czy plik istnieje
         if (!$request->hasFile('avatar')) {
             return response()->json(['error' => ['avatar' => ['The avatar file is required.']]], 400);
         }
@@ -124,52 +124,62 @@ class UserController extends Controller
         $validator = Validator::make($request->all(), [
             'avatar' => 'required|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ]);
-
         if ($validator->fails()) {
             return response()->json(['error' => $validator->errors()], 400);
         }
 
-        // Usunięcie starego avatara, jeśli istnieje
-        if ($user->avatar && Storage::disk('public')->exists($user->avatar)) {
-            Storage::disk('public')->delete($user->avatar);
+        if ($user->avatar && $user->avatar !== User::DEFAULT_AVATAR_RELATIVE) {
+            if (Storage::disk('public')->exists($user->avatar)) {
+                Storage::disk('public')->delete($user->avatar);
+            }
         }
 
-        // Zapis nowego avatara
-        $avatarPath = $request->file('avatar')->store('users/avatars', 'public');
-        $user->avatar = $avatarPath;
+        $path = $request->file('avatar')->store('users/avatars', 'public');
+        $user->avatar = $path;
         $user->save();
+        $user->refresh();
 
         return response()->json([
-            'message' => 'Avatar updated successfully!',
-            'avatar_url' => Storage::url($avatarPath),
-            'user' => $user,
+            'message'    => 'Avatar updated successfully!',
+            'avatar_url' => $user->avatar_url,
+            'user'       => $user->only(['id', 'name', 'email']) + ['avatar_url' => $user->avatar_url],
         ]);
     }
-    public function downloadAvatar(): \Symfony\Component\HttpFoundation\BinaryFileResponse|\Illuminate\Http\JsonResponse
-    {
-        $user = Auth::user();
 
+    public function downloadAvatar(): BinaryFileResponse|\Illuminate\Http\JsonResponse
+    {
+        /** @var User|null $user */
+        $user = Auth::user();
         if (!$user) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        $avatarPath = $user->avatar
-            ? storage_path("app/public/{$user->avatar}")
-            : storage_path("app/users/avatars/default.png");
+        $relative = $user->avatar ?: User::DEFAULT_AVATAR_RELATIVE;
 
-        if (!file_exists($avatarPath)) {
-            return response()->json(['error' => 'Avatar not found'], 404);
+        // Jeżeli brak pliku użytkownika – próbujemy default
+        if (!Storage::disk('public')->exists($relative)) {
+            $relative = User::DEFAULT_AVATAR_RELATIVE;
+            if (!Storage::disk('public')->exists($relative)) {
+                return response()->json(['error' => 'Avatar not found'], 404);
+            }
         }
 
-        return response()->download($avatarPath);
+        $absolute = Storage::disk('public')->path($relative);
+        return response()->download($absolute);
     }
 
     public function destroy(): \Illuminate\Http\JsonResponse
     {
+        /** @var User|null $user */
         $user = Auth::user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
-        if ($user->avatar) {
-            Storage::delete($user->avatar);
+        if ($user->avatar && $user->avatar !== User::DEFAULT_AVATAR_RELATIVE) {
+            if (Storage::disk('public')->exists($user->avatar)) {
+                Storage::disk('public')->delete($user->avatar);
+            }
         }
 
         $user->delete();
@@ -179,23 +189,30 @@ class UserController extends Controller
 
     public function logout(): \Illuminate\Http\JsonResponse
     {
+        try {
+            $token = JWTAuth::getToken();
+            if ($token) {
+                JWTAuth::invalidate($token);
+            }
+        } catch (\Throwable $e) {
+            // no-op
+        }
+
         Auth::logout();
+
         return response()->json(['message' => 'User logged out successfully']);
     }
 
-    /**
-     * ✅ NEW: Get current authenticated user profile
-     */
     public function show(): \Illuminate\Http\JsonResponse
     {
+        /** @var User|null $user */
         $user = Auth::user();
-
         if (!$user) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
         return response()->json([
-            'user' => $user,
+            'user' => $user->only(['id', 'name', 'email']) + ['avatar_url' => $user->avatar_url],
         ]);
     }
 }

@@ -5,85 +5,29 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Note extends Model
 {
     use HasFactory;
 
-    protected $fillable = [
-        'title',
-        'description',
-        'file_path',
-        'is_private',
-        'user_id',
-    ];
-    protected $casts = [
-        'is_private' => 'boolean',  // Upewniamy się, że to pole jest traktowane jako boolean
-    ];
-    /**
-     * Define a relationship with the User model.
-     */
-    public function user(): \Illuminate\Database\Eloquent\Relations\BelongsTo
-    {
-        return $this->belongsTo(User::class);
-    }
+    protected $fillable = ['title', 'description', 'file_path', 'is_private', 'user_id', 'status', 'course_id',];
 
-    /**
-     * Relacja many-to-one z kursami.
-     */
-    public function course(): \Illuminate\Database\Eloquent\Relations\BelongsTo
-    {
-        return $this->belongsTo(Course::class);
-    }
-    /**
-     * Get the file URL for the note.
-     *
-     * @return string
-     */
+    protected $casts = ['is_private' => 'boolean'];
+
+    public function user(): BelongsTo   { return $this->belongsTo(User::class); }
+    public function course(): BelongsTo { return $this->belongsTo(Course::class); }
+
     public function getFileUrlAttribute(): ?string
-    {
-        return $this->file_path ? Storage::url($this->file_path) : null;
-    }
+    { return $this->file_path ? Storage::url($this->file_path) : null; }
 
-    /**
-     * Define a scope to filter private notes.
-     *
-     * @param $query
-     * @return mixed
-     */
-    public function scopeIsPrivate($query): mixed
-    {
-        return $query->where('is_private', true);
-    }
+    public function scopeIsPrivate($q): mixed { return $q->where('is_private', true); }
+    public function scopeIsPublic($q): mixed  { return $q->where('is_private', false); }
 
-    /**
-     * Define a scope to filter public notes.
-     *
-     * @param $query
-     * @return mixed
-     */
-    public function scopeIsPublic($query)
-    {
-        return $query->where('is_private', false);
-    }
-
-    /**
-     * Delete the note's file when it is deleted.
-     */
-    public static function boot(): void
+    protected static function boot(): void
     {
         parent::boot();
-
-        static::deleting(function ($note) {
-            if ($note->file_path) {
-                Storage::delete($note->file_path);
-            }
-        });
-
-        static::creating(function ($note) {
-            if (!$note->is_private) {
-                $note->is_private = true; // Domyślnie ustawiamy na true
-            }
-        });
+        static::deleting(fn($n) => $n->file_path && Storage::delete($n->file_path));
+        static::creating(fn($n) => $n->is_private ??= true);
     }
 }

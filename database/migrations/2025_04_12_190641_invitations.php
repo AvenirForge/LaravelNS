@@ -13,16 +13,47 @@ return new class extends Migration
     {
         Schema::create('invitations', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('course_id')->constrained()->onDelete('cascade');  // Powiązanie z kursem
-            $table->foreignId('inviter_id')->constrained('users')->onDelete('cascade');  // Powiązanie z zapraszającym
-            $table->string('invited_email');  // E-mail zaproszonego użytkownika
-            $table->enum('status', ['pending', 'accepted', 'rejected', 'cancelled'])->default('pending');  // Status zaproszenia
-            $table->string('token')->unique();  // Unikalny token do zaproszenia
-            $table->timestamp('expires_at');  // Czas wygaśnięcia zaproszenia
-            $table->timestamp('responded_at')->nullable();  // Czas odpowiedzi na zaproszenie (jeśli użytkownik zaakceptował lub odrzucił)
-            $table->foreignId('user_id')->nullable()->constrained('users')->onDelete('set null');  // Powiązanie z użytkownikiem, który zaakceptował zaproszenie (jeśli dotyczy)
+
+            // Kurs, do którego dotyczy zaproszenie
+            $table->foreignId('course_id')
+                ->constrained('courses')
+                ->cascadeOnUpdate()
+                ->cascadeOnDelete();
+
+            // Użytkownik zapraszający (owner / moderator kursu)
+            $table->foreignId('inviter_id')
+                ->constrained('users')
+                ->cascadeOnUpdate()
+                ->cascadeOnDelete();
+
+            // Użytkownik, który przyjął/odrzucił zaproszenie (może być null dopóki pending)
+            $table->foreignId('user_id')
+                ->nullable()
+                ->constrained('users')
+                ->cascadeOnUpdate()
+                ->nullOnDelete();
+
+            // Dane zaproszenia
+            $table->string('invited_email', 255);
+            $table->enum('status', ['pending', 'accepted', 'rejected', 'cancelled', 'expired'])
+                ->default('pending');
+
+            // Rola, jaką zapraszany użytkownik otrzyma po akceptacji
+            $table->enum('role', ['owner', 'admin', 'moderator', 'user', 'member'])
+                ->default('user');
+
+            // Token weryfikacyjny (np. do linków)
+            $table->string('token', 64)->unique();
+
+            // Daty ważności i odpowiedzi
+            $table->timestamp('expires_at')->nullable();
+            $table->timestamp('responded_at')->nullable();
 
             $table->timestamps();
+
+            // Indeksy pod najczęstsze zapytania
+            $table->index(['course_id', 'invited_email']);
+            $table->index(['status', 'expires_at']);
         });
     }
 
@@ -31,6 +62,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        //
+        Schema::dropIfExists('invitations');
     }
 };
