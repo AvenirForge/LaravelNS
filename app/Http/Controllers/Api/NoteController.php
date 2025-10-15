@@ -258,4 +258,131 @@ class NoteController extends Controller
         $absolute = Storage::disk('public')->path($note->file_path);
         return response()->download($absolute);
     }
+
+
+    public function indexForCourse(Request $request, int $courseId)
+    {
+        $me = Auth::user();
+
+        /** @var Course|null $course */
+        $course = Course::find($courseId);
+        if (!$course) {
+            return response()->json(['error' => 'Course not found'], 404);
+        }
+
+        // Ustalenie ról/członkostwa
+        $meId    = $me?->id;
+        $isOwner = $meId ? ((int)$course->user_id === (int)$meId) : false;
+        $pivot   = $meId ? $course->users()->where('user_id', $meId)->first() : null;
+
+        $role    = $pivot?->pivot?->role;
+        $status  = $pivot?->pivot?->status;
+
+        // Zależnie od projektu możesz mieć różne etykiety „zaakceptowania”
+        $ACCEPTED_STATUSES = ['accepted', 'active', 'approved', 'joined'];
+        $isMemberAccepted  = $status ? in_array($status, $ACCEPTED_STATUSES, true) : false;
+
+        $isAdminLike = $isOwner || in_array($role, ['owner','admin','moderator'], true);
+
+        // TWARDY wymóg członkostwa: brak wyjątków dla kursów publicznych
+        if (!$isOwner && !$isAdminLike && !$isMemberAccepted) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        // Filtry i parametry
+        $needle     = $request->string('q')->trim()->toString() ?: null;
+        $authorId   = $request->integer('user_id') ?: null;
+        $visibility = $request->string('visibility')->trim()->toString() ?: 'auto';
+
+        $sort  = $request->string('sort')->trim()->toString() ?: 'created_at';
+        $order = strtolower($request->string('order')->trim()->toString() ?: 'desc');
+        $order = in_array($order, ['asc','desc'], true) ? $order : 'desc';
+
+        $perPage = max(1, min(100, (int)($request->input('per_page', 20))));
+
+        $q = Note::query()
+            ->where('course_id', $course->id)
+            ->with(['user:id,name,avatar']);
+
+        // Widoczność wg ról
+        if ($isAdminLike) {
+            if ($visibility === 'public')   { $q->where('is_private', false); }
+            elseif ($visibility === 'private') { $q->where('is_private', true); }
+            // 'all'/'auto' → bez dodatkowych ograniczeń
+        } else {
+            // Member accepted: publiczne + prywatne własne
+            $q->where(function($w) use ($meId) {
+                $w->where('is_private', false)
+                    ->orWhere('user_id', $meId);
+            });
+            if ($visibility === 'public') {
+                $q->where('is_private', false);
+            } elseif ($visibility === 'private') {
+                $q->where('user_id', $meId)->where('is_private', true);
+            }
+        }
+
+        // Filtry
+        if ($needle) {
+            $like = "%{$needle}%";
+            $q->where(function($w) use ($like) {
+                $w->where('title','like',$like)
+                    ->orWhere('description','like',$like);
+            });
+        }
+        if ($authorId) {
+            $q->where('user_id', (int)$authorId);
+        }
+
+        // Sort
+        if (in_array($sort, ['created_at','updated_at','title'], true)) {
+            $q->orderBy($sort, $order);
+        } else {
+            $q->orderBy('created_at', 'desc');
+        }
+
+        $page = $q->paginate($perPage);
+
+        $items = $page->getCollection()->map(function (Note $n) {
+            return [
+                'id'         => $n->id,
+                'title'      => $n->title,
+                'description'=> $n->description,
+                'is_private' => (bool)$n->is_private,
+                'file_url'   => $n->file_url, // accessor
+                'user'       => [
+                    'id'         => $n->user?->id,
+                    'name'       => $n->user?->name,
+                    'avatar_url' => $n->user?->avatar_url,
+                ],
+                'created_at' => optional($n->created_at)?->toISOString(),
+                'updated_at' => optional($n->updated_at)?->toISOString(),
+            ];
+        })->all();
+
+        return response()->json([
+            'course' => [
+                'id'                  => $course->id,
+                'title'               => $course->title,
+                'type'                => $course->type,
+                'role'                => $role,
+                'can_see_all_private' => $isAdminLike,
+            ],
+            'filters' => [
+                'q'          => $needle,
+                'user_id'    => $authorId,
+                'visibility' => $visibility,
+                'sort'       => $sort,
+                'order'      => $order,
+                'per_page'   => $perPage,
+            ],
+            'pagination' => [
+                'total'        => $page->total(),
+                'per_page'     => $page->perPage(),
+                'current_page' => $page->currentPage(),
+                'last_page'    => $page->lastPage(),
+            ],
+            'notes' => $items,
+        ]);
+    }
 }

@@ -7,9 +7,11 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\NoteController;
 use Illuminate\Support\Facades\Route;
 
-// Public (bez auth)
+// Public
 Route::post('/login', [UserController::class, 'login']);
 Route::post('/users/register', [UserController::class, 'store']);
+
+// Token refresh (wymaga przesłania aktualnego/wygaśniętego tokenu w Authorization)
 Route::post('/refresh', [UserController::class, 'refresh']);
 
 Route::middleware('auth:api')->group(function () {
@@ -31,7 +33,7 @@ Route::middleware('auth:api')->group(function () {
         Route::patch('/courses/{id}',          [CourseController::class, 'update']);
         Route::delete('/courses/{id}',         [CourseController::class, 'destroy']);
 
-        // NOTES (operacje użytkownika)
+        // NOTES — dodany GET /notes/{id}
         Route::get('/notes',                   [NoteController::class, 'index']);
         Route::post('/notes',                  [NoteController::class, 'store']);
         Route::get('/notes/{id}',              [NoteController::class, 'show']);
@@ -41,7 +43,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/notes/{id}/download',     [NoteController::class, 'download']);
         Route::post('/notes/{noteId}/share/{courseId}', [NoteController::class, 'shareNoteWithCourse']);
 
-        // TESTS (per user)
+        // TESTS (sekcja Quiz)
         Route::get('/tests',                   [TestController::class, 'indexForUser']);
         Route::post('/tests',                  [TestController::class, 'storeForUser']);
         Route::get('/tests/{id}',              [TestController::class, 'showForUser']);
@@ -56,6 +58,7 @@ Route::middleware('auth:api')->group(function () {
         Route::put('/tests/{testId}/questions/{questionId}/answers/{answerId}', [TestController::class, 'updateAnswer']);
         Route::delete('/tests/{testId}/questions/{questionId}/answers/{answerId}', [TestController::class, 'destroyAnswer']);
         Route::post('/tests/{testId}/share',   [TestController::class, 'shareTestWithCourse']);
+
     });
 
     // COURSES – akcje poza /me
@@ -68,14 +71,10 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/invitations/{token}/accept', [InvitationController::class, 'acceptInvitation']);
     Route::post('/invitations/{token}/reject', [InvitationController::class, 'rejectInvitation']);
 
-    // TESTS in courses
+    // tests in courses
     Route::get('/courses/{courseId}/tests',                 [TestController::class, 'indexForCourse']);
     Route::post('/courses/{courseId}/tests',                [TestController::class, 'storeForCourse']);
     Route::get('/courses/{courseId}/tests/{testId}',        [TestController::class, 'showForCourse']);
     Route::put('/courses/{courseId}/tests/{testId}',        [TestController::class, 'updateForCourse']);
     Route::delete('/courses/{courseId}/tests/{testId}',     [TestController::class, 'destroyForCourse']);
-
-    // Widoki kursu dla frontu (za auth)
-    Route::get('/courses/{courseId}/users', [UserController::class, 'usersForCourse']);
-    Route::get('/courses/{courseId}/notes', [NoteController::class, 'indexForCourse']);
 });

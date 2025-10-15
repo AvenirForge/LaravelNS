@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Models\Course;
 use App\Models\User;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -216,6 +219,128 @@ class UserController extends Controller
 
         return response()->json([
             'user' => $user->only(['id', 'name', 'email']) + ['avatar_url' => $user->avatar_url],
+        ]);
+    }
+
+    public function usersForCourse(Request $request, int $courseId)
+    {
+        $me = Auth::user();
+
+        /** @var Course|null $course */
+        $course = Course::find($courseId);
+        if (!$course) {
+            return response()->json(['error' => 'Course not found'], 404);
+        }
+
+        // --- Aliasy statusów i ról ---
+        $ACCEPTED_STATUSES = ['accepted','active','approved','joined'];
+        $ROLE_ALIASES = [
+            'member' => ['member','user'],
+            'admin'  => ['admin'],
+            'owner'  => ['owner'],
+            'moderator' => ['moderator'],
+        ];
+
+        // Czy JA jestem właścicielem / admin-like / accepted member?
+        $meId    = $me?->id;
+        $isOwner = $meId ? ((int)$course->user_id === (int)$meId) : false;
+
+        // Użyj bezpośrednio pivotu z DB (omija ewentualne global scopes na relacji)
+        $pivot = $meId
+            ? DB::table('courses_users')->where('course_id', $course->id)->where('user_id', $meId)->first()
+            : null;
+
+        $role   = $pivot->role   ?? null;
+        $status = $pivot->status ?? null;
+
+        $isMemberAccepted = $status ? in_array($status, $ACCEPTED_STATUSES, true) : false;
+        $isAdminLike = $isOwner || in_array($role, ['owner','admin','moderator'], true);
+
+        if (!$isOwner && !$isMemberAccepted && !$isAdminLike) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        // --- Filtry / sort / paginacja ---
+        $needle  = $request->string('q')->trim()->toString() ?: null;
+        $roleF   = $request->string('role')->trim()->toString() ?: null;
+        $statusF = $request->string('status')->trim()->toString() ?: null;
+
+        $sort  = $request->string('sort')->trim()->toString() ?: 'name';
+        $order = strtolower($request->string('order')->trim()->toString() ?: 'asc');
+        $order = in_array($order, ['asc','desc'], true) ? $order : 'asc';
+
+        $perPage = max(1, min(100, (int)($request->input('per_page', 20))));
+
+        $builder = $course->users()
+            ->select('users.id','users.name','users.email','users.avatar')
+            ->withPivot(['role','status','created_at'])
+            // member bez uprawnień admin-like widzi tylko zaakceptowane wg aliasów
+            ->when(!$isAdminLike, function($q) use ($ACCEPTED_STATUSES) {
+                $q->whereIn('courses_users.status', $ACCEPTED_STATUSES);
+            })
+            ->when($needle, function($q, $n) {
+                $like = "%{$n}%";
+                $q->where(function($w) use ($like) {
+                    $w->where('users.name','like',$like)
+                        ->orWhere('users.email','like',$like);
+                });
+            })
+            // role filter: akceptuj aliasy (member→member|user)
+            ->when($roleF, function($q) use ($ROLE_ALIASES, $roleF) {
+                $opts = $ROLE_ALIASES[$roleF] ?? [$roleF];
+                $q->whereIn('courses_users.role', $opts);
+            })
+            // status filter (jeśli admin-like) — akceptuj aliasy; dla 'all' nie filtruj
+            ->when($statusF && $statusF !== 'all', function($q) use ($ACCEPTED_STATUSES, $statusF) {
+                $opts = $statusF === 'accepted' ? $ACCEPTED_STATUSES : [$statusF];
+                $q->whereIn('courses_users.status', $opts);
+            });
+
+        if ($sort === 'role') {
+            $builder->orderBy('courses_users.role', $order)->orderBy('users.name', 'asc');
+        } elseif ($sort === 'joined') {
+            $builder->orderBy('courses_users.created_at', $order);
+        } else {
+            $builder->orderBy('users.name', $order);
+        }
+
+        $page = $builder->paginate($perPage);
+
+        $items = $page->getCollection()->map(function(\App\Models\User $u) {
+            return [
+                'id'         => $u->id,
+                'name'       => $u->name,
+                'email'      => $u->email,
+                'avatar_url' => $u->avatar_url,
+                'role'       => $u->pivot?->role,
+                'status'     => $u->pivot?->status,
+                'joined_at'  => optional($u->pivot?->created_at)?->toISOString(),
+            ];
+        })->all();
+
+        return response()->json([
+            'course' => [
+                'id'       => $course->id,
+                'title'    => $course->title,
+                'type'     => $course->type,
+                'role'     => $role,
+                'is_owner' => $isOwner,
+            ],
+            'filters' => [
+                'q'        => $needle,
+                'role'     => $roleF,
+                'status'   => $statusF ?: ($isAdminLike ? 'all' : 'accepted'),
+                'sort'     => $sort,
+                'order'    => $order,
+                'per_page' => $perPage,
+            ],
+            'pagination' => [
+                'total'        => $page->total(),
+                'per_page'     => $page->perPage(),
+                'current_page' => $page->currentPage(),
+                'last_page'    => $page->lastPage(),
+            ],
+            'users' => $items,
         ]);
     }
 }

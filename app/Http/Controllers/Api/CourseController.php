@@ -188,4 +188,5 @@ class CourseController extends Controller
 
         return response()->json(true);
     }
+
 }
