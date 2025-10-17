@@ -38,19 +38,30 @@
         .container{max-width:var(--container); margin:0 auto; padding:0 20px}
 
         /* NAVBAR */
-        .nav{position:sticky; top:0; z-index:1000; height:var(--nav);
+        .nav{
+            position:sticky; top:0; z-index:1000; height:var(--nav);
             display:flex; align-items:center; border-bottom:1px solid var(--border);
             backdrop-filter:saturate(140%) blur(10px);
             background:linear-gradient(180deg, rgba(0,0,0,.25), rgba(0,0,0,.06));
         }
-        .nav-inner{display:flex; align-items:center; justify-content:space-between}
-        .brand{display:flex; align-items:center; gap:10px}
+        .nav-inner{
+            display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:16px;
+        }
+        .brand{display:flex; align-items:center; gap:10px; justify-self:start}
         .brand img{width:36px; height:36px}
         .brand span{font-family:Pacifico,cursive; font-size:26px}
-        .links{display:flex; gap:12px}
+        .links{display:flex; gap:12px; justify-self:center}
         .link{padding:10px 12px; border-radius:10px}
         .link:hover{background:rgba(255,255,255,.06)}
-        @media (max-width:920px){ .links{display:none} }
+        .nav-cta{justify-self:end}
+        .btn{
+            display:inline-flex; gap:10px; align-items:center; padding:10px 14px; border-radius:12px; font-weight:700; box-shadow:var(--shadow);
+            background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); color:#0b1020; border:0;
+        }
+        .btn:hover{transform:translateY(-1px)}
+        @media (max-width:920px){
+            .links{display:none}
+        }
 
         /* HERO */
         .hero{padding:72px 0 18px}
@@ -75,12 +86,46 @@
         .shot:nth-child(even){animation-name:floatB; animation-delay:.4s}
         .shot:hover{transform:scale(1.06); animation-play-state:paused}
 
-        /* FEATURES (krótko i czytelnie) */
+        /* FEATURES */
         .features{padding:22px 0 28px}
         .fgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px}
         .tile{padding:16px; border-radius:14px; background:var(--card); border:1px solid var(--border)}
         .tile h3{margin:6px 0 4px; font-size:18px}
         .tile p{margin:0; color:var(--muted)}
+
+        /* ABOUT */
+        .about{padding:28px 0}
+        .about-grid{display:grid; grid-template-columns:1.2fr .8fr; gap:18px; align-items:stretch}
+        @media (max-width:920px){ .about-grid{grid-template-columns:1fr} }
+        .badge{font-size:12px; font-weight:700; color:#0b1020; background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); display:inline-block; padding:6px 10px; border-radius:999px}
+        .pill{display:inline-flex; align-items:center; gap:8px; padding:10px 12px; border-radius:12px; background:var(--card); border:1px solid var(--border); font-weight:600}
+        .stack{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
+
+        /* FAQ */
+        .faq{padding:18px 0 30px}
+        .faq-list{display:grid; gap:10px}
+        .faq-item{border:1px solid var(--border); border-radius:14px; background:var(--card); overflow:hidden}
+        .faq-q{width:100%; text-align:left; background:transparent; color:var(--fg); padding:16px 18px; font-weight:700; border:0; cursor:pointer; display:flex; justify-content:space-between; align-items:center}
+        .faq-a{max-height:0; overflow:hidden; transition:max-height .45s cubic-bezier(.25,.8,.25,1), opacity .35s ease; opacity:.0; padding:0 18px}
+        .faq-item.open .faq-a{opacity:1; padding:0 18px 16px}
+        .faq-icon{transition:transform .35s ease}
+        .faq-item.open .faq-icon{transform:rotate(45deg)}
+
+        /* CONTACT */
+        .contact{padding:28px 0 46px}
+        .form{display:grid; gap:12px}
+        .row{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+        @media (max-width:720px){ .row{grid-template-columns:1fr} }
+        .field{display:flex; flex-direction:column; gap:6px}
+        .label{font-size:14px; color:var(--muted)}
+        .input, .textarea{
+            background:rgba(255,255,255,.04); border:1px solid var(--border); color:var(--fg); border-radius:12px;
+            padding:12px 14px; outline:none;
+        }
+        .input:focus, .textarea:focus{border-color:var(--accent)}
+        .textarea{min-height:140px; resize:vertical}
+        .form-actions{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap}
+        .hint{color:var(--muted); font-size:12px}
 
         /* FOOTER */
         footer{border-top:1px solid var(--border); padding:26px 18px 42px; color:var(--muted); position:relative; text-align:center}
@@ -95,15 +140,21 @@
 <div class="nav">
     <div class="container nav-inner">
         <a class="brand" href="#top" aria-label="Strona główna">
-            <!-- placeholder logo -->
             <img src="{{ asset('assets/images/logo-notesync.svg') }}" alt="Logo" />
             <span>NoteSync</span>
         </a>
+
         <nav class="links" aria-label="Nawigacja">
             <a class="link" href="#features">Funkcje</a>
             <a class="link" href="#screens">Zrzuty</a>
+            <a class="link" href="#about">O nas</a>
+            <a class="link" href="#faq">FAQ</a>
             <a class="link" href="#download">Pobierz</a>
         </nav>
+
+        <div class="nav-cta">
+            <a class="btn" href="#contact" id="contactBtn">Kontakt</a>
+        </div>
     </div>
 </div>
 
@@ -135,22 +186,10 @@
 <main class="shots" id="screens">
     <div class="container">
         <div class="gridShots">
-            <img class="shot"
-                 alt="Lista notatek"
-                 data-light-src="{{ asset('assets/images/app_light_1.png') }}"
-                 data-dark-src="{{ asset('assets/images/app_dark_1.png') }}" />
-            <img class="shot"
-                 alt="Edycja"
-                 data-light-src="{{ asset('assets/images/app_light_2.png') }}"
-                 data-dark-src="{{ asset('assets/images/app_dark_2.png') }}" />
-            <img class="shot"
-                 alt="Zespoły"
-                 data-light-src="{{ asset('assets/images/app_light_3.png') }}"
-                 data-dark-src="{{ asset('assets/images/app_dark_3.png') }}" />
-            <img class="shot"
-                 alt="Quiz ABCD"
-                 data-light-src="{{ asset('assets/images/app_light_4.png') }}"
-                 data-dark-src="{{ asset('assets/images/app_dark_4.png') }}" />
+            <img class="shot" src="{{ asset('assets/images/app_light_1.png') }}" alt="Lista notatek" />
+            <img class="shot" src="{{ asset('assets/images/app_light_2.png') }}" alt="Edycja notatki" />
+            <img class="shot" src="{{ asset('assets/images/app_light_3.png') }}" alt="Zespoły" />
+            <img class="shot" src="{{ asset('assets/images/app_light_4.png') }}" alt="Quiz ABCD" />
         </div>
     </div>
 </main>
@@ -162,6 +201,123 @@
         <article class="tile"><h3>Zespoły</h3><p>Współpraca w czasie rzeczywistym.</p></article>
         <article class="tile"><h3>Wiedza</h3><p>Quizy ABCD do utrwalania.</p></article>
         <article class="tile"><h3>Bezpieczeństwo</h3><p>Nowoczesne standardy ochrony.</p></article>
+    </div>
+</section>
+
+<!-- ABOUT -->
+<section class="about" id="about" aria-labelledby="about-title">
+    <div class="container about-grid">
+        <div class="card">
+            <span class="badge">O nas</span>
+            <h2 id="about-title" style="margin:10px 0 6px">Tworzymy NoteSync z myślą o szybkości i prostocie</h2>
+            <p style="color:var(--muted); margin:0 0 10px">
+                Jesteśmy małym zespołem, który łączy doświadczenie mobilne i backendowe. Dostarczamy niezawodne
+                narzędzia do notowania, które nie przeszkadzają w pracy — tylko ją przyspieszają.
+            </p>
+            <div class="stack">
+                <span class="pill">Frontend: React Native</span>
+                <span class="pill">Backend: Laravel API</span>
+                <span class="pill">Sync: REST + Webhooks</span>
+                <span class="pill">Bezpieczeństwo: JWT + szyfrowanie</span>
+            </div>
+        </div>
+        <div class="card" aria-label="Zespół">
+            <h3 style="margin:0 0 8px">Zespół</h3>
+            <ul style="list-style:none;margin:0;padding:0;display:grid;gap:10px">
+                <li><strong>Frontend (React Native):</strong> projekt UI/UX, offline-first, animacje i dostępność.</li>
+                <li><strong>Backend (Laravel API):</strong> architektura, bezpieczeństwo, wydajna synchronizacja.</li>
+                <li><strong>DevOps:</strong> CI/CD, monitoring, stabilność aktualizacji.</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<!-- FAQ -->
+<section class="faq" id="faq" aria-labelledby="faq-title">
+    <div class="container">
+        <h2 id="faq-title" style="margin:0 0 10px">FAQ — najczęstsze pytania</h2>
+        <div class="faq-list" role="list">
+            <div class="faq-item" role="listitem">
+                <button class="faq-q" aria-expanded="false">
+                    <span>Czy NoteSync działa offline?</span>
+                    <span class="faq-icon">＋</span>
+                </button>
+                <div class="faq-a">
+                    <p>Tak. Tworzysz i edytujesz notatki bez internetu. Gdy tylko połączenie wróci — wszystko synchronizuje się automatycznie.</p>
+                </div>
+            </div>
+            <div class="faq-item" role="listitem">
+                <button class="faq-q" aria-expanded="false">
+                    <span>Jak wygląda synchronizacja między urządzeniami?</span>
+                    <span class="faq-icon">＋</span>
+                </button>
+                <div class="faq-a">
+                    <p>Backend Laravel udostępnia REST API. Aplikacja mobilna (React Native) łączy się bezpiecznie, a zmiany są scalane według czasu i wersji.</p>
+                </div>
+            </div>
+            <div class="faq-item" role="listitem">
+                <button class="faq-q" aria-expanded="false">
+                    <span>Czy moje dane są bezpieczne?</span>
+                    <span class="faq-icon">＋</span>
+                </button>
+                <div class="faq-a">
+                    <p>Stosujemy uwierzytelnianie tokenami (JWT), szyfrowanie w spoczynku i w tranzycie oraz najlepsze praktyki OWASP.</p>
+                </div>
+            </div>
+            <div class="faq-item" role="listitem">
+                <button class="faq-q" aria-expanded="false">
+                    <span>Czy mogę współdzielić notatki z zespołem?</span>
+                    <span class="faq-icon">＋</span>
+                </button>
+                <div class="faq-a">
+                    <p>Tak. Twórz zespoły, zapraszaj współpracowników i udostępniaj foldery lub pojedyncze notatki z uprawnieniami.</p>
+                </div>
+            </div>
+            <div class="faq-item" role="listitem">
+                <button class="faq-q" aria-expanded="false">
+                    <span>Czy jest tryb ciemny?</span>
+                    <span class="faq-icon">＋</span>
+                </button>
+                <div class="faq-a">
+                    <p>Interfejs wspiera preferencje systemowe. Strona i aplikacja zachowują spójny, czytelny wygląd w obu trybach.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CONTACT -->
+<section class="contact" id="contact" aria-labelledby="contact-title">
+    <div class="container">
+        <div class="card">
+            <h2 id="contact-title" style="margin:0 0 8px">Skontaktuj się z nami</h2>
+            <p class="lead" style="margin:0 0 16px">Masz pytanie lub propozycję? Napisz — odpowiemy szybko.</p>
+            <form class="form" action="#" method="post" novalidate>
+                @csrf
+                <div class="row">
+                    <div class="field">
+                        <label class="label" for="name">Imię i nazwisko</label>
+                        <input class="input" type="text" id="name" name="name" placeholder="Jan Kowalski" autocomplete="name" required>
+                    </div>
+                    <div class="field">
+                        <label class="label" for="email">E-mail</label>
+                        <input class="input" type="email" id="email" name="email" placeholder="jan@example.com" autocomplete="email" required>
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label" for="message">Wiadomość</label>
+                    <textarea class="textarea" id="message" name="message" placeholder="W czym możemy pomóc?" required></textarea>
+                </div>
+                <div class="form-actions">
+                    <label style="display:flex; align-items:center; gap:10px; color:var(--muted); font-size:14px;">
+                        <input type="checkbox" required style="transform:translateY(1px)">
+                        Zgadzam się na kontakt w sprawie mojego zapytania.
+                    </label>
+                    <button class="btn" type="submit">Wyślij</button>
+                </div>
+                <div class="hint">Chronimy Twoją prywatność. Nie udostępniamy danych osobom trzecim.</div>
+            </form>
+        </div>
     </div>
 </section>
 
@@ -187,17 +343,31 @@
 <script type="application/ld+json">{!! json_encode($ld, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) !!}</script>
 
 <script>
+    // FAQ: płynne otwieranie/zwijanie (nowoczesna, lekka animacja bez bibliotek)
     (function(){
-        var mq = window.matchMedia("(prefers-color-scheme: dark)");
-        function apply(){
-            document.querySelectorAll('.shot').forEach(function(img){
-                var src = mq.matches ? img.getAttribute('data-dark-src') : img.getAttribute('data-light-src');
-                if (src && img.src !== src) img.src = src;
+        var items = document.querySelectorAll('.faq-item');
+        items.forEach(function(it){
+            var q = it.querySelector('.faq-q');
+            var a = it.querySelector('.faq-a');
+            q.addEventListener('click', function(){
+                var isOpen = it.classList.contains('open');
+                // zamknij wszystkie
+                items.forEach(function(x){
+                    x.classList.remove('open');
+                    var xa = x.querySelector('.faq-a');
+                    xa.style.maxHeight = 0;
+                    x.querySelector('.faq-q').setAttribute('aria-expanded','false');
+                });
+                // otwórz bieżący
+                if(!isOpen){
+                    it.classList.add('open');
+                    a.style.maxHeight = a.scrollHeight + 'px';
+                    q.setAttribute('aria-expanded','true');
+                }
             });
-        }
-        apply();
-        if (mq.addEventListener) mq.addEventListener('change', apply);
-        else if (mq.addListener) mq.addListener(apply);
+            // początkowa wysokość
+            a.style.maxHeight = 0;
+        });
     })();
 </script>
 </body>
