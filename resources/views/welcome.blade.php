@@ -106,7 +106,7 @@
         /* ====== HERO (min-height: full screen minus navbar) ====== */
         .hero{
             position:relative; padding:calc(var(--nav) + 40px) 0 40px; isolation:isolate;
-            min-height:calc(100vh); /* razem z fixed navbar daje pełnoekranowy first fold */
+            min-height:calc(70vh); /* razem z fixed navbar daje pełnoekranowy first fold */
         }
         .hero::before{
             /* Zdjęcie + gradient, mocniej przyciemnione pod typografię */
