@@ -131,22 +131,21 @@
 @endsection
 
 @section('body_end')
-    <!-- JSON-LD (SEO) -->
-    <script type="application/ld+json">
-        {
-          "@context":"https://schema.org",
-          "@type":"SoftwareApplication",
-          "name":"NoteSync",
-          "operatingSystem":"Android",
-          "applicationCategory":"ProductivityApplication",
-          "offers":{"@type":"Offer","price":"0","priceCurrency":"PLN"},
-          "url":"{{ config('app.url', 'https://notesync.pl') }}",
-    "image":"{{ asset('assets/images/app_light_1.png') }}",
-    "description":"Aplikacja do tworzenia i synchronizacji notatek z funkcjami zespołów i testów ABCD."
-  }
-    </script>
+    @php
+        $ld = [
+          '@context' => 'https://schema.org',
+          '@type' => 'SoftwareApplication',
+          'name' => 'NoteSync',
+          'operatingSystem' => 'Android',
+          'applicationCategory' => 'ProductivityApplication',
+          'offers' => ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => 'PLN'],
+          'url' => config('app.url', 'https://notesync.pl'),
+          'image' => asset('assets/images/app_light_1.png'),
+          'description' => 'Aplikacja do tworzenia i synchronizacji notatek z funkcjami zespołów i testów ABCD.',
+        ];
+    @endphp
+    <script type="application/ld+json">{!! json_encode($ld, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) !!}</script>
 
-    <!-- Light/Dark switching dla screenów -->
     <script>
         (function(){
             var prefersDark = window.matchMedia("(prefers-color-scheme: dark)");
@@ -158,7 +157,7 @@
             }
             applyThemeImages();
             if (prefersDark.addEventListener) { prefersDark.addEventListener('change', applyThemeImages); }
-            else if (prefersDark.addListener) { prefersDark.addListener(applyThemeImages); }
+            else if (prefersDark.addListener)   { prefersDark.addListener(applyThemeImages); }
         })();
     </script>
 @endsection
