@@ -262,10 +262,10 @@
 <main class="shots" id="screens">
     <div class="container-narrow">
         <div class="gridShots">
-            <img loading="lazy" class="shot" src="{{ asset('assets/images/app_light_1.png') }}" alt="Lista notatek" />
-            <img loading="lazy" class="shot" src="{{ asset('assets/images/app_light_2.png') }}" alt="Edycja notatki" />
-            <img loading="lazy" class="shot" src="{{ asset('assets/images/app_light_3.png') }}" alt="Zespoły" />
-            <img loading="lazy" class="shot" src="{{ asset('assets/images/app_light_3.png') }}" alt="Quiz ABCD" />
+            <img loading="lazy" class="shot" url="{{ asset('assets/images/app_light_1.png') }}" alt="Lista notatek" />
+            <img loading="lazy" class="shot" url="{{ asset('assets/images/app_light_2.png') }}" alt="Edycja notatki" />
+            <img loading="lazy" class="shot" url="{{ asset('assets/images/app_light_3.png') }}" alt="Zespoły" />
+            <img loading="lazy" class="shot" url="{{ asset('assets/images/app_light_3.png') }}" alt="Quiz ABCD" />
         </div>
     </div>
 </main>
