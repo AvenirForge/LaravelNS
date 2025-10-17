@@ -1,0 +1,16 @@
+{
+  "title": "B cannot update A course",
+  "method": "PATCH",
+  "url": "http://127.0.0.1:8000/api/me/courses/1",
+  "headers": {
+    "Accept": "application/json",
+    "Authorization": "Bearer eyJ0eX…KpR0"
+  },
+  "body": {
+    "title": "Hacked by B",
+    "description": "nope",
+    "type": "private"
+  },
+  "is_json": true,
+  "duration_ms": 266.9
+}

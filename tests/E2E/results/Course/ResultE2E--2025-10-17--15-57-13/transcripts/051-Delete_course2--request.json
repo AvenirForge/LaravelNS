@@ -1,0 +1,12 @@
+{
+  "title": "Delete course2",
+  "method": "DELETE",
+  "url": "http://127.0.0.1:8000/api/me/courses/3",
+  "headers": {
+    "Accept": "application/json",
+    "Authorization": "Bearer eyJ0eX…N6rg"
+  },
+  "body": {},
+  "is_json": true,
+  "duration_ms": 273.1
+}

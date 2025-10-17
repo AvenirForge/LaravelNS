@@ -1,0 +1,14 @@
+{
+  "title": "Login C",
+  "method": "POST",
+  "url": "http://127.0.0.1:8000/api/login",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "body": {
+    "email": "tester.x5o4y2h2@example.com",
+    "password": "Haslo123123"
+  },
+  "is_json": true,
+  "duration_ms": 847.9
+}

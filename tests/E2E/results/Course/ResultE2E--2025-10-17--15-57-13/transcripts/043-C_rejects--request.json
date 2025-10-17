@@ -1,0 +1,12 @@
+{
+  "title": "C rejects",
+  "method": "POST",
+  "url": "http://127.0.0.1:8000/api/invitations/NpEJATqORL5h8w2BX2xQPFfRUsahlx1D8IeS6c9p9VoCLjP8/reject",
+  "headers": {
+    "Accept": "application/json",
+    "Authorization": "Bearer eyJ0eX…NT8g"
+  },
+  "body": {},
+  "is_json": true,
+  "duration_ms": 292.8
+}

@@ -1,0 +1,14 @@
+{
+  "title": "Remove owner blocked",
+  "method": "POST",
+  "url": "http://127.0.0.1:8000/api/courses/1/remove-user",
+  "headers": {
+    "Accept": "application/json",
+    "Authorization": "Bearer eyJ0eX…N6rg"
+  },
+  "body": {
+    "email": "tester.o3u2jtr7@example.com"
+  },
+  "is_json": true,
+  "duration_ms": 380.7
+}

@@ -1,0 +1,12 @@
+{
+  "title": "C received",
+  "method": "GET",
+  "url": "http://127.0.0.1:8000/api/me/invitations-received",
+  "headers": {
+    "Accept": "application/json",
+    "Authorization": "Bearer eyJ0eX…NT8g"
+  },
+  "body": {},
+  "is_json": true,
+  "duration_ms": 751.8
+}

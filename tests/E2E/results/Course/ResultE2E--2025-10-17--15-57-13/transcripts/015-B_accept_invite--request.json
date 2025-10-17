@@ -1,0 +1,12 @@
+{
+  "title": "B accept invite",
+  "method": "POST",
+  "url": "http://127.0.0.1:8000/api/invitations/jXd5TaZbqOke1S6a0x9kkvqkItmFHsaBWj2jSS2UQoL5ltxS/accept",
+  "headers": {
+    "Accept": "application/json",
+    "Authorization": "Bearer eyJ0eX…KpR0"
+  },
+  "body": {},
+  "is_json": true,
+  "duration_ms": 363.5
+}

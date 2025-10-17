@@ -1,0 +1,16 @@
+{
+  "title": "Register B",
+  "method": "POST",
+  "url": "http://127.0.0.1:8000/api/users/register",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "body": {
+    "name": "Tester B",
+    "email": "tester.ua7y0wgj@example.com",
+    "password": "Haslo123123",
+    "password_confirmation": "Haslo123123"
+  },
+  "is_json": true,
+  "duration_ms": 885.2
+}

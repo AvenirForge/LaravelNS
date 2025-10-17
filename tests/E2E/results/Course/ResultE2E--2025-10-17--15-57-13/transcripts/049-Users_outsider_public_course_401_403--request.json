@@ -1,0 +1,11 @@
+{
+  "title": "Users outsider (public course) → 401/403",
+  "method": "GET",
+  "url": "http://127.0.0.1:8000/api/courses/4/users",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "body": {},
+  "is_json": true,
+  "duration_ms": 220.9
+}

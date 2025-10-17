@@ -1,0 +1,16 @@
+{
+  "title": "Create course invalid",
+  "method": "POST",
+  "url": "http://127.0.0.1:8000/api/me/courses",
+  "headers": {
+    "Accept": "application/json",
+    "Authorization": "Bearer eyJ0eX…N6rg"
+  },
+  "body": {
+    "title": "Invalid",
+    "description": "x",
+    "type": "superpublic"
+  },
+  "is_json": true,
+  "duration_ms": 322.6
+}

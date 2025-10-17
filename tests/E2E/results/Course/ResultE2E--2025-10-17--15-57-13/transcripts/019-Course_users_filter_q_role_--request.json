@@ -1,0 +1,12 @@
+{
+  "title": "Course users (filter q & role)",
+  "method": "GET",
+  "url": "http://127.0.0.1:8000/api/courses/1/users?q=Tester%20B&role=member",
+  "headers": {
+    "Accept": "application/json",
+    "Authorization": "Bearer eyJ0eX…N6rg"
+  },
+  "body": {},
+  "is_json": true,
+  "duration_ms": 303.6
+}

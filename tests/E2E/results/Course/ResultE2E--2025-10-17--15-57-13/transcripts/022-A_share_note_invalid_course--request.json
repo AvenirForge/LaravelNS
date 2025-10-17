@@ -1,0 +1,12 @@
+{
+  "title": "A share note invalid course",
+  "method": "POST",
+  "url": "http://127.0.0.1:8000/api/me/notes/1/share/999999",
+  "headers": {
+    "Accept": "application/json",
+    "Authorization": "Bearer eyJ0eX…N6rg"
+  },
+  "body": {},
+  "is_json": true,
+  "duration_ms": 279.5
+}

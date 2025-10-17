@@ -1,0 +1,12 @@
+{
+  "title": "Course users (admin status=all, per_page=1)",
+  "method": "GET",
+  "url": "http://127.0.0.1:8000/api/courses/1/users?status=all&per_page=1&sort=joined&order=desc",
+  "headers": {
+    "Accept": "application/json",
+    "Authorization": "Bearer eyJ0eX…N6rg"
+  },
+  "body": {},
+  "is_json": true,
+  "duration_ms": 558.7
+}
