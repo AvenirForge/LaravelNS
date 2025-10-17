@@ -6,24 +6,23 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>NoteSync — notatki pod ręką</title>
 
-    <!-- Font + antyaliasing dla czytelności -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Pacifico&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Pacifico&display=swap" rel="stylesheet" />
+
     <style>
         :root{
-            /* Nowoczesna, wyraźna paleta i kontrast */
-            --bg:#060a14; --bg2:#0d1324; --fg:#ecf2ff; --muted:#aebad0;
-            --card:rgba(255,255,255,.08); --border:rgba(255,255,255,.14);
-            --ctaA:#bff0ea; --ctaB:#1794e0; --accent:#1794e0; --accent2:#0f689c;
+            --bg:#070a13; --bg2:#0d1324; --fg:#eef3ff; --muted:#b4c0d6;
+            --card:rgba(255,255,255,.10); --border:rgba(255,255,255,.18);
+            --ctaA:#bff0ea; --ctaB:#1794e0; --accent:#1ea9ff;
 
             --shadow:0 14px 48px rgba(0,0,0,.36);
             --radius:16px;
-            --nav:78px;    /* wysokość stałego nav-a */
-            --container:1320px;
-            --blur:14px;
+            --nav:78px;
+            --container:1400px; /* +25% szerzej */
+            --blur:16px;
         }
         @media (prefers-color-scheme: light){
             :root{
-                --bg:#f6f8fc; --bg2:#e9eef6; --fg:#0a1224; --muted:#465671;
+                --bg:#f6f8fc; --bg2:#e9eef6; --fg:#0a1224; --muted:#4a5872;
                 --card:#ffffff; --border:rgba(0,0,0,.10);
                 --ctaA:#c1f4ed; --ctaB:#1794e0;
                 --shadow:0 12px 36px rgba(2,6,23,.12);
@@ -31,21 +30,20 @@
         }
         @media (prefers-reduced-motion: reduce){ *{animation:none!important; transition:none!important} }
 
-        /* Reset + lepsza czytelność fontu */
         *{box-sizing:border-box}
         html,body{height:100%}
         body{
             margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;
             -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-            color:var(--fg);
-            background:var(--bg);
+            color:var(--fg); background:var(--bg);
         }
         a{color:inherit; text-decoration:none}
         img{display:block; max-width:100%; height:auto}
-        .container{max-width:var(--container); margin:0 auto; padding:0 22px}
-        .container-narrow{max-width:1120px; margin:0 auto; padding:0 22px}
+        .container{max-width:var(--container) ; margin:0 auto; padding:0 26px}
+        .container-narrow{max-width:1360px; margin:0 auto; padding:0 26px}
+        [id]{scroll-margin-top:calc(var(--nav) + 12px)}
 
-        /* ===== TŁO STRONY (poza hero) – delikatna siatka + radialne akcenty ===== */
+        /* Page background */
         .page-bg{position:relative; isolation:isolate; background:linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%)}
         .page-bg::before{
             content:""; position:fixed; inset:-20vh 0 0; z-index:-2; pointer-events:none;
@@ -53,116 +51,144 @@
                 radial-gradient(60% 35% at 120% -10%, rgba(50,138,241,.22), transparent 60%),
                 radial-gradient(50% 28% at -10% -10%, rgba(23,148,224,.18), transparent 60%);
         }
-        .page-bg::after{
-            content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
-            background:
-                linear-gradient(to right, rgba(255,255,255,.05) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(255,255,255,.05) 1px, transparent 1px);
-            background-size:44px 44px;
-            mask-image:radial-gradient(1200px 600px at 50% 0%, rgba(0,0,0,.5), transparent 75%);
-        }
 
-        /* ===== NAVBAR (fixed, brand max w lewo, CTA max w prawo) ===== */
+        /* NAVBAR */
         .nav{
             position:fixed; inset:0 0 auto 0; height:var(--nav); z-index:1000;
             display:flex; align-items:center;
-            backdrop-filter:saturate(140%) blur(var(--blur));
-            background:linear-gradient(180deg, rgba(6,10,22,.70), rgba(6,10,22,.32));
-            border-bottom:1px solid var(--border);
+            backdrop-filter:saturate(160%) blur(var(--blur));
+            background:linear-gradient(180deg, rgba(6,12,28,.92) 0%, rgba(6,12,28,.85) 60%, rgba(6,12,28,.70) 100%);
+            border-bottom:1px solid rgba(255,255,255,.15);
+            box-shadow:0 8px 24px rgba(0,0,0,.35);
         }
         .nav-inner{display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:12px; width:100%}
-        .brand{display:flex; align-items:center; gap:10px; justify-self:start}
-        .brand img{width:40px; height:40px}
-        .brand span{font-family:Pacifico,cursive; font-size:28px; letter-spacing:.2px}
-        .links{justify-self:center; display:flex; gap:16px}
-        .link{padding:10px 12px; border-radius:10px}
+        .brand{display:inline-flex; align-items:center; gap:10px; color:#e8eeff;}
+        .brand span{font-family:Pacifico,cursive; font-size:28px; letter-spacing:.2px; opacity:.95}
+        .brand-logo{width:28px; height:auto; margin-right:4px; fill:#fff; transition:transform .25s ease, opacity .25s ease}
+        .brand:hover .brand-logo{transform:rotate(-5deg) scale(1.05); opacity:.9}
+        .links{justify-self:center; display:flex; gap:18px}
+        .link{padding:10px 12px; border-radius:10px; color:#e8eeff}
         .link:hover,.link:focus-visible{background:rgba(255,255,255,.10); outline:none}
         .nav-actions{justify-self:end; display:flex; align-items:center; gap:10px}
         .btn{
             display:inline-flex; gap:10px; align-items:center; padding:12px 18px; border-radius:12px;
             font-weight:800; letter-spacing:.2px;
             background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); color:#061021; border:0;
-            box-shadow:var(--shadow); transition:transform .15s ease, filter .2s ease;
+            box-shadow:0 8px 24px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.25);
+            transition:transform .18s ease, filter .2s ease, box-shadow .2s ease;
         }
-        .btn:hover{transform:translateY(-1px); filter:saturate(1.08)}
+        .btn:hover{transform:translateY(-1px); filter:saturate(1.08); box-shadow:0 12px 34px rgba(0,0,0,.42), inset 0 0 0 1px rgba(255,255,255,.35)}
 
         /* Burger (mobile) */
-        .burger{display:none; width:44px; height:44px; border-radius:12px; border:1px solid var(--border); background:var(--card); place-items:center}
+        .burger{display:none; width:44px; height:44px; border-radius:12px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.06); place-items:center; color:#fff}
         .burger svg{width:22px; height:22px}
         @media (max-width:980px){ .links{display:none} .burger{display:grid} }
-
-        /* Mobile dropdown – wyraźne otwarcie/zamknięcie */
+        .scrim{position:fixed; inset:var(--nav) 0 0 0; background:rgba(0,0,0,.55); backdrop-filter:blur(2px); opacity:0; pointer-events:none; transition:opacity .3s ease}
+        .scrim.open{opacity:1; pointer-events:auto}
         .mobile-panel{
             position:fixed; top:var(--nav); left:0; right:0; z-index:999;
-            background:linear-gradient(180deg, rgba(6,10,25,.98), rgba(6,10,25,.92));
-            border-bottom:1px solid var(--border); box-shadow:0 30px 60px rgba(0,0,0,.35);
-            overflow:hidden; max-height:0; opacity:0; transform:translateY(-6px);
+            background:linear-gradient(180deg, rgba(10,17,36,.98), rgba(10,17,36,.92));
+            border-bottom:1px solid rgba(255,255,255,.16); box-shadow:0 30px 60px rgba(0,0,0,.45);
+            overflow:hidden; max-height:0; opacity:0; transform:translateY(-8px);
             transition:max-height .45s cubic-bezier(.25,.8,.25,1), opacity .35s ease, transform .35s ease;
         }
-        .mobile-panel.open{max-height:360px; opacity:1; transform:translateY(0)}
-        .mobile-links{display:grid; gap:8px; padding:16px 22px 22px}
-        .mobile-links a{padding:12px 12px; border-radius:12px; background:rgba(255,255,255,.08); border:1px solid var(--border)}
-        .mobile-links a:active{transform:scale(.99)}
-        .mobile-edge{height:10px; background:linear-gradient(180deg, rgba(255,255,255,.12), transparent); opacity:.6}
+        .mobile-panel.open{max-height:420px; opacity:1; transform:translateY(0)}
+        .mobile-links{display:grid; gap:10px; padding:18px 26px 22px}
+        .mobile-links a{
+            padding:14px; border-radius:12px; background:rgba(255,255,255,.09);
+            border:1px solid rgba(255,255,255,.18); color:#f5f8ff; font-weight:600;
+            box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);
+        }
 
-        /* ===== HERO (min-h-screen; idealna czytelność) ===== */
+        /* HERO (2/3 ekranu) */
         .hero{
-            position:relative; padding:calc(var(--nav) + 40px) 0 48px; isolation:isolate;
-            min-height:100vh; display:flex; align-items:center;
+            position:relative; padding:calc(var(--nav) + 28px) 0 48px; isolation:isolate;
+            min-height:calc(66vh + var(--nav));
+            display:flex; align-items:center;
         }
         .hero::before{
-            /* Zdjęcie tła + przyciemniony gradient */
             content:""; position:absolute; inset:0; z-index:-2;
             background:
-                linear-gradient(180deg, rgba(6,10,22,.84) 0%, rgba(6,10,22,.86) 35%, rgba(6,10,22,.88) 100%),
-                radial-gradient(90% 50% at 80% 10%, rgba(23,148,224,.22), transparent 60%),
+                radial-gradient(90% 50% at 80% 10%, rgba(30,169,255,.22), transparent 60%),
+                linear-gradient(180deg, rgba(8,12,26,.85) 0%, rgba(8,12,26,.80) 60%, rgba(8,12,26,.88) 100%),
                 url('{{ asset('assets/images/ns-bg.jpg') }}') center/cover no-repeat;
-            filter:saturate(1.03) contrast(1.03);
+            filter:saturate(1.02) contrast(1.03);
         }
-        .hero::after{
-            content:""; position:absolute; inset:0; z-index:-1; pointer-events:none;
-            background:radial-gradient(520px 260px at 24% 38%, rgba(1,8,20,.38), transparent 60%);
+        .heroBox{
+            max-width:980px; margin-inline:auto;
+            display:flex; flex-direction:column; align-items:center; gap:22px; text-align:center;
         }
-        .heroBox{display:grid; grid-template-columns:1.05fr .95fr; gap:36px; align-items:center}
-        @media (max-width:980px){ .heroBox{grid-template-columns:1fr} }
-        .kicker{color:var(--muted); font-weight:700; letter-spacing:.15em; text-transform:uppercase}
-        h1{margin:8px 0 8px; font-weight:800; font-size:clamp(44px,6.8vw,76px); line-height:1.02; text-shadow:0 2px 14px rgba(0,0,0,.34)}
-        .lead{color:#e3ecff; font-size:clamp(16px,2.2vw,20px); margin:0 0 18px; text-shadow:0 1px 8px rgba(0,0,0,.24)}
-        .cta{display:inline-flex; gap:10px; align-items:center; padding:13px 20px; border-radius:14px; font-weight:800;
-            background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); color:#061021; box-shadow:var(--shadow)}
-        .cta:hover{transform:translateY(-2px)}
+        .kicker{color:#c8d6f9; font-weight:700; letter-spacing:.18em; text-transform:uppercase; opacity:.9}
+        h1{
+            margin:6px 0 10px; font-weight:800; line-height:1.02; font-size:clamp(42px,6.2vw,74px);
+            background:linear-gradient(180deg,#f7fbff 0%, #cfe6ff 70%, #9fcbff 100%);
+            -webkit-background-clip:text; background-clip:text; color:transparent;
+            text-shadow:0 2px 16px rgba(0,0,0,.35);
+        }
+        .lead{color:#e5eeff; font-size:clamp(16px,2.1vw,20px); margin:0 0 12px; text-shadow:0 1px 10px rgba(0,0,0,.25)}
+        .cta{
+            display:inline-flex; gap:10px; align-items:center; padding:14px 22px; border-radius:14px; font-weight:800;
+            background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); color:#061021;
+            box-shadow:0 14px 40px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.28);
+            transition:transform .18s ease, box-shadow .2s ease, filter .2s ease;
+        }
+        .cta:hover{transform:translateY(-2px); filter:saturate(1.05); box-shadow:0 18px 48px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.36)}
+
         .card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px}
 
-        /* ===== SHOTS ===== */
-        .shots{padding:22px 0 0}
-        .gridShots{display:flex; gap:16px; justify-content:center; flex-wrap:wrap}
-        .shot{width:min(240px,40vw); aspect-ratio:9/16; background:rgba(255,255,255,.04);
-            border-radius:18px; border:6px solid rgba(255,255,255,.12); box-shadow:var(--shadow);
-            object-fit:cover; transition:transform .45s cubic-bezier(.25,.46,.45,.94), box-shadow .25s; animation-duration:4s; animation-iteration-count:infinite; animation-direction:alternate; will-change:transform}
-        @keyframes floatA{0%{transform:translateY(0)}50%{transform:translateY(-10px)}100%{transform:translateY(0)}}
-        @keyframes floatB{0%{transform:translateY(0)}50%{transform:translateY(10px)}100%{transform:translateY(0)}}
-        .shot:nth-child(odd){animation-name:floatA}
-        .shot:nth-child(even){animation-name:floatB; animation-delay:.4s}
-        .shot:hover{transform:scale(1.06); animation-play-state:paused}
+        /* SCREENSHOTS — SZERZEJ + LIGHTBOX */
+        .shots{padding:28px 0 6px}
+        .gridShots{
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); /* szerzej */
+            gap:22px;
+            align-items:start;
+        }
+        .shot-btn{
+            display:block; width:100%; background:var(--card); border:1px solid var(--border);
+            border-radius:22px; padding:14px; box-shadow:var(--shadow); cursor:zoom-in;
+            transition:transform .18s ease, box-shadow .18s ease;
+            overflow:hidden;
+        }
+        .shot-btn:hover{transform:translateY(-2px); box-shadow:0 16px 44px rgba(0,0,0,.38)}
+        .shot{width:100%; height:auto; border-radius:14px; object-fit:contain; transition:transform .25s ease}
+        .shot-btn:hover .shot, .shot-btn:focus-visible .shot{transform:scale(1.03)}
 
-        /* ===== FEATURES ===== */
-        .features{padding:30px 0 36px}
-        .fgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px}
-        .tile{padding:18px; border-radius:14px; background:var(--card); border:1px solid var(--border); transition:transform .18s ease, box-shadow .18s ease}
-        .tile h3{margin:6px 0 4px; font-size:18px}
+        .lightbox{
+            position:fixed; inset:0; background:rgba(0,0,0,.8);
+            display:flex; align-items:center; justify-content:center; padding:24px;
+            opacity:0; pointer-events:none; transition:opacity .25s ease;
+            z-index:1200;
+        }
+        .lightbox.open{opacity:1; pointer-events:auto}
+        .lightbox img{
+            max-width:min(96vw, 1200px); max-height:90vh; object-fit:contain;
+            border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.55);
+            background:#000;
+        }
+        .lightbox-close{
+            position:absolute; top:24px; right:24px; border:0; border-radius:12px; padding:10px 12px;
+            font-weight:800; cursor:pointer; color:#061021;
+            background:linear-gradient(90deg,var(--ctaA),var(--ctaB));
+            box-shadow:0 10px 30px rgba(0,0,0,.45);
+        }
+
+        /* SECTIONS */
+        .features{padding:32px 0 38px}
+        .fgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px}
+        .tile{padding:20px; border-radius:16px; background:var(--card); border:1px solid var(--border); transition:transform .18s ease, box-shadow .18s ease}
+        .tile h3{margin:6px 0 6px; font-size:18px}
         .tile p{margin:0; color:var(--muted)}
         .tile:hover{transform:translateY(-2px); box-shadow:0 14px 40px rgba(0,0,0,.25)}
 
-        /* ===== ABOUT ===== */
-        .about{padding:36px 0}
-        .about-grid{display:grid; grid-template-columns:1.25fr .75fr; gap:20px}
+        .about{padding:38px 0}
+        .about-grid{display:grid; grid-template-columns:1.25fr .75fr; gap:22px}
         @media (max-width:980px){ .about-grid{grid-template-columns:1fr} }
         .badge{font-size:12px; font-weight:800; color:#061021; background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); display:inline-block; padding:6px 10px; border-radius:999px}
         .pill{display:inline-flex; align-items:center; gap:8px; padding:10px 12px; border-radius:12px; background:var(--card); border:1px solid var(--border); font-weight:700}
         .stack{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
 
-        /* ===== FAQ ===== */
-        .faq{padding:24px 0 38px}
+        .faq{padding:26px 0 40px}
         .faq-list{display:grid; gap:12px}
         .faq-item{border:1px solid var(--border); border-radius:14px; background:var(--card); overflow:hidden}
         .faq-q{width:100%; text-align:left; background:transparent; color:var(--fg); padding:16px 18px; font-weight:800; border:0; cursor:pointer; display:flex; justify-content:space-between; align-items:center}
@@ -171,20 +197,18 @@
         .faq-icon{transition:transform .35s ease}
         .faq-item.open .faq-icon{transform:rotate(45deg)}
 
-        /* ===== CONTACT ===== */
-        .contact{padding:38px 0 58px}
+        .contact{padding:40px 0 60px}
         .form{display:grid; gap:12px}
         .row{display:grid; grid-template-columns:1fr 1fr; gap:12px}
         @media (max-width:720px){ .row{grid-template-columns:1fr} }
         .field{display:flex; flex-direction:column; gap:6px}
         .label{font-size:14px; color:var(--muted)}
-        .input,.textarea{background:rgba(255,255,255,.06); border:1px solid var(--border); color:var(--fg); border-radius:12px; padding:12px 14px; outline:none}
+        .input,.textarea{background:rgba(255,255,255,.08); border:1px solid var(--border); color:var(--fg); border-radius:12px; padding:12px 14px; outline:none}
         .input:focus,.textarea:focus{border-color:var(--accent)}
         .textarea{min-height:140px; resize:vertical}
         .form-actions{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap}
         .hint{color:var(--muted); font-size:12px}
 
-        /* ===== FOOTER ===== */
         footer{border-top:1px solid var(--border); padding:28px 18px 44px; color:var(--muted); position:relative; text-align:center}
         .top{position:absolute; right:18px; top:18px; width:42px; height:42px; display:grid; place-items:center; border-radius:999px; background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); color:#061021; font-weight:900; box-shadow:var(--shadow)}
         .top:hover{transform:translateY(-2px)}
@@ -193,12 +217,6 @@
 <body id="top" class="page-bg">
 
 @php
-    /**
-     * Solidna obsługa obrazków:
-     * - brak już trybów light/dark,
-     * - akceptuj .png/.jpg/.jpeg/.webp (i wielkość liter) – znajdź pierwszy istniejący,
-     * - dołącz bust cache przez filemtime, aby uniknąć „starych” wersji.
-     */
     if (!function_exists('notesync_resolve_asset')) {
         function notesync_resolve_asset(string $basename): string {
             $exts = ['png','jpg','jpeg','webp','PNG','JPG','JPEG','WEBP'];
@@ -210,15 +228,13 @@
                     return asset($rel).'?v='.$v;
                 }
             }
-            // fallback placeholder, jeśli nie ma pliku
-            return asset('assets/images/placeholder.png');
+            return 'data:image/svg+xml;utf8,'.rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');
         }
     }
     $shots = [
         ['file'=>'app_light_1', 'alt'=>'Lista notatek'],
         ['file'=>'app_light_2', 'alt'=>'Edycja notatki'],
         ['file'=>'app_light_3', 'alt'=>'Zespoły'],
-        ['file'=>'app_light_4', 'alt'=>'Quiz ABCD'],
     ];
 @endphp
 
@@ -226,7 +242,7 @@
 <div class="nav" role="banner">
     <div class="container nav-inner">
         <a class="brand" href="#top" aria-label="Strona główna">
-            <img src="{{ notesync_resolve_asset('logo-notesync') }}" alt="Logo" />
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 412 511.87" class="brand-logo"><path d="M35.7 32.95h33.54V11.18C69.24 5.01 74.25 0 80.43 0c6.17 0 11.18 5.01 11.18 11.18v21.77h49.21V11.18c0-6.17 5.01-11.18 11.19-11.18 6.17 0 11.18 5.01 11.18 11.18v21.77h49.21V11.18C212.4 5.01 217.41 0 223.59 0c6.17 0 11.18 5.01 11.18 11.18v21.77h49.21V11.18c0-6.17 5.01-11.18 11.19-11.18 6.17 0 11.18 5.01 11.18 11.18v21.77h34.55c9.83 0 18.76 4.03 25.21 10.49 5.36 5.35 9.04 12.4 10.15 20.23h.04c9.82 0 18.76 4.03 25.21 10.48C407.98 80.62 412 89.56 412 99.37v376.8c0 9.77-4.04 18.7-10.49 25.17-6.51 6.5-15.45 10.53-25.21 10.53H67.71c-9.81 0-18.75-4.02-25.22-10.49-6.14-6.14-10.09-14.53-10.45-23.8-8.36-.86-15.9-4.66-21.55-10.31C4.03 460.82 0 451.89 0 442.06V68.65c0-9.83 4.03-18.77 10.48-25.22 6.45-6.45 15.39-10.48 25.22-10.48z" fill="#fff"/></svg>
             <span>NoteSync</span>
         </a>
 
@@ -246,8 +262,8 @@
         </div>
     </div>
 
+    <div id="navScrim" class="scrim" aria-hidden="true"></div>
     <div id="mobilePanel" class="mobile-panel" role="region" aria-label="Menu mobilne">
-        <div class="mobile-edge"></div>
         <div class="mobile-links">
             <a href="#features">Funkcje</a>
             <a href="#screens">Zrzuty</a>
@@ -256,40 +272,28 @@
             <a href="#download">Pobierz</a>
             <a href="#contact">Kontakt</a>
         </div>
-        <div class="mobile-edge" style="background:linear-gradient(0deg, rgba(255,255,255,.12), transparent);"></div>
     </div>
 </div>
 
-<!-- HERO (min-h-screen, wszystko wycentrowane i czytelne) -->
+<!-- HERO -->
 <header class="hero" role="region" aria-label="Sekcja główna">
     <div class="container heroBox">
-        <section>
-            <div class="kicker">ANDROID • SYNC</div>
-            <h1>Notuj. Porządkuj.<br/>Synchronizuj.</h1>
-            <p class="lead">Szybka, lekka aplikacja do notatek z bezpieczną synchronizacją.</p>
-            <a id="download" class="cta" href="#download" rel="nofollow">Pobierz na Androida</a>
-        </section>
-
-        <aside class="card" aria-label="Najważniejsze">
-            <ul style="list-style:none;margin:0;padding:0;display:grid;gap:10px">
-                <li>• Offline → auto-sync</li>
-                <li>• Zespoły i udostępnianie</li>
-                <li>• Testy ABCD</li>
-                <li>• Prywatność i szyfrowanie</li>
-            </ul>
-        </aside>
+        <div class="kicker">ANDROID • SYNC</div>
+        <h1>Notuj. Porządkuj.<br/>Synchronizuj.</h1>
+        <p class="lead">Szybka, lekka aplikacja do notatek z bezpieczną synchronizacją.</p>
+        <a id="download" class="cta" href="#download" rel="nofollow">Pobierz na Androida</a>
     </div>
 </header>
 
-<!-- SCREENSHOTS -->
+<!-- SCREENSHOTS (poszerzone + lightbox) -->
 <main class="shots" id="screens">
-    <div class="container-narrow">
+    <div style="margin-top: 150px;" class="container">
         <div class="gridShots">
             @foreach($shots as $s)
-                <img class="shot"
-                     src="{{ notesync_resolve_asset($s['file']) }}"
-                     alt="{{ $s['alt'] }}"
-                     width="480" height="854" decoding="async" />
+                @php $src = notesync_resolve_asset($s['file']); @endphp
+                <button class="shot-btn" data-full="{{ $src }}" aria-label="Powiększ zrzut: {{ $s['alt'] }}">
+                    <img class="shot" src="{{ $src }}" alt="{{ $s['alt'] }}" loading="lazy" decoding="async"/>
+                </button>
             @endforeach
         </div>
     </div>
@@ -297,17 +301,16 @@
 
 <!-- FEATURES -->
 <section class="features" id="features">
-    <div class="container-narrow fgrid">
+    <div class="container fgrid">
         <article class="tile"><h3>Chmura</h3><p>Notatki zawsze pod ręką.</p></article>
         <article class="tile"><h3>Zespoły</h3><p>Współpraca w czasie rzeczywistym.</p></article>
         <article class="tile"><h3>Wiedza</h3><p>Quizy ABCD do utrwalania.</p></article>
-        <article class="tile"><h3>Bezpieczeństwo</h3><p>Nowoczesne standardy ochrony.</p></article>
     </div>
 </section>
 
 <!-- ABOUT -->
 <section class="about" id="about" aria-labelledby="about-title">
-    <div class="container-narrow about-grid">
+    <div class="container about-grid">
         <div class="card">
             <span class="badge">O nas</span>
             <h2 id="about-title" style="margin:10px 0 6px">Tworzymy NoteSync z myślą o szybkości i prostocie</h2>
@@ -334,7 +337,7 @@
 
 <!-- FAQ -->
 <section class="faq" id="faq" aria-labelledby="faq-title">
-    <div class="container-narrow">
+    <div class="container">
         <h2 id="faq-title" style="margin:0 0 10px">FAQ — najczęstsze pytania</h2>
         <div class="faq-list" role="list">
             <div class="faq-item" role="listitem">
@@ -363,10 +366,10 @@
 
 <!-- CONTACT -->
 <section class="contact" id="contact" aria-labelledby="contact-title">
-    <div class="container-narrow">
+    <div class="container">
         <div class="card">
             <h2 id="contact-title" style="margin:0 0 8px">Skontaktuj się z nami</h2>
-            <p class="lead" style="margin:0 0 16px">Masz pytanie lub propozycję? Napisz — odpowiemy szybko.</p>
+            <p class="lead" style="color: black; margin:0 0 16px">Masz pytanie lub propozycję? Napisz — odpowiemy szybko.</p>
             <form class="form" action="#" method="post" novalidate>
                 @csrf
                 <div class="row">
@@ -418,7 +421,7 @@
 <script type="application/ld+json">{!! json_encode($ld, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) !!}</script>
 
 <script>
-    /* FAQ – akordeon z animacją i ARIA */
+    /* FAQ – akordeon */
     (function(){
         var items = document.querySelectorAll('.faq-item');
         items.forEach(function(it){
@@ -441,24 +444,56 @@
         });
     })();
 
-    /* Burger – wyraźny stan otw./zamk., animowane wysuwanie panelu */
+    /* Burger + scrim */
     (function(){
         var burger = document.getElementById('burger');
         var panel  = document.getElementById('mobilePanel');
-        if(!burger || !panel) return;
-
+        var scrim  = document.getElementById('navScrim');
+        if(!burger || !panel || !scrim) return;
         var open = false;
         function setState(state){
             open = state;
             panel.classList.toggle('open', open);
+            scrim.classList.toggle('open', open);
             burger.setAttribute('aria-expanded', String(open));
             burger.innerHTML = open
                 ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M6 18L18 6"/></svg>'
                 : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>';
         }
         burger.addEventListener('click', function(){ setState(!open); });
+        scrim.addEventListener('click', function(){ setState(false); });
         panel.querySelectorAll('a').forEach(function(a){ a.addEventListener('click', function(){ setState(false); }); });
         document.addEventListener('keydown', function(e){ if(e.key==='Escape' && open) setState(false); });
+    })();
+
+    /* LIGHTBOX – klik na zrzut -> podgląd z możliwością zamknięcia */
+    (function(){
+        var container = document.createElement('div');
+        container.id = 'lightbox';
+        container.className = 'lightbox';
+        container.innerHTML = '<button class="lightbox-close" aria-label="Zamknij">Zamknij</button><img id="lightboxImg" alt="Podgląd zrzutu"/>';
+        document.body.appendChild(container);
+
+        var imgEl = container.querySelector('#lightboxImg');
+        var closeBtn = container.querySelector('.lightbox-close');
+
+        function open(src){
+            imgEl.src = src;
+            container.classList.add('open');
+        }
+        function close(){
+            container.classList.remove('open');
+            imgEl.src = '';
+        }
+
+        document.querySelectorAll('.shot-btn').forEach(function(btn){
+            btn.addEventListener('click', function(){
+                open(btn.getAttribute('data-full'));
+            });
+        });
+        container.addEventListener('click', function(e){ if(e.target === container) close(); });
+        closeBtn.addEventListener('click', close);
+        document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && container.classList.contains('open')) close(); });
     })();
 </script>
 </body>
