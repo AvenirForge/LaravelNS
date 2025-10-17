@@ -10,14 +10,14 @@
 
     <style>
         :root{
-            --bg:#070a13; --bg2:#0d1324; --fg:#eef3ff; --muted:#b4c0d6;
+            --bg:#07101d; --bg2:#0b1530; --fg:#eef3ff; --muted:#b4c0d6;
             --card:rgba(255,255,255,.10); --border:rgba(255,255,255,.18);
             --ctaA:#bff0ea; --ctaB:#1794e0; --accent:#1ea9ff;
 
             --shadow:0 14px 48px rgba(0,0,0,.36);
             --radius:16px;
             --nav:78px;
-            --container:1400px; /* +25% szerzej */
+            --container:1400px; /* poszerzone sekcje */
             --blur:16px;
         }
         @media (prefers-color-scheme: light){
@@ -39,17 +39,24 @@
         }
         a{color:inherit; text-decoration:none}
         img{display:block; max-width:100%; height:auto}
-        .container{max-width:var(--container) ; margin:0 auto; padding:0 26px}
-        .container-narrow{max-width:1360px; margin:0 auto; padding:0 26px}
+        .container{max-width:var(--container); margin:0 auto; padding:0 26px}
+        .container-narrow{max-width:1160px; margin:0 auto; padding:0 26px}
         [id]{scroll-margin-top:calc(var(--nav) + 12px)}
 
-        /* Page background */
-        .page-bg{position:relative; isolation:isolate; background:linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%)}
-        .page-bg::before{
-            content:""; position:fixed; inset:-20vh 0 0; z-index:-2; pointer-events:none;
+        /* Globalne tło – nowoczesny gradient dopasowany do headera */
+        .page-bg{position:relative; isolation:isolate;
             background:
-                radial-gradient(60% 35% at 120% -10%, rgba(50,138,241,.22), transparent 60%),
-                radial-gradient(50% 28% at -10% -10%, rgba(23,148,224,.18), transparent 60%);
+                radial-gradient(1000px 500px at 10% -10%, rgba(30,169,255,.18), transparent 60%),
+                radial-gradient(800px 420px at 110% -15%, rgba(74,222,255,.12), transparent 60%),
+                linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+        }
+        .page-bg::after{
+            content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+            background:
+                linear-gradient(to right, rgba(255,255,255,.04) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255,255,255,.04) 1px, transparent 1px);
+            background-size:42px 42px;
+            mask-image:radial-gradient(1200px 600px at 50% 0%, rgba(0,0,0,.45), transparent 75%);
         }
 
         /* NAVBAR */
@@ -57,7 +64,7 @@
             position:fixed; inset:0 0 auto 0; height:var(--nav); z-index:1000;
             display:flex; align-items:center;
             backdrop-filter:saturate(160%) blur(var(--blur));
-            background:linear-gradient(180deg, rgba(6,12,28,.92) 0%, rgba(6,12,28,.85) 60%, rgba(6,12,28,.70) 100%);
+            background:linear-gradient(180deg, rgba(6,12,28,.94) 0%, rgba(6,12,28,.85) 70%, rgba(6,12,28,.70) 100%);
             border-bottom:1px solid rgba(255,255,255,.15);
             box-shadow:0 8px 24px rgba(0,0,0,.35);
         }
@@ -79,10 +86,15 @@
         }
         .btn:hover{transform:translateY(-1px); filter:saturate(1.08); box-shadow:0 12px 34px rgba(0,0,0,.42), inset 0 0 0 1px rgba(255,255,255,.35)}
 
-        /* Burger (mobile) */
+        /* Mobile */
         .burger{display:none; width:44px; height:44px; border-radius:12px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.06); place-items:center; color:#fff}
         .burger svg{width:22px; height:22px}
-        @media (max-width:980px){ .links{display:none} .burger{display:grid} }
+        @media (max-width:980px){
+            .links{display:none}
+            .burger{display:grid}
+            /* WYMAGANE: przycisk Kontakt znika z top baru w mobile */
+            .nav-actions .btn{display:none}
+        }
         .scrim{position:fixed; inset:var(--nav) 0 0 0; background:rgba(0,0,0,.55); backdrop-filter:blur(2px); opacity:0; pointer-events:none; transition:opacity .3s ease}
         .scrim.open{opacity:1; pointer-events:auto}
         .mobile-panel{
@@ -109,8 +121,8 @@
         .hero::before{
             content:""; position:absolute; inset:0; z-index:-2;
             background:
-                radial-gradient(90% 50% at 80% 10%, rgba(30,169,255,.22), transparent 60%),
-                linear-gradient(180deg, rgba(8,12,26,.85) 0%, rgba(8,12,26,.80) 60%, rgba(8,12,26,.88) 100%),
+                radial-gradient(90% 50% at 80% 10%, rgba(30,169,255,.20), transparent 60%),
+                linear-gradient(180deg, rgba(8,12,26,.86) 0%, rgba(8,12,26,.78) 60%, rgba(8,12,26,.90) 100%),
                 url('{{ asset('assets/images/ns-bg.jpg') }}') center/cover no-repeat;
             filter:saturate(1.02) contrast(1.03);
         }
@@ -136,13 +148,24 @@
 
         .card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px}
 
-        /* SCREENSHOTS — SZERZEJ + LIGHTBOX */
+        /* SCREENSHOTS — 3 pierwsze, mobilnie wycentrowane + lightbox */
         .shots{padding:28px 0 6px}
         .gridShots{
             display:grid;
-            grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); /* szerzej */
+            grid-template-columns:repeat(3, 1fr);
             gap:22px;
             align-items:start;
+        }
+        @media (max-width:1024px){
+            .gridShots{grid-template-columns:repeat(2, 1fr)}
+        }
+        @media (max-width:700px){
+            .gridShots{
+                grid-template-columns:1fr;
+                justify-items:center; /* CENTRUM */
+                padding-left:12px; padding-right:12px; /* równe marginesy */
+            }
+            .shot-btn{max-width:92vw}
         }
         .shot-btn{
             display:block; width:100%; background:var(--card); border:1px solid var(--border);
@@ -209,6 +232,8 @@
         .form-actions{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap}
         .hint{color:var(--muted); font-size:12px}
 
+        .lead-black{color:#000!important}
+
         footer{border-top:1px solid var(--border); padding:28px 18px 44px; color:var(--muted); position:relative; text-align:center}
         .top{position:absolute; right:18px; top:18px; width:42px; height:42px; display:grid; place-items:center; border-radius:999px; background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); color:#061021; font-weight:900; box-shadow:var(--shadow)}
         .top:hover{transform:translateY(-2px)}
@@ -231,6 +256,7 @@
             return 'data:image/svg+xml;utf8,'.rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');
         }
     }
+    /* Zostawiamy 3 pierwsze obrazki */
     $shots = [
         ['file'=>'app_light_1', 'alt'=>'Lista notatek'],
         ['file'=>'app_light_2', 'alt'=>'Edycja notatki'],
@@ -285,9 +311,9 @@
     </div>
 </header>
 
-<!-- SCREENSHOTS (poszerzone + lightbox) -->
+<!-- SCREENSHOTS (3 szt., mobilnie wycentrowane) -->
 <main class="shots" id="screens">
-    <div style="margin-top: 150px;" class="container">
+    <div class="container">
         <div class="gridShots">
             @foreach($shots as $s)
                 @php $src = notesync_resolve_asset($s['file']); @endphp
@@ -305,6 +331,7 @@
         <article class="tile"><h3>Chmura</h3><p>Notatki zawsze pod ręką.</p></article>
         <article class="tile"><h3>Zespoły</h3><p>Współpraca w czasie rzeczywistym.</p></article>
         <article class="tile"><h3>Wiedza</h3><p>Quizy ABCD do utrwalania.</p></article>
+        <article class="tile"><h3>Bezpieczeństwo</h3><p>Nowoczesne standardy ochrony.</p></article>
     </div>
 </section>
 
@@ -369,7 +396,8 @@
     <div class="container">
         <div class="card">
             <h2 id="contact-title" style="margin:0 0 8px">Skontaktuj się z nami</h2>
-            <p class="lead" style="color: black; margin:0 0 16px">Masz pytanie lub propozycję? Napisz — odpowiemy szybko.</p>
+            <!-- Zmieniono na czarny, zgodnie z prośbą -->
+            <p class="lead lead-black" style="margin:0 0 16px">Masz pytanie? Napisz — odpowiemy szybko.</p>
             <form class="form" action="#" method="post" novalidate>
                 @csrf
                 <div class="row">
@@ -444,7 +472,7 @@
         });
     })();
 
-    /* Burger + scrim */
+    /* Burger + scrim (Kontakt widoczny tylko po rozwinięciu menu w mobile) */
     (function(){
         var burger = document.getElementById('burger');
         var panel  = document.getElementById('mobilePanel');
