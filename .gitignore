@@ -22,6 +22,4 @@ yarn-error.log
 /.zed
 .env
 /tests/results
-/tests/result
-/tests/E2E/result
-/tests/E2E/results
+

@@ -11,3 +11,9 @@ python tests/E2E/CourseTest.py --base-url https://notesync.pl
 python tests/E2E/QuizTest.py --base-url https://notesync.pl --me-prefix me --html-report
 
 
+python tests/E2E/E2E.py --base-url https://notesync.pl
+
+python tests/E2E/E2E.py --base-url http://localhost:8000
+
+
+
