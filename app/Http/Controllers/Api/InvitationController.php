@@ -86,18 +86,27 @@ class InvitationController extends Controller
         $existingUserId = $existingUser?->id;
 
         return DB::transaction(function () use ($course, $data, $emailRaw, $emailNorm, $existingUserId) {
+
+            // --- POCZĄTEK DODANEGO ZABEZPIECZENIA ---
+            // Sprawdzamy liczbę odrzuconych zaproszeń dla tego kursu i tego adresata
             $rejectedCount = Invitation::where('course_id', $course->id)
                 ->where(function ($q) use ($emailNorm, $existingUserId) {
+                    // Sprawdzamy po znormalizowanym e-mailu
                     $q->whereRaw('LOWER(TRIM(invited_email)) = ?', [$emailNorm]);
+                    // Jeśli znamy ID użytkownika, sprawdzamy również po ID
                     if ($existingUserId) $q->orWhere('user_id', $existingUserId);
                 })
                 ->where('status', 'rejected')
-                ->lockForUpdate()
+                ->lockForUpdate() // Blokujemy odczytane wiersze na czas transakcji
                 ->count();
 
+            // Jeśli jest 3 lub więcej odrzuceń, blokujemy
             if ($rejectedCount >= 3) {
-                return response()->json(['error' => 'Too many rejections for this email. Further invites are blocked.'], 422);
+                return response()->json([
+                    'error' => 'Too many rejections for this email. Further invites are blocked.'
+                ], 422); // 422 Unprocessable Entity
             }
+            // --- KONIEC DODANEGO ZABEZPIECZENIA ---
 
             $role = $data['role'] ?? 'member';
             if ($role === 'user') $role = 'member';
