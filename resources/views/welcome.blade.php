@@ -40,8 +40,9 @@
         }
         a{color:inherit; text-decoration:none}
         img{display:block; max-width:100%; height:auto}
-        .container{max-width:var(--container); margin:0 auto; padding:0 26px}
-        .container-narrow{max-width:1160px; margin:0 auto; padding:0 26px}
+        /* === MODYFIKACJA 1: Responsywne dopełnienie === */
+        .container{max-width:var(--container); margin:0 auto; padding:0 clamp(16px, 4vw, 26px)}
+        .container-narrow{max-width:1160px; margin:0 auto; padding:0 clamp(16px, 4vw, 26px)}
         [id]{scroll-margin-top:calc(var(--nav) + 12px)}
 
         /* Globalne tło – nowoczesny gradient dopasowany do headera */
@@ -160,13 +161,16 @@
         @media (max-width:1024px){
             .gridShots{grid-template-columns:repeat(2, 1fr)}
         }
+        /* === MODYFIKACJA 2: Poprawka responsywności === */
         @media (max-width:700px){
             .gridShots{
                 grid-template-columns:1fr;
                 justify-items:center; /* CENTRUM */
-                padding-left:12px; padding-right:12px; /* równe marginesy */
+                /* Usunięto 'padding-left' i 'padding-right' - były zbędne i addytywne do .container */
             }
-            .shot-btn{max-width:92vw}
+            /* Usunięto regułę '.shot-btn{max-width:92vw}'
+               Powodowała ona przepełnienie (horizontal overflow) na mobile.
+               Domyślna reguła 'width: 100%' jest poprawna i szanuje padding kontenera. */
         }
         .shot-btn{
             display:block; width:100%; background:var(--card); border:1px solid var(--border);
@@ -342,7 +346,6 @@
     $expoQrImg = notesync_resolve_asset('expogo-qr');
 @endphp
 
-    <!-- NAVBAR -->
 <div class="nav" role="banner">
     <div class="container nav-inner">
         <a class="brand" href="#top" aria-label="Strona główna">
@@ -379,14 +382,12 @@
     </div>
 </div>
 
-<!-- HERO -->
 <header class="hero" role="region" aria-label="Sekcja główna">
     <div class="container heroBox">
         <div class="kicker">ANDROID • SYNC</div>
         <h1>Notuj. Porządkuj.<br/>Synchronizuj.</h1>
         <p class="lead">Szybka, lekka aplikacja do notatek z bezpieczną synchronizacją.</p>
 
-        <!-- CTA: Android (z ikoną) + iOS (disabled) + Expo GO (modal z QR) -->
         <div class="cta-stack" aria-label="Opcje pobrania">
             <a id="download" class="cta" href="#download" rel="nofollow">
                 <img class="cta-icon" src="{{ asset('assets/images/android.svg') }}" alt="" aria-hidden="true">
@@ -415,7 +416,6 @@
     </div>
 </header>
 
-<!-- SCREENSHOTS (3 szt., mobilnie wycentrowane) -->
 <main class="shots" id="screens">
     <div class="container">
         <div class="gridShots">
@@ -429,7 +429,6 @@
     </div>
 </main>
 
-<!-- FEATURES -->
 <section class="features" id="features">
     <div class="container fgrid">
         <article class="tile"><h3>Chmura</h3><p>Notatki zawsze pod ręką.</p></article>
@@ -439,7 +438,6 @@
     </div>
 </section>
 
-<!-- ABOUT -->
 <section class="about" id="about" aria-labelledby="about-title">
     <div class="container about-grid">
         <div class="card">
@@ -466,7 +464,6 @@
     </div>
 </section>
 
-<!-- FAQ -->
 <section class="faq" id="faq" aria-labelledby="faq-title">
     <div class="container">
         <h2 id="faq-title" style="margin:0 0 10px">FAQ — najczęstsze pytania</h2>
@@ -495,12 +492,10 @@
     </div>
 </section>
 
-<!-- CONTACT -->
 <section class="contact" id="contact" aria-labelledby="contact-title">
     <div class="container">
         <div class="card">
             <h2 id="contact-title" style="margin:0 0 8px">Skontaktuj się z nami</h2>
-            <!-- Zmieniono na czarny, zgodnie z prośbą -->
             <p class="lead lead-black" style="margin:0 0 16px">Masz pytanie? Napisz — odpowiemy szybko.</p>
             <form class="form" action="#" method="post" novalidate>
                 @csrf
@@ -531,7 +526,6 @@
     </div>
 </section>
 
-<!-- FOOTER -->
 <footer>
     <a class="top" href="#top" aria-label="Do góry">↑</a>
     © {{ now()->year }} NoteSync
