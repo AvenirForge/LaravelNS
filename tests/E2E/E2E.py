@@ -1559,6 +1559,11 @@ class E2ETester:
         url = build(self.ctx, f"/api/invitations/{token}/reject")
         r = http_json(self.ctx, "COURSE: C reject last", "POST", url, {}, auth_headers(self.ctx.tokenC))
         assert r.status_code == 200
+
+        # DODAJ TĘ LINIĘ: Daj 2 sekundy workerowi na produkcji na przetworzenie odrzucenia
+        print(c(" (Czekam 2s na przetworzenie kolejki)...", Fore.MAGENTA), end=" ")
+        time.sleep(2)
+
         return {"status": 200, "method":"POST","url":url}
 
     def t_course_invite_C_2(self): return self.t_course_invite_C_1()
