@@ -22,7 +22,7 @@ class Invitation extends Model
         'expires_at',
         'responded_at',
         'user_id',
-        'role',              // ← TU BYŁ BRAK!
+        'role', // ← FIX: bez tego rola była ignorowana i spadała do 'user' (czyt. member)
     ];
 
     protected $casts = [
