@@ -1,0 +1,2838 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8" />
+<title>NoteSync — Quiz API Test Report</title>
+<style>
+:root {
+  --bg:#0b0d12; --panel:#0f1320; --ink:#e6e6e6; --muted:#9aa4b2;
+  --ok:#65d26e; --err:#ff6b6b; --warn:#ffd166; --accent:#7cb8ff;
+}
+html,body { background:var(--bg); color:var(--ink); font-family: ui-sans-serif,system-ui,Segoe UI,Roboto,Arial; }
+.wrapper { margin:24px; }
+h1,h2,h3 { color:#e6f1ff; }
+code { background:#141a2a; padding:2px 6px; border-radius:6px; }
+pre { background:var(--panel); padding:12px; border-radius:12px; overflow:auto; border:1px solid #1b2136; }
+section.endpoint { border:1px solid #1b2136; border-radius:14px; padding:16px; margin:16px 0; background:#0e1220; box-shadow: 0 0 0 1px rgba(255,255,255,0.02) inset;}
+section.endpoint .meta { font-size: 13px; color: var(--muted); margin: 4px 0 12px; }
+section.endpoint .meta .m { color: var(--accent); font-weight: 600; margin-right:8px; }
+section.endpoint .meta .dur { color: #a0ffa0; margin-left:8px; }
+section.endpoint .meta .st { color: #ffd3a0; margin-left:8px; }
+table { width:100%; border-collapse:collapse; margin-top: 20px; }
+th, td { border:1px solid #1b2136; padding:10px; text-align:left; }
+th { background:#10162a; color:#d4e2ff; }
+tr.pass { background: rgba(101,210,110,.06); }
+tr.fail { background: rgba(255,107,107,.08); }
+.summary { margin-top:24px; color: var(--muted); }
+details summary { cursor:pointer; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+<h1>NoteSync — Quiz API Test</h1>
+
+<h2>Wyniki</h2>
+<table>
+<thead>
+<tr><th>Test</th><th>Wynik</th><th>Czas</th><th>Metoda</th><th>URL</th><th>HTTP</th></tr>
+</thead>
+<tbody>
+
+<tr class="pass">
+  <td>👤 Rejestracja A</td>
+  <td>PASS</td>
+  <td>732.5 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/users/register</code></td>
+  <td>201</td>
+</tr>
+
+<tr class="pass">
+  <td>🔒 Login A</td>
+  <td>PASS</td>
+  <td>371.3 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/login</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>📘 Create course</td>
+  <td>PASS</td>
+  <td>35.2 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/me/courses</code></td>
+  <td>201</td>
+</tr>
+
+<tr class="pass">
+  <td>📘 Index my tests (empty ok)</td>
+  <td>PASS</td>
+  <td>34.4 ms</td>
+  <td>GET</td>
+  <td><code>https://notesync.pl/api/me/tests</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>📘 Create PRIVATE test</td>
+  <td>PASS</td>
+  <td>32.7 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/me/tests</code></td>
+  <td>201</td>
+</tr>
+
+<tr class="pass">
+  <td>📋 List my tests includes private</td>
+  <td>PASS</td>
+  <td>33.6 ms</td>
+  <td>GET</td>
+  <td><code>https://notesync.pl/api/me/tests</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>📘 Show private test</td>
+  <td>PASS</td>
+  <td>32.8 ms</td>
+  <td>GET</td>
+  <td><code>https://notesync.pl/api/me/tests/7</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>✏️ Update private test (PUT)</td>
+  <td>PASS</td>
+  <td>35.3 ms</td>
+  <td>PUT</td>
+  <td><code>https://notesync.pl/api/me/tests/7</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>❓ Add question #1</td>
+  <td>PASS</td>
+  <td>34.1 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/me/tests/7/questions</code></td>
+  <td>201</td>
+</tr>
+
+<tr class="pass">
+  <td>📋 List questions has #1</td>
+  <td>PASS</td>
+  <td>33.4 ms</td>
+  <td>GET</td>
+  <td><code>https://notesync.pl/api/me/tests/7/questions</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>✏️ Update question #1</td>
+  <td>PASS</td>
+  <td>37.9 ms</td>
+  <td>PUT</td>
+  <td><code>https://notesync.pl/api/me/tests/7/questions/64</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>🅰️ Add answer invalid (no correct yet)</td>
+  <td>PASS</td>
+  <td>39.0 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/me/tests/7/questions/64/answers</code></td>
+  <td>400</td>
+</tr>
+
+<tr class="pass">
+  <td>🅰️ Add answer #1 (correct)</td>
+  <td>PASS</td>
+  <td>379.3 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/me/tests/7/questions/64/answers</code></td>
+  <td>201</td>
+</tr>
+
+<tr class="pass">
+  <td>🅰️ Add answer duplicate → 400</td>
+  <td>PASS</td>
+  <td>38.1 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/me/tests/7/questions/64/answers</code></td>
+  <td>400</td>
+</tr>
+
+<tr class="pass">
+  <td>🅰️ Add answer #2 (wrong)</td>
+  <td>PASS</td>
+  <td>405.3 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/me/tests/7/questions/64/answers</code></td>
+  <td>201</td>
+</tr>
+
+<tr class="pass">
+  <td>🅰️ Add answer #3 (wrong)</td>
+  <td>PASS</td>
+  <td>36.6 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/me/tests/7/questions/64/answers</code></td>
+  <td>201</td>
+</tr>
+
+<tr class="pass">
+  <td>🅰️ Add answer #4 (wrong)</td>
+  <td>PASS</td>
+  <td>39.7 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/me/tests/7/questions/64/answers</code></td>
+  <td>201</td>
+</tr>
+
+<tr class="pass">
+  <td>🅰️ Add answer #5 blocked (limit 4)</td>
+  <td>PASS</td>
+  <td>38.1 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/me/tests/7/questions/64/answers</code></td>
+  <td>400</td>
+</tr>
+
+<tr class="pass">
+  <td>📋 Get answers list</td>
+  <td>PASS</td>
+  <td>358.9 ms</td>
+  <td>GET</td>
+  <td><code>https://notesync.pl/api/me/tests/7/questions/64/answers</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>✏️ Update answer #2 -> correct</td>
+  <td>PASS</td>
+  <td>35.0 ms</td>
+  <td>PUT</td>
+  <td><code>https://notesync.pl/api/me/tests/7/questions/64/answers/14</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>🗑️ Delete answer #3</td>
+  <td>PASS</td>
+  <td>34.2 ms</td>
+  <td>DELETE</td>
+  <td><code>https://notesync.pl/api/me/tests/7/questions/64/answers/15</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>🗑️ Delete question #1</td>
+  <td>PASS</td>
+  <td>34.7 ms</td>
+  <td>DELETE</td>
+  <td><code>https://notesync.pl/api/me/tests/7/questions/64</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>❓ Add up to 20 questions</td>
+  <td>PASS</td>
+  <td>696.2 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/me/tests/7/questions</code></td>
+  <td>201</td>
+</tr>
+
+<tr class="pass">
+  <td>❓ 21st question blocked</td>
+  <td>PASS</td>
+  <td>36.3 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/me/tests/7/questions</code></td>
+  <td>400</td>
+</tr>
+
+<tr class="pass">
+  <td>📘 Create PUBLIC test</td>
+  <td>PASS</td>
+  <td>364.1 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/me/tests</code></td>
+  <td>201</td>
+</tr>
+
+<tr class="pass">
+  <td>🔗 Share PUBLIC test → course</td>
+  <td>PASS</td>
+  <td>38.6 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/me/tests/8/share</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>📋 Course tests include shared</td>
+  <td>PASS</td>
+  <td>36.3 ms</td>
+  <td>GET</td>
+  <td><code>https://notesync.pl/api/courses/16/tests</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>👤 Rejestracja B</td>
+  <td>PASS</td>
+  <td>383.4 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/users/register</code></td>
+  <td>201</td>
+</tr>
+
+<tr class="pass">
+  <td>🔒 Login B</td>
+  <td>PASS</td>
+  <td>387.5 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/login</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>🔒 B cannot see A private test</td>
+  <td>PASS</td>
+  <td>37.2 ms</td>
+  <td>GET</td>
+  <td><code>https://notesync.pl/api/me/tests/7</code></td>
+  <td>404</td>
+</tr>
+
+<tr class="pass">
+  <td>🔒 B cannot modify A test</td>
+  <td>PASS</td>
+  <td>31.4 ms</td>
+  <td>PUT</td>
+  <td><code>https://notesync.pl/api/me/tests/7</code></td>
+  <td>404</td>
+</tr>
+
+<tr class="pass">
+  <td>🔒 B cannot add question to A test</td>
+  <td>PASS</td>
+  <td>34.1 ms</td>
+  <td>POST</td>
+  <td><code>https://notesync.pl/api/me/tests/7/questions</code></td>
+  <td>404</td>
+</tr>
+
+<tr class="pass">
+  <td>🔒 B cannot delete A test</td>
+  <td>PASS</td>
+  <td>31.0 ms</td>
+  <td>DELETE</td>
+  <td><code>https://notesync.pl/api/me/tests/7</code></td>
+  <td>404</td>
+</tr>
+
+<tr class="pass">
+  <td>🗑️ Cleanup A: delete public test</td>
+  <td>PASS</td>
+  <td>411.4 ms</td>
+  <td>DELETE</td>
+  <td><code>https://notesync.pl/api/me/tests/8</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>🗑️ Cleanup A: delete private test</td>
+  <td>PASS</td>
+  <td>31.8 ms</td>
+  <td>DELETE</td>
+  <td><code>https://notesync.pl/api/me/tests/7</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>🗑️ Cleanup A: delete course</td>
+  <td>PASS</td>
+  <td>31.9 ms</td>
+  <td>DELETE</td>
+  <td><code>https://notesync.pl/api/me/courses/16</code></td>
+  <td>200</td>
+</tr>
+
+</tbody>
+</table>
+
+<h2>Endpointy — Szczegóły</h2>
+
+<section class="endpoint">
+  <h2>1. Register A</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/users/register</code> <span class="dur">731.7 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "name": "Tester A",
+  "email": "quiz.3dfnzkr4@example.com",
+  "password": "***",
+  "password_confirmation": "***"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:15 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Upgrade": "h2,h2c",
+  "Connection": "Upgrade, Keep-Alive",
+  "Keep-Alive": "timeout=5, max=100",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "User created successfully!",
+  "user": {
+    "id": 40,
+    "name": "Tester A",
+    "email": "quiz.3dfnzkr4@example.com",
+    "avatar_url": null
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>2. Login A</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/login</code> <span class="dur">370.5 ms</span> <span class="st">200</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "email": "quiz.3dfnzkr4@example.com",
+  "password": "***"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:15 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=99",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Login successful",
+  "userId": 40,
+  "token": "***",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "user": {
+    "id": 40,
+    "name": "Tester A",
+    "email": "quiz.3dfnzkr4@example.com",
+    "avatar_url": null
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>3. Create course</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/courses</code> <span class="dur">34.5 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "title": "QuizCourse",
+  "description": "Course for quiz E2E",
+  "type": "private"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:15 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=98",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Course created successfully!",
+  "course": {
+    "title": "QuizCourse",
+    "description": "Course for quiz E2E",
+    "type": "private",
+    "user_id": 40,
+    "updated_at": "2025-10-23T15:59:15.000000Z",
+    "created_at": "2025-10-23T15:59:15.000000Z",
+    "id": 16
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>4. Index user tests initial</h2>
+  <div class="meta"><span class="m">GET</span> <code>https://notesync.pl/api/me/tests</code> <span class="dur">33.7 ms</span> <span class="st">200</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:15 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=97",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>[]</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>5. Create private test</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests</code> <span class="dur">32.0 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "title": "Private Test 1",
+  "description": "desc",
+  "status": "private"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:15 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=96",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "user_id": 40,
+  "course_id": null,
+  "title": "Private Test 1",
+  "description": "desc",
+  "status": "private",
+  "updated_at": "2025-10-23T15:59:15.000000Z",
+  "created_at": "2025-10-23T15:59:15.000000Z",
+  "id": 7
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>6. Index contains private</h2>
+  <div class="meta"><span class="m">GET</span> <code>https://notesync.pl/api/me/tests</code> <span class="dur">32.8 ms</span> <span class="st">200</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:15 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=95",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>[
+  {
+    "id": 7,
+    "user_id": 40,
+    "course_id": null,
+    "title": "Private Test 1",
+    "description": "desc",
+    "status": "private",
+    "created_at": "2025-10-23T15:59:15.000000Z",
+    "updated_at": "2025-10-23T15:59:15.000000Z",
+    "questions_count": 0
+  }
+]</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>7. Show private test</h2>
+  <div class="meta"><span class="m">GET</span> <code>https://notesync.pl/api/me/tests/7</code> <span class="dur">32.1 ms</span> <span class="st">200</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:15 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=94",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "id": 7,
+  "user_id": 40,
+  "course_id": null,
+  "title": "Private Test 1",
+  "description": "desc",
+  "status": "private",
+  "created_at": "2025-10-23T15:59:15.000000Z",
+  "updated_at": "2025-10-23T15:59:15.000000Z",
+  "questions": []
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>8. Update private test</h2>
+  <div class="meta"><span class="m">PUT</span> <code>https://notesync.pl/api/me/tests/7</code> <span class="dur">34.5 ms</span> <span class="st">200</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "title": "Private Test 1 — updated",
+  "description": "desc2"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:15 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=93",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "id": 7,
+  "user_id": 40,
+  "course_id": null,
+  "title": "Private Test 1 — updated",
+  "description": "desc2",
+  "status": "private",
+  "created_at": "2025-10-23T15:59:15.000000Z",
+  "updated_at": "2025-10-23T15:59:15.000000Z"
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>9. Add Q1</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">33.4 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "What is 2+2?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:15 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=92",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "What is 2+2?",
+  "updated_at": "2025-10-23T15:59:15.000000Z",
+  "created_at": "2025-10-23T15:59:15.000000Z",
+  "id": 64
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>10. List questions</h2>
+  <div class="meta"><span class="m">GET</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">32.7 ms</span> <span class="st">200</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:15 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=91",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "questions": [
+    {
+      "id": 64,
+      "test_id": 7,
+      "question": "What is 2+2?",
+      "created_at": "2025-10-23T15:59:15.000000Z",
+      "updated_at": "2025-10-23T15:59:15.000000Z",
+      "answers": []
+    }
+  ]
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>11. Update Q1</h2>
+  <div class="meta"><span class="m">PUT</span> <code>https://notesync.pl/api/me/tests/7/questions/64</code> <span class="dur">37.2 ms</span> <span class="st">200</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "What is 3+3?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:15 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=90",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "id": 64,
+  "question": "What is 3+3?",
+  "test_id": 7,
+  "created_at": "2025-10-23T15:59:15.000000Z",
+  "updated_at": "2025-10-23T15:59:15.000000Z"
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>12. Add A1 invalid first</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions/64/answers</code> <span class="dur">35.4 ms</span> <span class="st">400</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "answer": "4",
+  "is_correct": false
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:15 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Connection": "close",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Musisz dodać przynajmniej jedną poprawną odpowiedź"
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>13. Add A1 correct</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions/64/answers</code> <span class="dur">378.7 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "answer": "6",
+  "is_correct": true
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:16 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Upgrade": "h2,h2c",
+  "Connection": "Upgrade, Keep-Alive",
+  "Keep-Alive": "timeout=5, max=100",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Odpowiedź została zapisana",
+  "answer": {
+    "question_id": 64,
+    "answer": "6",
+    "is_correct": true,
+    "updated_at": "2025-10-23T15:59:16.000000Z",
+    "created_at": "2025-10-23T15:59:16.000000Z",
+    "id": 13
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>14. Add duplicate</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions/64/answers</code> <span class="dur">34.3 ms</span> <span class="st">400</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "answer": "6",
+  "is_correct": false
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:16 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Connection": "close",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Taka odpowiedź już istnieje"
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>15. Add A2 wrong</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions/64/answers</code> <span class="dur">404.8 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "answer": "7",
+  "is_correct": false
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:16 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Upgrade": "h2,h2c",
+  "Connection": "Upgrade, Keep-Alive",
+  "Keep-Alive": "timeout=5, max=100",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Odpowiedź została zapisana",
+  "answer": {
+    "question_id": 64,
+    "answer": "7",
+    "is_correct": false,
+    "updated_at": "2025-10-23T15:59:16.000000Z",
+    "created_at": "2025-10-23T15:59:16.000000Z",
+    "id": 14
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>16. Add A3 wrong</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions/64/answers</code> <span class="dur">35.9 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "answer": "8",
+  "is_correct": false
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:16 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=99",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Odpowiedź została zapisana",
+  "answer": {
+    "question_id": 64,
+    "answer": "8",
+    "is_correct": false,
+    "updated_at": "2025-10-23T15:59:16.000000Z",
+    "created_at": "2025-10-23T15:59:16.000000Z",
+    "id": 15
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>17. Add A4 wrong</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions/64/answers</code> <span class="dur">38.9 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "answer": "9",
+  "is_correct": false
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:16 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=98",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Odpowiedź została zapisana",
+  "answer": {
+    "question_id": 64,
+    "answer": "9",
+    "is_correct": false,
+    "updated_at": "2025-10-23T15:59:16.000000Z",
+    "created_at": "2025-10-23T15:59:16.000000Z",
+    "id": 16
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>18. Add A5 blocked</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions/64/answers</code> <span class="dur">34.5 ms</span> <span class="st">400</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "answer": "10",
+  "is_correct": false
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:16 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Connection": "close",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Możesz dodać maksymalnie 4 odpowiedzi"
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>19. Get answers</h2>
+  <div class="meta"><span class="m">GET</span> <code>https://notesync.pl/api/me/tests/7/questions/64/answers</code> <span class="dur">358.4 ms</span> <span class="st">200</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Upgrade": "h2,h2c",
+  "Connection": "Upgrade, Keep-Alive",
+  "Keep-Alive": "timeout=5, max=100",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>[
+  {
+    "id": 13,
+    "question_id": 64,
+    "answer": "6",
+    "is_correct": true,
+    "created_at": "2025-10-23T15:59:16.000000Z",
+    "updated_at": "2025-10-23T15:59:16.000000Z"
+  },
+  {
+    "id": 14,
+    "question_id": 64,
+    "answer": "7",
+    "is_correct": false,
+    "created_at": "2025-10-23T15:59:16.000000Z",
+    "updated_at": "2025-10-23T15:59:16.000000Z"
+  },
+  {
+    "id": 15,
+    "question_id": 64,
+    "answer": "8",
+    "is_correct": false,
+    "created_at": "2025-10-23T15:59:16.000000Z",
+    "updated_at": "2025-10-23T15:59:16.000000Z"
+  },
+  {
+    "id": 16,
+    "question_id": 64,
+    "answer": "9",
+    "is_correct": false,
+    "created_at": "2025-10-23T15:59:16.000000Z",
+    "updated_at": "2025-10-23T15:59:16.000000Z"
+  }
+]</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>20. Update answer #2</h2>
+  <div class="meta"><span class="m">PUT</span> <code>https://notesync.pl/api/me/tests/7/questions/64/answers/14</code> <span class="dur">34.5 ms</span> <span class="st">200</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "answer": "7 (upd)",
+  "is_correct": true
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=99",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "id": 14,
+  "answer": "7 (upd)",
+  "is_correct": true,
+  "question_id": 64,
+  "created_at": "2025-10-23T15:59:16.000000Z",
+  "updated_at": "2025-10-23T15:59:17.000000Z"
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>21. Delete answer #3</h2>
+  <div class="meta"><span class="m">DELETE</span> <code>https://notesync.pl/api/me/tests/7/questions/64/answers/15</code> <span class="dur">33.6 ms</span> <span class="st">200</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=98",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Answer deleted."
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>22. Delete Q1</h2>
+  <div class="meta"><span class="m">DELETE</span> <code>https://notesync.pl/api/me/tests/7/questions/64</code> <span class="dur">34.0 ms</span> <span class="st">200</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=97",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Question deleted."
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>23. Add Q1</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">35.1 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q1?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=96",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q1?",
+  "updated_at": "2025-10-23T15:59:17.000000Z",
+  "created_at": "2025-10-23T15:59:17.000000Z",
+  "id": 65
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>24. Add Q2</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">33.0 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q2?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=95",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q2?",
+  "updated_at": "2025-10-23T15:59:17.000000Z",
+  "created_at": "2025-10-23T15:59:17.000000Z",
+  "id": 66
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>25. Add Q3</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">33.7 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q3?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=94",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q3?",
+  "updated_at": "2025-10-23T15:59:17.000000Z",
+  "created_at": "2025-10-23T15:59:17.000000Z",
+  "id": 67
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>26. Add Q4</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">45.5 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q4?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=93",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q4?",
+  "updated_at": "2025-10-23T15:59:17.000000Z",
+  "created_at": "2025-10-23T15:59:17.000000Z",
+  "id": 68
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>27. Add Q5</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">34.0 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q5?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=92",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q5?",
+  "updated_at": "2025-10-23T15:59:17.000000Z",
+  "created_at": "2025-10-23T15:59:17.000000Z",
+  "id": 69
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>28. Add Q6</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">33.1 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q6?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=91",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q6?",
+  "updated_at": "2025-10-23T15:59:17.000000Z",
+  "created_at": "2025-10-23T15:59:17.000000Z",
+  "id": 70
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>29. Add Q7</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">32.9 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q7?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=90",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q7?",
+  "updated_at": "2025-10-23T15:59:17.000000Z",
+  "created_at": "2025-10-23T15:59:17.000000Z",
+  "id": 71
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>30. Add Q8</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">33.8 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q8?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=89",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q8?",
+  "updated_at": "2025-10-23T15:59:17.000000Z",
+  "created_at": "2025-10-23T15:59:17.000000Z",
+  "id": 72
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>31. Add Q9</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">37.7 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q9?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=88",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q9?",
+  "updated_at": "2025-10-23T15:59:17.000000Z",
+  "created_at": "2025-10-23T15:59:17.000000Z",
+  "id": 73
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>32. Add Q10</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">33.2 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q10?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=87",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q10?",
+  "updated_at": "2025-10-23T15:59:17.000000Z",
+  "created_at": "2025-10-23T15:59:17.000000Z",
+  "id": 74
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>33. Add Q11</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">33.3 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q11?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=86",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q11?",
+  "updated_at": "2025-10-23T15:59:17.000000Z",
+  "created_at": "2025-10-23T15:59:17.000000Z",
+  "id": 75
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>34. Add Q12</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">37.1 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q12?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=85",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q12?",
+  "updated_at": "2025-10-23T15:59:17.000000Z",
+  "created_at": "2025-10-23T15:59:17.000000Z",
+  "id": 76
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>35. Add Q13</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">33.6 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q13?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=84",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q13?",
+  "updated_at": "2025-10-23T15:59:17.000000Z",
+  "created_at": "2025-10-23T15:59:17.000000Z",
+  "id": 77
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>36. Add Q14</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">34.4 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q14?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=83",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q14?",
+  "updated_at": "2025-10-23T15:59:17.000000Z",
+  "created_at": "2025-10-23T15:59:17.000000Z",
+  "id": 78
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>37. Add Q15</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">33.1 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q15?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=82",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q15?",
+  "updated_at": "2025-10-23T15:59:17.000000Z",
+  "created_at": "2025-10-23T15:59:17.000000Z",
+  "id": 79
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>38. Add Q16</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">33.1 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q16?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=81",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q16?",
+  "updated_at": "2025-10-23T15:59:17.000000Z",
+  "created_at": "2025-10-23T15:59:17.000000Z",
+  "id": 80
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>39. Add Q17</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">34.3 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q17?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:17 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=80",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q17?",
+  "updated_at": "2025-10-23T15:59:17.000000Z",
+  "created_at": "2025-10-23T15:59:17.000000Z",
+  "id": 81
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>40. Add Q18</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">36.5 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q18?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:18 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=79",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q18?",
+  "updated_at": "2025-10-23T15:59:18.000000Z",
+  "created_at": "2025-10-23T15:59:18.000000Z",
+  "id": 82
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>41. Add Q19</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">31.2 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q19?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:18 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=78",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q19?",
+  "updated_at": "2025-10-23T15:59:18.000000Z",
+  "created_at": "2025-10-23T15:59:18.000000Z",
+  "id": 83
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>42. Add Q20</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">33.1 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q20?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:18 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=77",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "test_id": 7,
+  "question": "Q20?",
+  "updated_at": "2025-10-23T15:59:18.000000Z",
+  "created_at": "2025-10-23T15:59:18.000000Z",
+  "id": 84
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>43. Add Q21 blocked</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">32.6 ms</span> <span class="st">400</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "Q21?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:18 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Connection": "close",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Nie można dodać więcej niż 20 pytań do jednego testu."
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>44. Create PUBLIC test</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests</code> <span class="dur">363.5 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "title": "Public Test 1",
+  "description": "share me",
+  "status": "public"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:18 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Upgrade": "h2,h2c",
+  "Connection": "Upgrade, Keep-Alive",
+  "Keep-Alive": "timeout=5, max=100",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "user_id": 40,
+  "course_id": null,
+  "title": "Public Test 1",
+  "description": "share me",
+  "status": "public",
+  "updated_at": "2025-10-23T15:59:18.000000Z",
+  "created_at": "2025-10-23T15:59:18.000000Z",
+  "id": 8
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>45. Share public test (body)</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/8/share</code> <span class="dur">37.9 ms</span> <span class="st">200</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "course_id": 16
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:18 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=99",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Test został udostępniony w kursie.",
+  "test": {
+    "id": 8,
+    "user_id": 40,
+    "course_id": 16,
+    "title": "Public Test 1",
+    "description": "share me",
+    "status": "public",
+    "created_at": "2025-10-23T15:59:18.000000Z",
+    "updated_at": "2025-10-23T15:59:18.000000Z"
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>46. Course tests</h2>
+  <div class="meta"><span class="m">GET</span> <code>https://notesync.pl/api/courses/16/tests</code> <span class="dur">35.5 ms</span> <span class="st">200</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…F0qc"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:18 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=98",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>[
+  {
+    "id": 8,
+    "user_id": 40,
+    "course_id": 16,
+    "title": "Public Test 1",
+    "description": "share me",
+    "status": "public",
+    "created_at": "2025-10-23T15:59:18.000000Z",
+    "updated_at": "2025-10-23T15:59:18.000000Z",
+    "user": {
+      "id": 40,
+      "name": "Tester A",
+      "email": "quiz.3dfnzkr4@example.com"
+    },
+    "course": {
+      "id": 16,
+      "title": "QuizCourse",
+      "type": "private",
+      "user_id": 40,
+      "avatar": null
+    },
+    "questions": []
+  }
+]</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>47. Register B</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/users/register</code> <span class="dur">382.7 ms</span> <span class="st">201</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "name": "Tester B",
+  "email": "quiz.bhcfp2gz@example.com",
+  "password": "***",
+  "password_confirmation": "***"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:18 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=97",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "User created successfully!",
+  "user": {
+    "id": 41,
+    "name": "Tester B",
+    "email": "quiz.bhcfp2gz@example.com",
+    "avatar_url": null
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>48. Login B</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/login</code> <span class="dur">386.8 ms</span> <span class="st">200</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "email": "quiz.bhcfp2gz@example.com",
+  "password": "***"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:19 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=96",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Login successful",
+  "userId": 41,
+  "token": "***",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "user": {
+    "id": 41,
+    "name": "Tester B",
+    "email": "quiz.bhcfp2gz@example.com",
+    "avatar_url": null
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>49. B show A test</h2>
+  <div class="meta"><span class="m">GET</span> <code>https://notesync.pl/api/me/tests/7</code> <span class="dur">36.5 ms</span> <span class="st">404</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…906k"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:19 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=95",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "No query results for model [App\\Models\\Test]."
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>50. B update A test</h2>
+  <div class="meta"><span class="m">PUT</span> <code>https://notesync.pl/api/me/tests/7</code> <span class="dur">30.9 ms</span> <span class="st">404</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…906k"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "title": "hack",
+  "description": "hack"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:19 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=94",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "No query results for model [App\\Models\\Test]."
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>51. B add Q to A</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/me/tests/7/questions</code> <span class="dur">33.4 ms</span> <span class="st">404</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…906k"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "question": "hack?"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:19 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=93",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "No query results for model [App\\Models\\Test]."
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>52. B delete A test</h2>
+  <div class="meta"><span class="m">DELETE</span> <code>https://notesync.pl/api/me/tests/7</code> <span class="dur">30.4 ms</span> <span class="st">404</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…906k"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:19 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=92",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "No query results for model [App\\Models\\Test]."
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>53. Re-login A for cleanup</h2>
+  <div class="meta"><span class="m">POST</span> <code>https://notesync.pl/api/login</code> <span class="dur">378.8 ms</span> <span class="st">200</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "email": "quiz.3dfnzkr4@example.com",
+  "password": "***"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:19 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=91",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Login successful",
+  "userId": 40,
+  "token": "***",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "user": {
+    "id": 40,
+    "name": "Tester A",
+    "email": "quiz.3dfnzkr4@example.com",
+    "avatar_url": null
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>54. Cleanup delete public</h2>
+  <div class="meta"><span class="m">DELETE</span> <code>https://notesync.pl/api/me/tests/8</code> <span class="dur">31.7 ms</span> <span class="st">200</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…7dr4"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:19 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=90",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Test deleted."
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>55. Cleanup delete private</h2>
+  <div class="meta"><span class="m">DELETE</span> <code>https://notesync.pl/api/me/tests/7</code> <span class="dur">31.2 ms</span> <span class="st">200</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…7dr4"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:19 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=89",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Test deleted."
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>56. Cleanup delete course</h2>
+  <div class="meta"><span class="m">DELETE</span> <code>https://notesync.pl/api/me/courses/16</code> <span class="dur">31.2 ms</span> <span class="st">200</span></div>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…7dr4"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Date": "Thu, 23 Oct 2025 15:59:19 GMT",
+  "Server": "Apache/2.4.52 (Ubuntu)",
+  "Cache-Control": "no-cache, private",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Keep-Alive": "timeout=5, max=88",
+  "Connection": "Keep-Alive",
+  "Transfer-Encoding": "chunked",
+  "Content-Type": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Course deleted successfully"
+}</pre>
+  </details>
+</section>
+
+
+<p class="summary">Raport wygenerowano: 2025-10-23 17:59:19</p>
+</div>
+</body>
+</html>

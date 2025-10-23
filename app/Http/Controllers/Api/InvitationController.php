@@ -24,27 +24,34 @@ class InvitationController extends Controller
 
     private function canonicalEmail(string $email): string
     {
+        // ZAWSZE normalizujemy Gmail (kropki/aliasy), niezależnie od dostępności intl.
         $email = trim(mb_strtolower($email));
-        if (function_exists('idn_to_ascii') && str_contains($email, '@')) {
-            [$local, $domain] = explode('@', $email, 2);
-
-            // 1. Normalizuj domenę (obsługa IDN)
-            $asciiDomain = idn_to_ascii($domain, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
-            if ($asciiDomain) $domain = $asciiDomain;
-
-            // 2. Normalizuj część lokalną dla aliasów Gmail/Googlemail
-            if (in_array($domain, ['gmail.com', 'googlemail.com'], true)) {
-                // Usuń wszystko po znaku '+'
-                if (str_contains($local, '+')) {
-                    $local = substr($local, 0, strpos($local, '+'));
-                }
-                // Usuń kropki
-                $local = str_replace('.', '', $local);
-            }
-
-            $email = $local.'@'.$domain;
+        if (!str_contains($email, '@')) {
+            return $email;
         }
-        return $email;
+
+        [$local, $domain] = explode('@', $email, 2);
+        $domainAscii = $domain;
+
+        // IDN → ASCII (jeśli dostępne). Brak intl nie blokuje normalizacji Gmaila.
+        if (function_exists('idn_to_ascii')) {
+            $ascii = idn_to_ascii($domain, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
+            if ($ascii) {
+                $domainAscii = $ascii;
+            }
+        }
+
+        // Gmail / Googlemail: usuń aliasy po '+' i kropki w lokalnej części
+        if (in_array($domainAscii, ['gmail.com', 'googlemail.com'], true)) {
+            $plusPos = strpos($local, '+');
+            if ($plusPos !== false) {
+                $local = substr($local, 0, $plusPos);
+            }
+            $local = str_replace('.', '', $local);
+            // Uwaga: nie wymuszamy zmiany domeny na gmail.com — zachowujemy spójność z istniejącą logiką
+        }
+
+        return $local.'@'.$domainAscii;
     }
 
     /**
@@ -85,8 +92,6 @@ class InvitationController extends Controller
     // POST /api/courses/{courseId}/invite-user
     // Tworzy zaproszenie (z rolą). Blokuje po 3 odrzuceniach w danym kursie.
     // ─────────────────────────────────────────────────────────────────────────────
-    // app/Http/Controllers/Api/InvitationController.php
-
     public function inviteUser(Request $request, $courseId)
     {
         $course = Course::findOrFail($courseId);
@@ -101,23 +106,42 @@ class InvitationController extends Controller
         ]);
 
         $emailRaw      = $data['email'];
-        $emailLowerRaw = trim(mb_strtolower($emailRaw)); // ← surowa normalizacja (bez IDN)
-        $emailNorm     = $this->canonicalEmail($emailRaw); // ← kanoniczna (z IDN)
+        $emailLowerRaw = trim(mb_strtolower($emailRaw));          // surowa (raw) wersja do dopasowań
+        $emailNorm     = $this->canonicalEmail($emailRaw);        // kanoniczna (Gmail zawsze; IDN jeśli dostępne)
 
-        // Jeżeli istnieje user o tym e-mailu (po formie kanonicznej), złap jego ID:
-        $existingUser  = User::whereRaw('LOWER(TRIM(email)) = ?', [$emailNorm])->first();
+        // „Norma bez IDN”, ale z zasadami Gmail — przydatne, gdy intl nieobecne na VPS
+        $normNoIdn = (function (string $mail): string {
+            $mail = trim(mb_strtolower($mail));
+            if (!str_contains($mail, '@')) return $mail;
+            [$local, $domain] = explode('@', $mail, 2);
+            if (in_array($domain, ['gmail.com','googlemail.com'], true)) {
+                $plusPos = strpos($local, '+');
+                if ($plusPos !== false) $local = substr($local, 0, $plusPos);
+                $local = str_replace('.', '', $local);
+            }
+            return $local.'@'.$domain;
+        })($emailRaw);
+
+        // Szukaj użytkownika po obu normach (czasem zapis w DB pasuje do jednej z nich)
+        $existingUser = User::where(function ($q) use ($emailNorm, $normNoIdn) {
+            $q->whereRaw('LOWER(TRIM(email)) = ?', [$emailNorm])
+                ->orWhereRaw('LOWER(TRIM(email)) = ?', [$normNoIdn]);
+        })
+            ->first();
         $existingUserId = $existingUser?->id;
 
-        return DB::transaction(function () use ($course, $data, $emailRaw, $emailLowerRaw, $emailNorm, $existingUserId) {
-            // Liczymy odrzucenia w TYM kursie:
-            //  - dopasuj po raw-lower (LOWER/TRIM),
-            //  - lub po kanonicznym (LOWER/TRIM),
-            //  - lub po user_id, jeśli znany.
+        return DB::transaction(function () use ($course, $data, $emailRaw, $emailLowerRaw, $emailNorm, $normNoIdn, $existingUserId) {
+            // Licz odrzucenia w TYM kursie dopasowując po:
+            //  - invited_email (rawLower / norm / normNoIdn)
+            //  - user_id (jeśli znany)
+            $variants = array_values(array_unique([$emailLowerRaw, $emailNorm, $normNoIdn]));
+
             $rejectedCount = Invitation::where('course_id', $course->id)
-                ->where(function ($q) use ($emailLowerRaw, $emailNorm, $existingUserId) {
-                    $q->where(function ($qq) use ($emailLowerRaw, $emailNorm) {
-                        $qq->whereRaw('LOWER(TRIM(invited_email)) = ?', [$emailLowerRaw])
-                            ->orWhereRaw('LOWER(TRIM(invited_email)) = ?', [$emailNorm]);
+                ->where(function ($q) use ($variants, $existingUserId) {
+                    $q->where(function ($qq) use ($variants) {
+                        foreach ($variants as $v) {
+                            $qq->orWhereRaw('LOWER(TRIM(invited_email)) = ?', [$v]);
+                        }
                     });
                     if ($existingUserId) {
                         $q->orWhere('user_id', $existingUserId);
@@ -133,6 +157,7 @@ class InvitationController extends Controller
                 ], 422);
             }
 
+            // Normalizacja roli na potrzeby pivota: 'user' → 'member'
             $role = $data['role'] ?? 'member';
             if ($role === 'user') $role = 'member';
 
@@ -140,9 +165,9 @@ class InvitationController extends Controller
                 'course_id'     => $course->id,
                 'inviter_id'    => Auth::guard('api')->id(),
                 'user_id'       => $existingUserId,
-                'invited_email' => $emailRaw,   // przechowujemy „raw” (do UI/mailingu)
+                'invited_email' => $emailRaw,   // przechowujemy raw (do UI/mailingu)
                 'status'        => 'pending',
-                'role'          => $role,       // upewnij się, że 'role' jest w $fillable w modelu!
+                'role'          => $role,       // upewnij się, że 'role' jest w $fillable
                 'token'         => Str::random(48),
                 'expires_at'    => now()->addDays(14),
             ]);
@@ -159,7 +184,6 @@ class InvitationController extends Controller
             ], 200);
         });
     }
-
 
     // ─────────────────────────────────────────────────────────────────────────────
     // GET /api/me/invitations-received

@@ -260,6 +260,7 @@ class ApiTester:
 
     def _exec(self, idx: int, total: int, name: str, fn: Callable[[], Dict[str, Any]]):
         start = time.time()
+        ret = {} # Zapewnienie istnienia 'ret'
         rec = TestRecord(name=name, passed=False, duration_ms=0)
         print(c(f"[{idx:02d}/{total:02d}] {name} …", Fore.CYAN), end=" ")
         try:
@@ -502,28 +503,63 @@ class ApiTester:
         return {"status": 201, "method":"POST", "url":url}
 
     def t_share_public_test_to_course(self):
-        # Najpierw preferowana ścieżka: /api/me/tests/{Id}/share (JSON {course_id})
+        # ─── POPRAWIONA LOGIKA (HIPOTEZA) ───
+        # Zakładamy, że endpoint `POST /api/courses/{id}/tests`
+        # potrafi zarówno TWORZYĆ nowy test (gdy dostanie 'title'),
+        # jak i PRZYPISYWAĆ istniejący (gdy dostanie 'test_id').
+        # Bazujemy na migracjach (1:N), które wymagają ustawienia 'course_id' w tabeli 'tests'.
+
+        # 1. Próbujemy użyć 'N:N /share' (jak w oryginale), na wypadek gdyby
+        #    kontroler implementował 1:N pod tym endpointem
         url1 = me(self.ctx, f"/tests/{self.ctx.test_public_id}/share")
-        r1 = http_json(self.ctx, "Share public test (body)", "POST", url1, {
+        r1 = http_json(self.ctx, "Share public test (POST /share)", "POST", url1, {
             "course_id": self.ctx.course_id
         }, auth_headers(self.ctx))
+
         if r1.status_code == 200:
+            # Sukces! Ten endpoint działał.
             return {"status": 200, "method":"POST", "url":url1}
 
-        # Fallback (gdy np. kontroler ma błąd z pivotem): utwórz test bezpośrednio w kursie
-        url2 = build(self.ctx, f"/api/courses/{self.ctx.course_id}/tests")
-        r2 = http_json(self.ctx, "Share fallback: create in course", "POST", url2, {
-            "title":"Shared via fallback", "description":"course-owned"
-        }, auth_headers(self.ctx))
-        assert r2.status_code in (200,201), f"Fallback create course test {r2.status_code}: {trim(r2.text)}"
-        return {"status": r2.status_code, "method":"POST", "url": (url1 if r1.status_code==200 else url2)}
+        # 2. Skoro /share zawiódł, próbujemy `PUT /me/tests/{id}` (jak w mojej poprzedniej próbie)
+        #    Może jednak kontroler został naprawiony lub zadziała.
+        url2 = me(self.ctx, f"/tests/{self.ctx.test_public_id}")
+        payload2 = {
+            "title": "Public Test 1", "description": "share me", "status": "public",
+            "course_id": self.ctx.course_id
+        }
+        r2 = http_json(self.ctx, "Share public test (PUT /me/tests)", "PUT", url2, payload2, auth_headers(self.ctx))
+
+        if r2.status_code == 200:
+            # Sukces! Ten endpoint działał.
+            return {"status": 200, "method":"PUT", "url":url2}
+
+        # 3. Oba powyższe zawiodły. Próbujemy hipotezy nr 3:
+        #    `POST /courses/{id}/tests` z `test_id`
+        url3 = build(self.ctx, f"/api/courses/{self.ctx.course_id}/tests")
+        payload3 = {
+            "test_id": self.ctx.test_public_id
+        }
+        r3 = http_json(self.ctx, "Share public test (POST /courses/.../tests)", "POST", url3, payload3, auth_headers(self.ctx))
+
+        # Oczekujemy 200 (OK) lub 201 (Created)
+        assert r3.status_code in (200, 201), \
+            f"Wszystkie metody udostępniania zawiodły. Ostatnia próba (POST /courses) zwróciła {r3.status_code}: {trim(r3.text)}"
+
+        return {"status": r3.status_code, "method":"POST", "url": url3}
 
     def t_course_tests_include_shared(self):
         url = build(self.ctx, f"/api/courses/{self.ctx.course_id}/tests")
         r = http_json(self.ctx, "Course tests", "GET", url, None, auth_headers(self.ctx))
         assert r.status_code == 200, f"Course tests {r.status_code}"
         js = must_json(r)
-        assert isinstance(js, list) and len(js) >= 1, "Lista testów w kursie pusta"
+        assert isinstance(js, list), "Odpowiedź nie jest listą"
+
+        # ─── WZMOCNIONA ASERCJA ───
+        # Sprawdzamy, czy test o ID, który właśnie "udostępniliśmy",
+        # faktycznie znajduje się na liście testów kursu.
+        assert any(t.get("id") == self.ctx.test_public_id for t in js), \
+            f"Lista testów kursu nie zawiera udostępnionego testu ID: {self.ctx.test_public_id}. Znaleziono: {js}"
+
         return {"status": 200, "method":"GET", "url":url}
 
     # Użytkownik B (nieautoryzowany do zasobów A)
@@ -549,12 +585,14 @@ class ApiTester:
         return {"status": 200, "method":"POST", "url":url}
 
     def t_b_cannot_show_a_test(self):
+        # Ten test jest POPRAWNY. Oczekuje 403 lub 404.
         url = me(self.ctx, f"/tests/{self.ctx.test_private_id}")
         r = http_json(self.ctx, "B show A test", "GET", url, None, auth_headers(self.ctx))
         assert r.status_code in (403,404), f"B powinien dostać 403/404, jest {r.status_code}"
         return {"status": r.status_code, "method":"GET", "url":url}
 
     def t_b_cannot_modify_a_test(self):
+        # Ten test jest POPRAWNY. Oczekuje 403 lub 404.
         url = me(self.ctx, f"/tests/{self.ctx.test_private_id}")
         r = http_json(self.ctx, "B update A test", "PUT", url, {
             "title":"hack", "description":"hack"
@@ -563,12 +601,14 @@ class ApiTester:
         return {"status": r.status_code, "method":"PUT", "url":url}
 
     def t_b_cannot_add_q_to_a_test(self):
+        # Ten test jest POPRAWNY. Oczekuje 403 lub 404.
         url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions")
         r = http_json(self.ctx, "B add Q to A", "POST", url, {"question":"hack?"}, auth_headers(self.ctx))
         assert r.status_code in (403,404), f"B add Q powinien 403/404, jest {r.status_code}"
         return {"status": r.status_code, "method":"POST", "url":url}
 
     def t_b_cannot_delete_a_test(self):
+        # Ten test jest POPRAWNY. Oczekuje 403 lub 404.
         url = me(self.ctx, f"/tests/{self.ctx.test_private_id}")
         r = http_json(self.ctx, "B delete A test", "DELETE", url, None, auth_headers(self.ctx))
         assert r.status_code in (403,404), f"B delete powinien 403/404, jest {r.status_code}"
