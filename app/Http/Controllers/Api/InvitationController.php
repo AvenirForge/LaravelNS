@@ -27,8 +27,22 @@ class InvitationController extends Controller
         $email = trim(mb_strtolower($email));
         if (function_exists('idn_to_ascii') && str_contains($email, '@')) {
             [$local, $domain] = explode('@', $email, 2);
-            $ascii = idn_to_ascii($domain, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
-            if ($ascii) $email = $local.'@'.$ascii;
+
+            // 1. Normalizuj domenę (obsługa IDN)
+            $asciiDomain = idn_to_ascii($domain, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
+            if ($asciiDomain) $domain = $asciiDomain;
+
+            // 2. Normalizuj część lokalną dla aliasów Gmail/Googlemail
+            if (in_array($domain, ['gmail.com', 'googlemail.com'], true)) {
+                // Usuń wszystko po znaku '+'
+                if (str_contains($local, '+')) {
+                    $local = substr($local, 0, strpos($local, '+'));
+                }
+                // Usuń kropki
+                $local = str_replace('.', '', $local);
+            }
+
+            $email = $local.'@'.$domain;
         }
         return $email;
     }
