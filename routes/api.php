@@ -7,7 +7,7 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\NoteController;
 use Illuminate\Support\Facades\Route;
 
-// Public (bez auth)
+// Public
 Route::post('/login', [UserController::class, 'login']);
 Route::post('/users/register', [UserController::class, 'store']);
 Route::post('/refresh', [UserController::class, 'refresh']);
@@ -15,7 +15,6 @@ Route::post('/refresh', [UserController::class, 'refresh']);
 Route::middleware('auth:api')->group(function () {
 
     Route::prefix('me')->group(function () {
-
         // Profile
         Route::get('/profile', [UserController::class, 'show']);
         Route::get('/profile/avatar', [UserController::class, 'downloadAvatar']);
@@ -31,7 +30,7 @@ Route::middleware('auth:api')->group(function () {
         Route::patch('/courses/{id}',          [CourseController::class, 'update']);
         Route::delete('/courses/{id}',         [CourseController::class, 'destroy']);
 
-        // NOTES (operacje użytkownika)
+        // NOTES
         Route::get('/notes',                   [NoteController::class, 'index']);
         Route::post('/notes',                  [NoteController::class, 'store']);
         Route::get('/notes/{id}',              [NoteController::class, 'show']);
@@ -39,28 +38,37 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/notes/{id}',           [NoteController::class, 'destroy']);
         Route::post('/notes/{id}/patch',       [NoteController::class, 'patchFile']);
         Route::get('/notes/{id}/download',     [NoteController::class, 'download']);
-        Route::post('/notes/{noteId}/share/{courseId}', [NoteController::class, 'shareNoteWithCourse']);
+        Route::post('/notes/{noteId}/share/{courseId}',   [NoteController::class, 'shareNoteWithCourse']);
+        Route::delete('/notes/{noteId}/share/{courseId}', [NoteController::class, 'unshareNoteFromCourse']);
 
         // TESTS (per user)
-        Route::get('/tests',                   [TestController::class, 'indexForUser']);
-        Route::post('/tests',                  [TestController::class, 'storeForUser']);
-        Route::get('/tests/{id}',              [TestController::class, 'showForUser']);
-        Route::put('/tests/{id}',              [TestController::class, 'updateForUser']);
-        Route::delete('/tests/{id}',           [TestController::class, 'destroyForUser']);
-        Route::get('/tests/{testId}/questions',[TestController::class, 'questionsForUser']);
-        Route::post('/tests/{testId}/questions',[TestController::class, 'storeQuestion']);
-        Route::put('/tests/{testId}/questions/{questionId}', [TestController::class, 'updateQuestion']);
-        Route::delete('/tests/{testId}/questions/{questionId}', [TestController::class, 'destroyQuestion']);
-        Route::get('/tests/{testId}/questions/{questionId}/answers', [TestController::class, 'getAnswersForQuestion']);
+        Route::get('/tests',                                   [TestController::class, 'indexForUser']);
+        Route::post('/tests',                                  [TestController::class, 'storeForUser']);
+        Route::get('/tests/{id}',                              [TestController::class, 'showForUser']);
+        Route::put('/tests/{id}',                              [TestController::class, 'updateForUser']);
+        Route::delete('/tests/{id}',                           [TestController::class, 'destroyForUser']);
+        Route::get('/tests/{testId}/questions',                [TestController::class, 'questionsForUser']);
+        Route::post('/tests/{testId}/questions',               [TestController::class, 'storeQuestion']);
+        Route::put('/tests/{testId}/questions/{questionId}',   [TestController::class, 'updateQuestion']);
+        Route::delete('/tests/{testId}/questions/{questionId}',[TestController::class, 'destroyQuestion']);
+        Route::get('/tests/{testId}/questions/{questionId}/answers',  [TestController::class, 'getAnswersForQuestion']);
         Route::post('/tests/{testId}/questions/{questionId}/answers', [TestController::class, 'storeAnswer']);
         Route::put('/tests/{testId}/questions/{questionId}/answers/{answerId}', [TestController::class, 'updateAnswer']);
         Route::delete('/tests/{testId}/questions/{questionId}/answers/{answerId}', [TestController::class, 'destroyAnswer']);
-        Route::post('/tests/{testId}/share',   [TestController::class, 'shareTestWithCourse']);
+        Route::post('/tests/{testId}/share',                   [TestController::class, 'shareTestWithCourse']);
     });
 
-    // COURSES – akcje poza /me
+    // COURSES – akcje poza /me (wszędzie auth:api)
     Route::post('/courses/{courseId}/invite-user', [InvitationController::class, 'inviteUser']);
-    Route::post('/courses/{courseId}/remove-user', [CourseController::class, 'removeUser']);
+
+    Route::post('/courses/{courseId}/remove-user',               [CourseController::class, 'removeUser']);
+    Route::delete('/courses/{courseId}/users/{userId}/notes',    [CourseController::class, 'purgeUserNotesInCourse']);
+    Route::delete('/courses/{courseId}/users/{userId}/tests',    [CourseController::class, 'purgeUserTestsInCourse']);
+    Route::delete('/courses/{courseId}/notes/{noteId}',          [CourseController::class, 'unshareNoteAdmin']);
+    Route::delete('/courses/{courseId}/tests/{testId}',          [CourseController::class, 'unshareTestAdmin']);
+    Route::patch('/courses/{courseId}/users/{userId}/role',      [CourseController::class, 'setUserRole']);
+    // (opcjonalne) zmiana roli po e-mailu
+    Route::post('/courses/{courseId}/set-role-by-email',         [CourseController::class, 'setUserRoleByEmail']);
 
     // INVITATIONS
     Route::get('/me/invitations-received', [InvitationController::class, 'invitationsReceived']);
@@ -75,7 +83,7 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/courses/{courseId}/tests/{testId}',        [TestController::class, 'updateForCourse']);
     Route::delete('/courses/{courseId}/tests/{testId}',     [TestController::class, 'destroyForCourse']);
 
-    // Widoki kursu dla frontu (za auth)
+    // Widoki kursu (za auth)
     Route::get('/courses/{courseId}/users', [UserController::class, 'usersForCourse']);
-    Route::get('/courses/{courseId}/notes', [NoteController::class, 'indexForCourse']);
+    Route::get('/courses/{courseId}/notes', [NoteController::class, 'notesForCourse']);
 });

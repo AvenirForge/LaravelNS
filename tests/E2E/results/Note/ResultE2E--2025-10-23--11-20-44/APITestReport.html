@@ -1,0 +1,1133 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8" />
+<title>NoteSync — Notes API Test Report</title>
+<style>
+:root {
+  --bg:#0b0d12; --panel:#0f1320; --ink:#e6e6e6; --muted:#9aa4b2;
+  --ok:#65d26e; --err:#ff6b6b; --warn:#ffd166; --accent:#7cb8ff;
+}
+html,body { background:var(--bg); color:var(--ink); font-family: ui-sans-serif,system-ui,Segoe UI,Roboto,Arial; }
+.wrapper { margin:24px; }
+h1,h2,h3 { color:#e6f1ff; }
+code { background:#141a2a; padding:2px 6px; border-radius:6px; }
+pre { background:var(--panel); padding:12px; border-radius:12px; overflow:auto; border:1px solid #1b2136; }
+section.endpoint { border:1px solid #1b2136; border-radius:14px; padding:16px; margin:16px 0; background:#0e1220; box-shadow: 0 0 0 1px rgba(255,255,255,0.02) inset;}
+section.endpoint .meta { font-size: 13px; color: var(--muted); margin: 4px 0 12px; }
+section.endpoint .meta .m { color: var(--accent); font-weight: 600; margin-right:8px; }
+section.endpoint .meta .dur { color: #a0ffa0; margin-left:8px; }
+section.endpoint .meta .st { color: #ffd3a0; margin-left:8px; }
+section.endpoint .note { color:#ffd166; margin:6px 0 10px; }
+table { width:100%; border-collapse:collapse; margin-top: 20px; }
+th, td { border:1px solid #1b2136; padding:10px; text-align:left; }
+th { background:#10162a; color:#d4e2ff; }
+tr.pass { background: rgba(101,210,110,.06); }
+tr.fail { background: rgba(255,107,107,.08); }
+.summary { margin-top:24px; color: var(--muted); }
+details summary { cursor:pointer; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+<h1>NoteSync — Notes API Test</h1>
+
+<h2>Wyniki</h2>
+<table>
+<thead>
+<tr><th>Test</th><th>Wynik</th><th>Czas</th><th>Metoda</th><th>URL</th><th>HTTP</th></tr>
+</thead>
+<tbody>
+
+<tr class="pass">
+  <td>👤 Rejestracja (A)</td>
+  <td>PASS</td>
+  <td>2664.0 ms</td>
+  <td>POST</td>
+  <td><code>http://localhost:8000/api/users/register</code></td>
+  <td>201</td>
+</tr>
+
+<tr class="pass">
+  <td>🔒 Login (A)</td>
+  <td>PASS</td>
+  <td>2722.5 ms</td>
+  <td>POST</td>
+  <td><code>http://localhost:8000/api/login</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>🗒️ Index (initial)</td>
+  <td>PASS</td>
+  <td>2321.2 ms</td>
+  <td>GET</td>
+  <td><code>http://localhost:8000/api/me/notes?top=10&skip=0</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>🖼️ Store: missing file → 400/422</td>
+  <td>PASS</td>
+  <td>2350.0 ms</td>
+  <td>POST</td>
+  <td><code>http://localhost:8000/api/me/notes</code></td>
+  <td>400</td>
+</tr>
+
+<tr class="pass">
+  <td>🖼️ Store: invalid mime → 400/422</td>
+  <td>PASS</td>
+  <td>2712.3 ms</td>
+  <td>POST</td>
+  <td><code>http://localhost:8000/api/me/notes</code></td>
+  <td>400</td>
+</tr>
+
+<tr class="pass">
+  <td>🖼️ Store: ok (multipart)</td>
+  <td>PASS</td>
+  <td>2740.6 ms</td>
+  <td>POST</td>
+  <td><code>http://localhost:8000/api/me/notes</code></td>
+  <td>201</td>
+</tr>
+
+<tr class="pass">
+  <td>🗒️ Index contains created + pagination</td>
+  <td>PASS</td>
+  <td>4696.9 ms</td>
+  <td>GET</td>
+  <td><code>http://localhost:8000/api/me/notes?top=50&skip=0</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>👤 Rejestracja (B)</td>
+  <td>PASS</td>
+  <td>2573.3 ms</td>
+  <td>POST</td>
+  <td><code>http://localhost:8000/api/users/register</code></td>
+  <td>201</td>
+</tr>
+
+<tr class="pass">
+  <td>🔒 Login (B)</td>
+  <td>PASS</td>
+  <td>2597.4 ms</td>
+  <td>POST</td>
+  <td><code>http://localhost:8000/api/login</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>🔒 Foreign download → 403</td>
+  <td>PASS</td>
+  <td>2545.2 ms</td>
+  <td>GET</td>
+  <td><code>http://localhost:8000/api/me/notes/16/download</code></td>
+  <td>403</td>
+</tr>
+
+<tr class="pass">
+  <td>🔒 Back to A</td>
+  <td>PASS</td>
+  <td>2668.0 ms</td>
+  <td>POST</td>
+  <td><code>http://localhost:8000/api/login</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>🩹 PATCH title only</td>
+  <td>PASS</td>
+  <td>2381.6 ms</td>
+  <td>PATCH</td>
+  <td><code>http://localhost:8000/api/me/notes/16</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>🩹 PATCH is_private invalid → 400/422</td>
+  <td>PASS</td>
+  <td>2332.1 ms</td>
+  <td>PATCH</td>
+  <td><code>http://localhost:8000/api/me/notes/16</code></td>
+  <td>400</td>
+</tr>
+
+<tr class="pass">
+  <td>🩹 PATCH description + is_private=false</td>
+  <td>PASS</td>
+  <td>2352.3 ms</td>
+  <td>PATCH</td>
+  <td><code>http://localhost:8000/api/me/notes/16</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>🖼️ POST …/{id}/patch: missing file → 400/422</td>
+  <td>PASS</td>
+  <td>2311.0 ms</td>
+  <td>POST</td>
+  <td><code>http://localhost:8000/api/me/notes/16/patch</code></td>
+  <td>400</td>
+</tr>
+
+<tr class="pass">
+  <td>🖼️ POST …/{id}/patch: ok</td>
+  <td>PASS</td>
+  <td>2386.8 ms</td>
+  <td>POST</td>
+  <td><code>http://localhost:8000/api/me/notes/16/patch</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>⬇️ Download note file (200)</td>
+  <td>PASS</td>
+  <td>2377.8 ms</td>
+  <td>GET</td>
+  <td><code>http://localhost:8000/api/me/notes/16/download</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>🗑️ DELETE note</td>
+  <td>PASS</td>
+  <td>2392.0 ms</td>
+  <td>DELETE</td>
+  <td><code>http://localhost:8000/api/me/notes/16</code></td>
+  <td>200</td>
+</tr>
+
+<tr class="pass">
+  <td>⬇️ Download after delete → 404</td>
+  <td>PASS</td>
+  <td>2362.7 ms</td>
+  <td>GET</td>
+  <td><code>http://localhost:8000/api/me/notes/16/download</code></td>
+  <td>404</td>
+</tr>
+
+<tr class="pass">
+  <td>🗒️ Index after delete (not present)</td>
+  <td>PASS</td>
+  <td>2356.5 ms</td>
+  <td>GET</td>
+  <td><code>http://localhost:8000/api/me/notes?top=100&skip=0</code></td>
+  <td>200</td>
+</tr>
+
+</tbody>
+</table>
+
+<h2>Endpointy — Szczegóły</h2>
+
+<section class="endpoint">
+  <h2>1. Register A</h2>
+  <div class="meta"><span class="m">POST</span> <code>http://localhost:8000/api/users/register</code> <span class="dur">2663.7 ms</span> <span class="st">201</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "name": "Tester A",
+  "email": "tester.nza1g12l@example.com",
+  "password": "***",
+  "password_confirmation": "***"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:20:47 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "User created successfully!",
+  "user": {
+    "id": 35,
+    "name": "Tester A",
+    "email": "tester.nza1g12l@example.com",
+    "avatar_url": null
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>2. Login A</h2>
+  <div class="meta"><span class="m">POST</span> <code>http://localhost:8000/api/login</code> <span class="dur">2722.1 ms</span> <span class="st">200</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "email": "tester.nza1g12l@example.com",
+  "password": "***"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:20:50 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Login successful",
+  "userId": 35,
+  "token": "***",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "user": {
+    "id": 35,
+    "name": "Tester A",
+    "email": "tester.nza1g12l@example.com",
+    "avatar_url": null
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>3. Index initial</h2>
+  <div class="meta"><span class="m">GET</span> <code>http://localhost:8000/api/me/notes?top=10&skip=0</code> <span class="dur">2320.8 ms</span> <span class="st">200</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…Nd8M"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:20:52 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "data": [],
+  "skip": 0,
+  "top": 10,
+  "count": 0
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>4. Store missing file</h2>
+  <div class="meta"><span class="m">POST(multipart)</span> <code>http://localhost:8000/api/me/notes</code> <span class="dur">2349.6 ms</span> <span class="st">400</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…Nd8M"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "fields": {
+    "title": "NoFile"
+  },
+  "files": {}
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:20:55 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "error": {
+    "file": [
+      "The file field is required."
+    ]
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>5. Store invalid mime</h2>
+  <div class="meta"><span class="m">POST(multipart)</span> <code>http://localhost:8000/api/me/notes</code> <span class="dur">2711.8 ms</span> <span class="st">400</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…Nd8M"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "fields": {
+    "title": "BadMime"
+  },
+  "files": {
+    "file": {
+      "filename": "note.txt",
+      "bytes": 11,
+      "content_type": "text/plain"
+    }
+  }
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:20:57 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "error": {
+    "file": [
+      "The file field must be a file of type: pdf, xlsx, jpg, jpeg, png."
+    ]
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>6. Store ok</h2>
+  <div class="meta"><span class="m">POST(multipart)</span> <code>http://localhost:8000/api/me/notes</code> <span class="dur">2701.4 ms</span> <span class="st">201</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…Nd8M"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "fields": {
+    "title": "First Note",
+    "description": "Test file upload"
+  },
+  "files": {
+    "file": {
+      "filename": "gen.png",
+      "bytes": 705,
+      "content_type": "image/png"
+    }
+  }
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:21:00 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Note created successfully!",
+  "note": {
+    "title": "First Note",
+    "description": "Test file upload",
+    "is_private": true,
+    "user_id": 35,
+    "file_path": "users/notes/7F2v0nxA7KboaybUNa3rLkzcXEm8mvGoD6MFaCsx.png",
+    "updated_at": "2025-10-23T09:21:00.000000Z",
+    "created_at": "2025-10-23T09:21:00.000000Z",
+    "id": 16
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>7. Index contains</h2>
+  <div class="meta"><span class="m">GET</span> <code>http://localhost:8000/api/me/notes?top=50&skip=0</code> <span class="dur">2352.9 ms</span> <span class="st">200</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…Nd8M"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:21:02 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "data": [
+    {
+      "id": 16,
+      "title": "First Note",
+      "description": "Test file upload",
+      "file_path": "users/notes/7F2v0nxA7KboaybUNa3rLkzcXEm8mvGoD6MFaCsx.png",
+      "is_private": true,
+      "user_id": 35,
+      "course_id": null,
+      "created_at": "2025-10-23T09:21:00.000000Z",
+      "updated_at": "2025-10-23T09:21:00.000000Z"
+    }
+  ],
+  "skip": 0,
+  "top": 50,
+  "count": 1
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>8. Index beyond</h2>
+  <div class="meta"><span class="m">GET</span> <code>http://localhost:8000/api/me/notes?top=10&skip=1</code> <span class="dur">2343.5 ms</span> <span class="st">200</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…Nd8M"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:21:05 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "data": [],
+  "skip": 1,
+  "top": 10,
+  "count": 1
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>9. Register B</h2>
+  <div class="meta"><span class="m">POST</span> <code>http://localhost:8000/api/users/register</code> <span class="dur">2573.0 ms</span> <span class="st">201</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "name": "Tester B",
+  "email": "tester.zx55wvh0@example.com",
+  "password": "***",
+  "password_confirmation": "***"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:21:07 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "User created successfully!",
+  "user": {
+    "id": 36,
+    "name": "Tester B",
+    "email": "tester.zx55wvh0@example.com",
+    "avatar_url": null
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>10. Login B</h2>
+  <div class="meta"><span class="m">POST</span> <code>http://localhost:8000/api/login</code> <span class="dur">2597.1 ms</span> <span class="st">200</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "email": "tester.zx55wvh0@example.com",
+  "password": "***"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:21:10 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Login successful",
+  "userId": 36,
+  "token": "***",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "user": {
+    "id": 36,
+    "name": "Tester B",
+    "email": "tester.zx55wvh0@example.com",
+    "avatar_url": null
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>11. Download foreign</h2>
+  <div class="meta"><span class="m">GET</span> <code>http://localhost:8000/api/me/notes/16/download</code> <span class="dur">2544.9 ms</span> <span class="st">403</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…Tnck"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:21:12 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "error": "Unauthorized"
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>12. Login A again</h2>
+  <div class="meta"><span class="m">POST</span> <code>http://localhost:8000/api/login</code> <span class="dur">2667.7 ms</span> <span class="st">200</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "email": "tester.nza1g12l@example.com",
+  "password": "***"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:21:15 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Login successful",
+  "userId": 35,
+  "token": "***",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "user": {
+    "id": 35,
+    "name": "Tester A",
+    "email": "tester.nza1g12l@example.com",
+    "avatar_url": null
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>13. Update title only (PATCH)</h2>
+  <div class="meta"><span class="m">PATCH</span> <code>http://localhost:8000/api/me/notes/16</code> <span class="dur">2381.3 ms</span> <span class="st">200</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…fCDQ"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "title": "Renamed Note"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:21:17 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Note text updated successfully!",
+  "note": {
+    "id": 16,
+    "title": "Renamed Note",
+    "description": "Test file upload",
+    "file_path": "users/notes/7F2v0nxA7KboaybUNa3rLkzcXEm8mvGoD6MFaCsx.png",
+    "is_private": true,
+    "user_id": 35,
+    "course_id": null,
+    "created_at": "2025-10-23T09:21:00.000000Z",
+    "updated_at": "2025-10-23T09:21:17.000000Z"
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>14. Update invalid is_private (PATCH)</h2>
+  <div class="meta"><span class="m">PATCH</span> <code>http://localhost:8000/api/me/notes/16</code> <span class="dur">2331.8 ms</span> <span class="st">400</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…fCDQ"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "is_private": "notbool"
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:21:20 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "error": {
+    "is_private": [
+      "The is private field must be true or false."
+    ]
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>15. Update desc + is_private=false (PATCH)</h2>
+  <div class="meta"><span class="m">PATCH</span> <code>http://localhost:8000/api/me/notes/16</code> <span class="dur">2352.0 ms</span> <span class="st">200</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…fCDQ"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "description": "Updated body",
+  "is_private": false
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:21:22 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Note text updated successfully!",
+  "note": {
+    "id": 16,
+    "title": "Renamed Note",
+    "description": "Updated body",
+    "file_path": "users/notes/7F2v0nxA7KboaybUNa3rLkzcXEm8mvGoD6MFaCsx.png",
+    "is_private": false,
+    "user_id": 35,
+    "course_id": null,
+    "created_at": "2025-10-23T09:21:00.000000Z",
+    "updated_at": "2025-10-23T09:21:22.000000Z"
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>16. PATCH file missing</h2>
+  <div class="meta"><span class="m">POST(multipart)</span> <code>http://localhost:8000/api/me/notes/16/patch</code> <span class="dur">2310.7 ms</span> <span class="st">400</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…fCDQ"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "fields": {},
+  "files": {}
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:21:24 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "error": {
+    "file": [
+      "The file field is required."
+    ]
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>17. PATCH file ok</h2>
+  <div class="meta"><span class="m">POST(multipart)</span> <code>http://localhost:8000/api/me/notes/16/patch</code> <span class="dur">2385.8 ms</span> <span class="st">200</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…fCDQ"
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "fields": {},
+  "files": {
+    "file": {
+      "filename": "re_gen.png",
+      "bytes": 705,
+      "content_type": "image/png"
+    }
+  }
+}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:21:27 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Note file updated successfully!",
+  "note": {
+    "id": 16,
+    "title": "Renamed Note",
+    "description": "Updated body",
+    "file_path": "users/notes/uK2N5kr3EzpdaIvV4LaAF8asQv4FzWT2RcMkJG26.png",
+    "is_private": false,
+    "user_id": 35,
+    "course_id": null,
+    "created_at": "2025-10-23T09:21:00.000000Z",
+    "updated_at": "2025-10-23T09:21:27.000000Z"
+  }
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>18. Download file</h2>
+  <div class="meta"><span class="m">GET</span> <code>http://localhost:8000/api/me/notes/16/download</code> <span class="dur">2377.6 ms</span> <span class="st">200</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…fCDQ"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "public",
+  "Date": "Thu, 23 Oct 2025 09:21:29 GMT",
+  "Last-Modified": "Thu, 23 Oct 2025 09:21:27 GMT",
+  "Content-Disposition": "attachment; filename=uK2N5kr3EzpdaIvV4LaAF8asQv4FzWT2RcMkJG26.png",
+  "Content-Type": "image/png",
+  "Content-Length": "705",
+  "Accept-Ranges": "bytes",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>&lt;binary&gt; bytes=705 content-type=image/png</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>19. DELETE note</h2>
+  <div class="meta"><span class="m">DELETE</span> <code>http://localhost:8000/api/me/notes/16</code> <span class="dur">2391.7 ms</span> <span class="st">200</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…fCDQ"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:21:32 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "message": "Note deleted successfully"
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>20. Download after delete</h2>
+  <div class="meta"><span class="m">GET</span> <code>http://localhost:8000/api/me/notes/16/download</code> <span class="dur">2362.5 ms</span> <span class="st">404</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…fCDQ"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:21:34 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "error": "Note not found"
+}</pre>
+  </details>
+</section>
+
+<section class="endpoint">
+  <h2>21. Index after delete</h2>
+  <div class="meta"><span class="m">GET</span> <code>http://localhost:8000/api/me/notes?top=100&skip=0</code> <span class="dur">2356.2 ms</span> <span class="st">200</span></div>
+  <p class='note'>Missing security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy, X-XSS-Protection, Strict-Transport-Security</p>
+  <details open>
+    <summary>Request</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Accept": "application/json",
+  "Authorization": "Bearer eyJ0eX…fCDQ"
+}</pre>
+    <h3>Body</h3>
+    <pre>{}</pre>
+  </details>
+  <details open>
+    <summary>Response</summary>
+    <h3>Headers</h3>
+    <pre>{
+  "Host": "localhost:8000",
+  "Connection": "close",
+  "X-Powered-By": "PHP/8.2.12",
+  "Cache-Control": "no-cache, private",
+  "Date": "Thu, 23 Oct 2025 09:21:36 GMT",
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": ""
+}</pre>
+    <h3>Body</h3>
+    <pre>{
+  "data": [],
+  "skip": 0,
+  "top": 100,
+  "count": 0
+}</pre>
+  </details>
+</section>
+
+
+<p class="summary">Raport wygenerowano: 2025-10-23 11:21:36</p>
+</div>
+</body>
+</html>
