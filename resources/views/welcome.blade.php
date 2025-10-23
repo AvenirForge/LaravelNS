@@ -32,7 +32,12 @@
         @media (prefers-reduced-motion: reduce){ *{animation:none!important; transition:none!important} }
 
         *{box-sizing:border-box}
-        html,body{height:100%}
+        /* === MODYFIKACJA 3: Globalna blokada przepełnienia === */
+        /* Ta reguła definitywnie naprawia problem ucinania treści na mobile */
+        html,body{
+            height:100%;
+            overflow-x:clip;
+        }
         body{
             margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;
             -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
@@ -597,7 +602,7 @@
         var container = document.createElement('div');
         container.id = 'lightbox';
         container.className = 'lightbox';
-        container.innerHTML = '<button class="lightbox-close" aria-label="Zamknij">Zamknij</button><img id="lightboxImg" alt="Podgląd zrzutu"/>';
+        container.innerHTML = '<button class="lightbox-close" aria-label="Zamkij">Zamknij</button><img id="lightboxImg" alt="Podgląd zrzutu"/>';
         document.body.appendChild(container);
 
         var imgEl = container.querySelector('#lightboxImg');
