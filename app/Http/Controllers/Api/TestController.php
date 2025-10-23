@@ -7,6 +7,7 @@ use App\Models\Test;
 use App\Models\TestsQuestion;
 use App\Models\TestsAnswer;
 use App\Models\Course;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
@@ -142,28 +143,29 @@ class TestController extends Controller
      * GET /api/courses/{courseId}/tests
      * Agregacja: tests.course_id + legacy pivot course_test (jeśli istnieje).
      */
-    public function indexForCourse($courseId)
+    public function indexForCourse(int $courseId): JsonResponse
     {
-        $pivotIds = [];
-        if (Schema::hasTable('course_test')) {
-            $pivotIds = DB::table('course_test')
-                ->where('course_id', $courseId)
-                ->pluck('test_id')
-                ->all();
-        }
+        // Wspólny eager-load – poprawiona nazwa relacji
+        $with = [
+            'user:id,name,email',                           // autor testu
+            'course:id,title,type,user_id,avatar',         // POPRAWKA: 'course' (poj.) zamiast 'courses' (mn.)
+            'questions.answers',                           // pytania + odpowiedzi
+        ];
 
-        $tests = Test::where(function ($q) use ($courseId, $pivotIds) {
-            $q->where('course_id', $courseId);
-            if (!empty($pivotIds)) {
-                $q->orWhereIn('id', $pivotIds);
-            }
-        })
-            ->with(['questions.answers'])
+        // 1) Pobieramy TYLKO testy przypięte bezpośrednio do kursu,
+        //    ponieważ migracje nie definiują innej metody powiązania (jak pivot table).
+        $tests = Test::query()
+            ->where('course_id', $courseId)
+            ->with($with)
+            ->orderBy('id') // Opcjonalne sortowanie
             ->get();
+
+        // 2) Logika dla '$shared', 'Schema::hasTable' i 'concat' została usunięta,
+        //    ponieważ tabela 'course_test' nie istnieje i nie ma relacji N:N.
+        //    Jedno zapytanie jest wystarczające.
 
         return response()->json($tests);
     }
-
     public function storeForCourse(Request $request, $courseId)
     {
         $validator = Validator::make($request->all(), [

@@ -1,4 +1,5 @@
 {{-- resources/views/welcome.blade.php --}}
+
     <!doctype html>
 <html lang="pl">
 <head>
@@ -145,33 +146,8 @@
             transition:transform .18s ease, box-shadow .2s ease, filter .2s ease;
         }
         .cta:hover{transform:translateY(-2px); filter:saturate(1.05); box-shadow:0 18px 48px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.36)}
+
         .card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px}
-
-        /* >>> DODATKI DO CTA <<< */
-        .cta-stack{display:flex; flex-direction:column; gap:12px; width:100%; max-width:520px}
-        .cta-icon{width:20px; height:20px; object-fit:contain}
-        .cta-disabled{
-            background:linear-gradient(90deg, rgba(200,210,224,.65), rgba(160,170,186,.65));
-            color:rgba(8,16,33,.75);
-            cursor:not-allowed;
-            box-shadow:0 10px 28px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.18);
-        }
-        .cta-disabled:hover{transform:none; filter:none; box-shadow:0 10px 28px rgba(0,0,0,.28), inset 0 0 0 1px rgba(255,255,255,.20)}
-        .padlock{width:18px; height:18px; opacity:.85}
-
-        /* Tooltip (lekki, bez bibliotek) */
-        .tooltip{position:relative}
-        .tooltip[data-tip]::after{
-            content:attr(data-tip);
-            position:absolute; left:50%; transform:translateX(-50%) translateY(6px);
-            bottom:-6px;
-            background:rgba(10,17,36,.96);
-            color:#eaf2ff; font-weight:700; font-size:12px; letter-spacing:.1px;
-            padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.12);
-            white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .18s ease, transform .18s ease;
-            box-shadow:0 12px 30px rgba(0,0,0,.35);
-        }
-        .tooltip:hover::after{opacity:1; transform:translateX(-50%) translateY(0)}
 
         /* SCREENSHOTS — 3 pierwsze, mobilnie wycentrowane + lightbox */
         .shots{padding:28px 0 6px}
@@ -221,55 +197,103 @@
             box-shadow:0 10px 30px rgba(0,0,0,.45);
         }
 
-        /* SEKCJA: Expo Modal — karta, X-button, kroki, animacje */
+        /* SECTIONS */
+        .features{padding:32px 0 38px}
+        .fgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px}
+        .tile{padding:20px; border-radius:16px; background:var(--card); border:1px solid var(--border); transition:transform .18s ease, box-shadow .18s ease}
+        .tile h3{margin:6px 0 6px; font-size:18px}
+        .tile p{margin:0; color:var(--muted)}
+        .tile:hover{transform:translateY(-2px); box-shadow:0 14px 40px rgba(0,0,0,.25)}
+
+        .about{padding:38px 0}
+        .about-grid{display:grid; grid-template-columns:1.25fr .75fr; gap:22px}
+        @media (max-width:980px){ .about-grid{grid-template-columns:1fr} }
+        .badge{font-size:12px; font-weight:800; color:#061021; background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); display:inline-block; padding:6px 10px; border-radius:999px}
+        .pill{display:inline-flex; align-items:center; gap:8px; padding:10px 12px; border-radius:12px; background:var(--card); border:1px solid var(--border); font-weight:700}
+        .stack{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
+
+        .faq{padding:26px 0 40px}
+        .faq-list{display:grid; gap:12px}
+        .faq-item{border:1px solid var(--border); border-radius:14px; background:var(--card); overflow:hidden}
+        .faq-q{width:100%; text-align:left; background:transparent; color:var(--fg); padding:16px 18px; font-weight:800; border:0; cursor:pointer; display:flex; justify-content:space-between; align-items:center}
+        .faq-a{max-height:0; overflow:hidden; transition:max-height .45s cubic-bezier(.25,.8,.25,1), opacity .35s ease; opacity:0; padding:0 18px}
+        .faq-item.open .faq-a{opacity:1; padding:0 18px 16px}
+        .faq-icon{transition:transform .35s ease}
+        .faq-item.open .faq-icon{transform:rotate(45deg)}
+
+        .contact{padding:40px 0 60px}
+        .form{display:grid; gap:12px}
+        .row{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+        @media (max-width:720px){ .row{grid-template-columns:1fr} }
+        .field{display:flex; flex-direction:column; gap:6px}
+        .label{font-size:14px; color:var(--muted)}
+        .input,.textarea{background:rgba(255,255,255,.08); border:1px solid var(--border); color:var(--fg); border-radius:12px; padding:12px 14px; outline:none}
+        .input:focus,.textarea:focus{border-color:var(--accent)}
+        .textarea{min-height:140px; resize:vertical}
+        .form-actions{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap}
+        .hint{color:var(--muted); font-size:12px}
+
+        .lead-black{color:#000!important}
+
+        footer{border-top:1px solid var(--border); padding:28px 18px 44px; color:var(--muted); position:relative; text-align:center}
+        .top{position:absolute; right:18px; top:18px; width:42px; height:42px; display:grid; place-items:center; border-radius:999px; background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); color:#061021; font-weight:900; box-shadow:var(--shadow)}
+        .top:hover{transform:translateY(-2px)}
+
+        /* ====== DODATKI DLA NOWYCH CTA + MODAL EXPO (RESPONSYWNE) ====== */
+        .cta-stack{display:flex; flex-direction:column; gap:12px; width:100%; max-width:520px}
+        .cta-icon{width:20px; height:20px; object-fit:contain}
+        .cta-disabled{
+            background:linear-gradient(90deg, rgba(200,210,224,.65), rgba(160,170,186,.65));
+            color:rgba(8,16,33,.75); cursor:not-allowed;
+            box-shadow:0 10px 28px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.18);
+        }
+        .cta-disabled:hover{transform:none; filter:none; box-shadow:0 10px 28px rgba(0,0,0,.28), inset 0 0 0 1px rgba(255,255,255,.20)}
+        .padlock{width:18px; height:18px; opacity:.85}
+
+        .tooltip{position:relative}
+        .tooltip[data-tip]::after{
+            content:attr(data-tip);
+            position:absolute; left:50%; transform:translateX(-50%) translateY(6px);
+            bottom:-6px; background:rgba(10,17,36,.96); color:#eaf2ff; font-weight:700; font-size:12px;
+            padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.12);
+            white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .18s ease, transform .18s ease;
+            box-shadow:0 12px 30px rgba(0,0,0,.35);
+        }
+        .tooltip:hover::after{opacity:1; transform:translateX(-50%) translateY(0)}
+
+        /* Modal Expo GO — pełna responsywność + kroki */
+        #expoModal{
+            padding-top:max(16px, env(safe-area-inset-top));
+            padding-right:max(16px, env(safe-area-inset-right));
+            padding-bottom:max(16px, env(safe-area-inset-bottom));
+            padding-left:max(16px, env(safe-area-inset-left));
+            overscroll-behavior:contain;
+        }
         .modal-card{
-            position:relative;
-            display:flex; flex-direction:column; align-items:center; gap:14px;
+            position:relative; display:flex; flex-direction:column; align-items:center; gap:14px;
             background:linear-gradient(180deg, rgba(6,12,28,.92), rgba(6,12,28,.98));
-            border:1px solid rgba(255,255,255,.10);
-            border-radius:16px;
-            padding:18px;
+            border:1px solid rgba(255,255,255,.10); border-radius:16px; padding:18px;
             box-shadow:0 20px 60px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.05);
             backdrop-filter:blur(8px) saturate(130%);
-            transform:translateY(8px) scale(.98);
-            opacity:0; /* bazowo niewidoczne */
-            transition:opacity .25s ease, transform .25s ease; /* gdyby animacja była wyłączona */
+            transform:translateY(8px) scale(.98); opacity:0;
+            transition:opacity .25s ease, transform .25s ease;
+            width:min(96vw,720px); max-height:calc(100dvh - 48px); overflow:auto; -webkit-overflow-scrolling:touch;
         }
-        /* Po otwarciu overlaya karta ma być widoczna nawet bez klasy .pop */
-        .lightbox.open .modal-card{
-            opacity:1;
-            transform:translateY(0) scale(1);
-        }
-        .modal-card.pop{
-            animation:pop-in .38s cubic-bezier(.22,.75,.16,1) forwards;
-        }
-        @keyframes pop-in{
-            0%{transform:translateY(8px) scale(.98); opacity:0}
-            100%{transform:translateY(0) scale(1); opacity:1}
-        }
-        @media (prefers-reduced-motion: reduce){
-            .modal-card.pop{animation:none!important}
-        }
+        .lightbox.open .modal-card{ opacity:1; transform:translateY(0) scale(1); }
 
         .xbtn{
-            position:absolute; top:10px; right:10px;
-            width:40px; height:40px; border-radius:12px; border:1px solid rgba(255,255,255,.18);
-            display:grid; place-items:center; cursor:pointer;
+            position:absolute; top:10px; right:10px; width:40px; height:40px; border-radius:12px;
+            border:1px solid rgba(255,255,255,.18); display:grid; place-items:center; cursor:pointer;
             background:linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06));
             color:#eaf2ff; box-shadow:0 8px 22px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.06);
             transition:transform .18s ease, box-shadow .18s ease, filter .18s ease;
         }
-        .xbtn:hover{ transform:rotate(90deg) translateZ(0); filter:saturate(1.05); box-shadow:0 12px 28px rgba(0,0,0,.45) }
-        .xbtn svg{ width:20px; height:20px }
+        .xbtn:hover{ transform:rotate(90deg); filter:saturate(1.05); box-shadow:0 12px 28px rgba(0,0,0,.45) }
+        .xbtn svg{width:20px; height:20px}
 
-        .steps{width:100%; margin-top:8px}
-        .steps-grid{
-            display:grid; gap:10px;
-            grid-template-columns:repeat(3, minmax(0, 1fr));
-        }
-        @media (max-width:640px){
-            .steps-grid{grid-template-columns:1fr}
-        }
+        .steps{width:100%; margin-top:6px}
+        .steps-grid{display:grid; gap:10px; grid-template-columns:repeat(3, minmax(0,1fr))}
+        @media (max-width:640px){ .steps-grid{grid-template-columns:1fr} }
         .step{
             display:flex; align-items:flex-start; gap:10px;
             padding:12px; border-radius:12px;
@@ -287,6 +311,9 @@
         }
         .step-title{font-weight:800; margin:0; color:#eaf2ff}
         .step-desc{margin:0; color:#c7d5f2; font-size:12px}
+
+        body.no-scroll{overflow:hidden}
+        @supports(height:100dvh){ #expoModal{min-height:100dvh} }
     </style>
 </head>
 <body id="top" class="page-bg">
@@ -312,7 +339,6 @@
         ['file'=>'app_light_2', 'alt'=>'Edycja notatki'],
         ['file'=>'app_light_3', 'alt'=>'Zespoły'],
     ];
-    /* QR do Expo GO (umieść plik w public/assets/images/expogo-qr.png|jpg|webp) */
     $expoQrImg = notesync_resolve_asset('expogo-qr');
 @endphp
 
@@ -360,7 +386,7 @@
         <h1>Notuj. Porządkuj.<br/>Synchronizuj.</h1>
         <p class="lead">Szybka, lekka aplikacja do notatek z bezpieczną synchronizacją.</p>
 
-        <!-- CTA STACK: Android (aktywny), iOS (tymczasowo niedostępny), Expo GO (QR) -->
+        <!-- CTA: Android (z ikoną) + iOS (disabled) + Expo GO (modal z QR) -->
         <div class="cta-stack" aria-label="Opcje pobrania">
             <a id="download" class="cta" href="#download" rel="nofollow">
                 <img class="cta-icon" src="{{ asset('assets/images/android.svg') }}" alt="" aria-hidden="true">
@@ -371,11 +397,10 @@
                class="cta cta-disabled tooltip"
                href="#"
                aria-disabled="true"
-               title="Wersja iOS tymczasowo niedostępna. Pracujemy nad wydaniem w App Store."
-               data-tip="Wersja iOS tymczasowo niedostępna. Pracujemy nad wydaniem w App Store.">
+               data-tip="Wersja iOS tymczasowo niedostępna. Pracujemy nad wydaniem w App Store."
+               title="Wersja iOS tymczasowo niedostępna. Pracujemy nad wydaniem w App Store.">
                 <img class="cta-icon" src="{{ asset('assets/images/ios.svg') }}" alt="" aria-hidden="true">
                 Pobierz na iOS
-                <!-- Kłódka (inline SVG, brak zewnętrznych zależności) -->
                 <svg class="padlock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <rect x="3.5" y="11" width="17" height="9" rx="2" ry="2" />
                     <path d="M7 11V8a5 5 0 0 1 10 0v3" />
@@ -603,92 +628,72 @@
         document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && container.classList.contains('open')) close(); });
     })();
 
-    /* CTA: blokada iOS + modal z QR dla Expo GO + nowoczesny X + 3 kroki (fix: widoczność po animacji) */
+    /* CTA: iOS (disabled + tooltip) oraz MODAL Expo GO (QR + 3 kroki) */
     (function(){
         var iosBtn = document.getElementById('download-ios');
         if(iosBtn){
-            iosBtn.addEventListener('click', function(e){
-                e.preventDefault(); // blokada kliknięcia
-            });
+            iosBtn.addEventListener('click', function(e){ e.preventDefault(); });
         }
 
         // Modal Expo GO
         var expoModal = document.createElement('div');
         expoModal.id = 'expoModal';
         expoModal.className = 'lightbox';
-        expoModal.setAttribute('role', 'dialog');
-        expoModal.setAttribute('aria-modal', 'true');
-        expoModal.setAttribute('aria-label', 'Kod QR do aplikacji Expo GO');
+        expoModal.setAttribute('role','dialog');
+        expoModal.setAttribute('aria-modal','true');
+        expoModal.setAttribute('aria-label','Kod QR do aplikacji Expo GO');
 
         var expoQr = @json($expoQrImg);
+
         expoModal.innerHTML =
-            '<button class="lightbox-close" aria-label="Zamknij">Zamknij</button>' +
             '<div class="modal-card" id="expoCard">' +
-            /* nowoczesny X w rogu karty */
             '<button class="xbtn" id="expoX" aria-label="Zamknij modal">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
             '<path d="M6 6l12 12M6 18L18 6"/>' +
             '</svg>' +
             '</button>' +
             '<img src="'+ expoQr +'" alt="Kod QR Expo GO" style="max-width:min(86vw,460px);height:auto;border-radius:12px;background:#000"/>' +
-            '<div style="color:#eaf2ff;font-weight:700">Zeskanuj w aplikacji <strong>Expo Go</strong> na telefonie</div>' +
-            /* 3 kroki */
+            '<div style="color:#eaf2ff;font-weight:700;text-align:center">Zeskanuj w aplikacji <strong>Expo Go</strong> na telefonie</div>' +
             '<div class="steps">' +
             '<div class="steps-grid">' +
             '<div class="step">' +
             '<div class="step-num">1</div>' +
-            '<div>' +
-            '<p class="step-title">Pobierz Expo Go</p>' +
-            '<p class="step-desc">Zainstaluj z Google Play / App Store.</p>' +
-            '</div>' +
+            '<div><p class="step-title">Pobierz Expo Go</p><p class="step-desc">Zainstaluj z Google Play lub App Store.</p></div>' +
             '</div>' +
             '<div class="step">' +
             '<div class="step-num">2</div>' +
-            '<div>' +
-            '<p class="step-title">Zeskanuj kod QR</p>' +
-            '<p class="step-desc">Użyj aparatu lub skanera w Expo Go.</p>' +
-            '</div>' +
+            '<div><p class="step-title">Zeskanuj kod QR</p><p class="step-desc">Użyj aparatu lub skanera w Expo Go.</p></div>' +
             '</div>' +
             '<div class="step">' +
             '<div class="step-num">3</div>' +
-            '<div>' +
-            '<p class="step-title">Otwórz NoteSync</p>' +
-            '<p class="step-desc">Aplikacja uruchomi się automatycznie.</p>' +
-            '</div>' +
+            '<div><p class="step-title">Otwórz NoteSync</p><p class="step-desc">Projekt uruchomi się automatycznie.</p></div>' +
             '</div>' +
             '</div>' +
             '</div>' +
             '</div>';
+
         document.body.appendChild(expoModal);
 
         function closeModal(){
+            document.body.classList.remove('no-scroll');
             expoModal.classList.remove('open');
+            var opener = document.getElementById('expogoBtn');
+            if(opener){ opener.focus({preventScroll:true}); }
         }
-        expoModal.addEventListener('click', function(e){ if(e.target === expoModal) closeModal(); });
-        expoModal.querySelector('.lightbox-close').addEventListener('click', closeModal);
-        document.addEventListener('keydown', function(e){ if(e.key==='Escape' && expoModal.classList.contains('open')) closeModal(); });
-        // „X” w karcie
-        var xBtn = expoModal.querySelector('#expoX');
-        if(xBtn){ xBtn.addEventListener('click', closeModal); }
 
-        // Otwieranie + animacja karty (po animacji karta nadal widoczna dzięki .lightbox.open .modal-card)
+        expoModal.addEventListener('click', function(e){ if(e.target === expoModal) closeModal(); });
+        document.addEventListener('keydown', function(e){ if(e.key==='Escape' && expoModal.classList.contains('open')) closeModal(); });
+
         var expoBtn = document.getElementById('expogoBtn');
-        var card   = null;
         if(expoBtn){
             expoBtn.addEventListener('click', function(e){
                 e.preventDefault();
+                document.body.classList.add('no-scroll');
                 expoModal.classList.add('open');
-                card = document.getElementById('expoCard');
-                if(card){
-                    card.classList.remove('pop'); // reset, by animacja odpaliła każdy raz
-                    void card.offsetWidth;        // reflow
-                    card.classList.add('pop');
-                    card.addEventListener('animationend', function handler(){
-                        // Po animacji nic nie robimy — karta zostaje widoczna dzięki regule .lightbox.open .modal-card
-                        card.classList.remove('pop');
-                        card.removeEventListener('animationend', handler);
-                    });
-                }
+                setTimeout(function(){
+                    var xb = document.getElementById('expoX');
+                    if(xb){ xb.addEventListener('click', closeModal); xb.focus({preventScroll:true}); }
+                }, 0);
             });
         }
     })();

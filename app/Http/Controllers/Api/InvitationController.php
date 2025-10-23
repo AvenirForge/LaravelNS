@@ -168,20 +168,56 @@ class InvitationController extends Controller
     public function invitationsReceived()
     {
         $me = $this->me();
+        if (!$me) {
+            return response()->json(['error' => 'Unauthorized'], Http::HTTP_UNAUTHORIZED);
+        }
 
         $meNorm = $this->canonicalEmail($me->email);
 
-        $list = Invitation::whereRaw('LOWER(TRIM(invited_email)) = ?', [$meNorm])
+        $list = Invitation::with([
+            // Minimalny, sensowny zestaw informacji o kursie
+            'course'  => fn($q) => $q->select('id','title','type','user_id','avatar'),
+            // Informacje o zapraszającym
+            'inviter' => fn($q) => $q->select('id','name','email','avatar'),
+        ])
+            ->whereRaw('LOWER(TRIM(invited_email)) = ?', [$meNorm])
             ->latest()
             ->get();
 
         return response()->json([
-            'invitations' => $list->map(fn($i) => [
-                'course_id' => $i->course_id,
-                'token'     => $i->token,
-                'status'    => $i->status,
-                'role'      => $i->role,
-            ])->values(),
+            'invitations' => $list->map(function (Invitation $i) {
+                return [
+                    // Podstawy zaproszenia
+                    'id'            => $i->id,
+                    'course_id'     => $i->course_id,
+                    'token'         => $i->token,
+                    'status'        => $i->status,
+                    'role'          => $i->role,
+                    'invited_email' => $i->invited_email,
+                    'expires_at'    => $i->expires_at?->toIso8601String(),
+                    'responded_at'  => $i->responded_at?->toIso8601String(),
+                    'created_at'    => $i->created_at?->toIso8601String(),
+                    'updated_at'    => $i->updated_at?->toIso8601String(),
+                    'is_expired'    => $i->hasExpired(),
+
+                    // Kurs docelowy
+                    'course' => $i->course ? [
+                        'id'       => $i->course->id,
+                        'title'    => $i->course->title,
+                        'type'     => $i->course->type,
+                        'user_id'  => $i->course->user_id,
+                        'avatar'   => $i->course->avatar,
+                    ] : null,
+
+                    // Zapraszający
+                    'inviter' => $i->inviter ? [
+                        'id'     => $i->inviter->id,
+                        'name'   => $i->inviter->name ?? null,
+                        'email'  => $i->inviter->email,
+                        'avatar' => $i->inviter->avatar ?? null,
+                    ] : null,
+                ];
+            })->values(),
         ]);
     }
 

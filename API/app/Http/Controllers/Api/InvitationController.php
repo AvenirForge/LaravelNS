@@ -9,92 +9,84 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response as Http;
 
 class InvitationController extends Controller
 {
-    /**
-     * Kanoniczna postać e-maila:
-     * - trim,
-     * - lowercase (mb),
-     * - IDN: domena na ASCII (punycode) jeśli możliwe.
-     */
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Helpers (guard, kanonizacja e-maila, spójna determinacja roli w kursie)
+    // ─────────────────────────────────────────────────────────────────────────────
+    private function me()
+    {
+        return Auth::guard('api')->user();
+    }
+
     private function canonicalEmail(string $email): string
     {
         $email = trim(mb_strtolower($email));
-
         if (function_exists('idn_to_ascii') && str_contains($email, '@')) {
             [$local, $domain] = explode('@', $email, 2);
-            $ascii = idn_to_ascii($domain, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
-            if ($ascii) {
-                $email = $local . '@' . $ascii;
-            }
-        }
 
+            // 1. Normalizuj domenę (obsługa IDN)
+            $asciiDomain = idn_to_ascii($domain, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
+            if ($asciiDomain) $domain = $asciiDomain;
+
+            // 2. Normalizuj część lokalną dla aliasów Gmail/Googlemail
+            if (in_array($domain, ['gmail.com', 'googlemail.com'], true)) {
+                // Usuń wszystko po znaku '+'
+                if (str_contains($local, '+')) {
+                    $local = substr($local, 0, strpos($local, '+'));
+                }
+                // Usuń kropki
+                $local = str_replace('.', '', $local);
+            }
+
+            $email = $local.'@'.$domain;
+        }
         return $email;
     }
 
+    /**
+     * Rola użytkownika w kursie: owner | admin | moderator | member | guest
+     * (spójna z CourseController)
+     */
+    private function roleInCourse(Course $course, int $userId): string
+    {
+        if ((int)$userId === (int)$course->user_id) return 'owner';
+
+        $pivot = DB::table('courses_users')
+            ->where('course_id', $course->id)
+            ->where('user_id', $userId)
+            ->first();
+
+        if (!$pivot) return 'guest';
+
+        $role = $pivot->role;
+        return (!$role || $role === 'user') ? 'member' : $role;
+    }
+
+    /**
+     * Czy obecny użytkownik może zarządzać zaproszeniami w kursie.
+     * Dopuszczalne role: owner/admin/moderator.
+     */
     private function canManage(Course $course): bool
     {
-        $me = Auth::user();
+        $me = $this->me();
         if (!$me) return false;
+
         if ((int)$me->id === (int)$course->user_id) return true;
 
-        $pivot = $course->users()->where('user_id', $me->id)->first();
-        $role  = $pivot?->pivot?->role;
-        return in_array($role, ['owner', 'admin', 'moderator'], true);
+        $role = $this->roleInCourse($course, (int)$me->id);
+        return in_array($role, ['owner','admin','moderator'], true);
     }
 
-    /**
-     * Zwięzły payload użytkownika do zwrotek API.
-     */
-    private function userPayload(?User $u): ?array
-    {
-        if (!$u) return null;
+    // ─────────────────────────────────────────────────────────────────────────────
+    // POST /api/courses/{courseId}/invite-user
+    // Tworzy zaproszenie (z rolą). Blokuje po 3 odrzuceniach w danym kursie.
+    // ─────────────────────────────────────────────────────────────────────────────
+    // app/Http/Controllers/Api/InvitationController.php
 
-        return [
-            'id'         => $u->id,
-            'name'       => $u->name,
-            'email'      => $u->email,
-            'avatar_url' => $u->avatar_url, // accessor w modelu User
-        ];
-    }
-
-    /**
-     * Zwięzły payload kursu do zwrotek API (z URL avatara i właścicielem).
-     * Uwaga: jeśli brak avataru → avatar_url = null (nie wymuszamy fallbacku).
-     */
-    private function coursePayload(?Course $course): ?array
-    {
-        if (!$course) return null;
-
-        // Owner (preferujemy relację 'user', w razie braku – SELECT)
-        $owner = null;
-        if (method_exists($course, 'user')) {
-            $course->loadMissing(['user:id,name,email,avatar']);
-            $owner = $course->user;
-        } else {
-            $owner = User::select('id','name','email','avatar')->find($course->user_id);
-        }
-
-        $avatarUrl = $course->avatar ? Storage::disk('public')->url($course->avatar) : null;
-
-        return [
-            'id'           => $course->id,
-            'title'        => $course->title,
-            'description'  => $course->description,
-            'type'         => $course->type,
-            'avatar_path'  => $course->avatar,
-            'avatar_url'   => $avatarUrl,
-            'owner'        => $this->userPayload($owner),
-            'created_at'   => optional($course->created_at)?->toISOString(),
-            'updated_at'   => optional($course->updated_at)?->toISOString(),
-        ];
-    }
-
-    /** POST /api/courses/{courseId}/invite-user */
     public function inviteUser(Request $request, $courseId)
     {
         $course = Course::findOrFail($courseId);
@@ -108,17 +100,25 @@ class InvitationController extends Controller
             'role'  => 'sometimes|in:owner,admin,moderator,user,member',
         ]);
 
-        $emailRaw  = $data['email'];
-        $emailNorm = $this->canonicalEmail($emailRaw);
+        $emailRaw      = $data['email'];
+        $emailLowerRaw = trim(mb_strtolower($emailRaw)); // ← surowa normalizacja (bez IDN)
+        $emailNorm     = $this->canonicalEmail($emailRaw); // ← kanoniczna (z IDN)
 
-        // Jeśli istnieje user o tym e-mailu (po formie kanonicznej), złap jego ID:
-        $existingUser = User::whereRaw('LOWER(email) = ?', [$emailNorm])->first();
+        // Jeżeli istnieje user o tym e-mailu (po formie kanonicznej), złap jego ID:
+        $existingUser  = User::whereRaw('LOWER(TRIM(email)) = ?', [$emailNorm])->first();
         $existingUserId = $existingUser?->id;
 
-        return DB::transaction(function () use ($course, $data, $emailRaw, $emailNorm, $existingUserId) {
+        return DB::transaction(function () use ($course, $data, $emailRaw, $emailLowerRaw, $emailNorm, $existingUserId) {
+            // Liczymy odrzucenia w TYM kursie:
+            //  - dopasuj po raw-lower (LOWER/TRIM),
+            //  - lub po kanonicznym (LOWER/TRIM),
+            //  - lub po user_id, jeśli znany.
             $rejectedCount = Invitation::where('course_id', $course->id)
-                ->where(function ($q) use ($emailNorm, $existingUserId) {
-                    $q->whereRaw('LOWER(TRIM(invited_email)) = ?', [$emailNorm]);
+                ->where(function ($q) use ($emailLowerRaw, $emailNorm, $existingUserId) {
+                    $q->where(function ($qq) use ($emailLowerRaw, $emailNorm) {
+                        $qq->whereRaw('LOWER(TRIM(invited_email)) = ?', [$emailLowerRaw])
+                            ->orWhereRaw('LOWER(TRIM(invited_email)) = ?', [$emailNorm]);
+                    });
                     if ($existingUserId) {
                         $q->orWhere('user_id', $existingUserId);
                     }
@@ -127,7 +127,6 @@ class InvitationController extends Controller
                 ->lockForUpdate()
                 ->count();
 
-            // Blokada 4-tego zaproszenia po 3 odrzuceniach
             if ($rejectedCount >= 3) {
                 return response()->json([
                     'error' => 'Too many rejections for this email. Further invites are blocked.',
@@ -135,127 +134,113 @@ class InvitationController extends Controller
             }
 
             $role = $data['role'] ?? 'member';
-            if ($role === 'user') {
-                $role = 'member';
-            }
+            if ($role === 'user') $role = 'member';
 
             $invite = Invitation::create([
                 'course_id'     => $course->id,
-                'inviter_id'    => Auth::id(),
+                'inviter_id'    => Auth::guard('api')->id(),
                 'user_id'       => $existingUserId,
-                'invited_email' => $emailRaw,  // przechowuj „raw”
+                'invited_email' => $emailRaw,   // przechowujemy „raw” (do UI/mailingu)
                 'status'        => 'pending',
-                'role'          => $role,
+                'role'          => $role,       // upewnij się, że 'role' jest w $fillable w modelu!
                 'token'         => Str::random(48),
                 'expires_at'    => now()->addDays(14),
             ]);
 
-            // Rozszerzona odpowiedź: meta kursu + zapraszający
-            $inviter = Auth::user();
-
             return response()->json([
                 'message' => 'Invitation created',
                 'invite'  => [
-                    'id'           => $invite->id,
-                    'token'        => $invite->token,
-                    'email'        => $invite->invited_email,
-                    'status'       => $invite->status,
-                    'role'         => $invite->role,
-                    'expires_at'   => optional($invite->expires_at)?->toISOString(),
-                    'responded_at' => optional($invite->responded_at)?->toISOString(),
-                    'course'       => $this->coursePayload($course),
-                    'inviter'      => $this->userPayload($inviter),
+                    'id'     => $invite->id,
+                    'token'  => $invite->token,
+                    'email'  => $invite->invited_email,
+                    'status' => $invite->status,
+                    'role'   => $invite->role,
                 ],
             ], 200);
         });
     }
 
-    /** GET /api/me/invitations-received */
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // GET /api/me/invitations-received
+    // (Dopasowanie po kanonicznym e-mailu; zwraca listę tokenów i meta)
+    // ─────────────────────────────────────────────────────────────────────────────
     public function invitationsReceived()
     {
-        $me = Auth::user();
+        $me = $this->me();
 
-        // Dopasowanie po kanonicznej formie e-maila + fallback po user_id
         $meNorm = $this->canonicalEmail($me->email);
 
-        $list = Invitation::where(function ($q) use ($meNorm, $me) {
-            $q->whereRaw('LOWER(TRIM(invited_email)) = ?', [$meNorm])
-                ->orWhere('user_id', $me->id);
-        })
+        $list = Invitation::whereRaw('LOWER(TRIM(invited_email)) = ?', [$meNorm])
             ->latest()
             ->get();
 
-        // Zmapuj na bogatszy payload (kurs + zapraszający)
-        $items = $list->map(function (Invitation $i) {
-            $course  = Course::find($i->course_id);
-            $inviter = User::find($i->inviter_id);
-
-            return [
-                'id'           => $i->id,
-                'course_id'    => $i->course_id,
-                'token'        => $i->token,
-                'status'       => $i->status,
-                'role'         => $i->role,
-                'expires_at'   => optional($i->expires_at)?->toISOString(),
-                'responded_at' => optional($i->responded_at)?->toISOString(),
-                'course'       => $this->coursePayload($course),
-                'inviter'      => $this->userPayload($inviter),
-            ];
-        })->values();
-
         return response()->json([
-            'invitations' => $items,
+            'invitations' => $list->map(fn($i) => [
+                'course_id' => $i->course_id,
+                'token'     => $i->token,
+                'status'    => $i->status,
+                'role'      => $i->role,
+            ])->values(),
         ]);
     }
 
-    /** GET /api/me/invitations-sent */
+    // ─────────────────────────────────────────────────────────────────────────────
+    // GET /api/me/invitations-sent
+    // ─────────────────────────────────────────────────────────────────────────────
     public function invitationsSent()
     {
-        $me = Auth::user();
+        $me = $this->me();
 
         $list = Invitation::where('inviter_id', $me->id)
             ->latest()
             ->get();
 
-        $items = $list->map(function (Invitation $i) {
-            $course   = Course::find($i->course_id);
-            $invitedU = $i->user_id ? User::find($i->user_id) : null;
-
-            return [
-                'id'            => $i->id,
+        return response()->json([
+            'invitations' => $list->map(fn($i) => [
                 'course_id'     => $i->course_id,
                 'invited_email' => $i->invited_email,
                 'token'         => $i->token,
                 'status'        => $i->status,
                 'role'          => $i->role,
-                'expires_at'    => optional($i->expires_at)?->toISOString(),
-                'responded_at'  => optional($i->responded_at)?->toISOString(),
-                'course'        => $this->coursePayload($course),
-                // opcjonalnie pokaż profil zapraszanego, jeśli istnieje w systemie
-                'invitee'       => $this->userPayload($invitedU),
-            ];
-        })->values();
-
-        return response()->json([
-            'invitations' => $items,
+            ])->values(),
         ]);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // POST /api/invitations/{invitationId}/cancel
+    // ─────────────────────────────────────────────────────────────────────────────
+    public function cancelInvite($invitationId)
+    {
+        $me = $this->me();
+        $inv = Invitation::findOrFail($invitationId);
 
-    /** POST /api/invitations/{token}/accept */
+        $course = Course::findOrFail($inv->course_id);
+        $isInviter = ((int)$inv->inviter_id === (int)$me->id);
+
+        if (!$isInviter && !$this->canManage($course)) {
+            return response()->json(['error' => 'Unauthorized'], Http::HTTP_UNAUTHORIZED);
+        }
+
+        $inv->status = 'cancelled';
+        $inv->responded_at = $inv->responded_at ?? now();
+        $inv->save();
+
+        return response()->json(['message' => 'Invitation cancelled']);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // POST /api/invitations/{token}/accept
+    // (mapowanie 'user'→'member' pozostaje bez zmian)
+    // ─────────────────────────────────────────────────────────────────────────────
     public function acceptInvitation(string $token)
     {
-        $me = Auth::user();
+        $me = $this->me();
         $inv = Invitation::where('token', $token)->first();
 
-        if (!$inv) {
-            return response()->json(['error' => 'Invitation not found'], 404);
-        }
-        if ($inv->hasExpired()) {
-            return response()->json(['error' => 'Invitation expired'], 422);
-        }
+        if (!$inv) return response()->json(['error' => 'Invitation not found'], 404);
+        if ($inv->hasExpired()) return response()->json(['error' => 'Invitation expired'], 422);
 
-        // Porównanie po formie kanonicznej (odporne na case/IDN/whitespace)
         $invitedNorm = $this->canonicalEmail($inv->invited_email);
         $meNorm      = $this->canonicalEmail($me->email);
         if ($invitedNorm !== $meNorm) {
@@ -264,46 +249,62 @@ class InvitationController extends Controller
 
         $course = Course::findOrFail($inv->course_id);
 
-        // Normalizacja roli na pivot: 'user' → 'member'
+        // Normalizacja
         $pivotRole = $inv->role ?: 'member';
-        if ($pivotRole === 'user') {
-            $pivotRole = 'member';
-        }
+        if ($pivotRole === 'user') $pivotRole = 'member';
 
         return DB::transaction(function () use ($inv, $course, $me, $pivotRole) {
-            // Idempotencja: jeśli już accepted, dołóż/napraw pivot i wyjdź
+            // Idempotentnie
             if ($inv->status === 'accepted') {
-                $exists = $course->users()->where('user_id', $me->id)->exists();
+                $exists = DB::table('courses_users')
+                    ->where('course_id', $course->id)
+                    ->where('user_id', $me->id)
+                    ->exists();
+
                 if (!$exists) {
-                    $course->users()->attach($me->id, [
-                        'role'   => $pivotRole,
-                        'status' => 'accepted',
+                    DB::table('courses_users')->insert([
+                        'course_id'  => $course->id,
+                        'user_id'    => $me->id,
+                        'role'       => $pivotRole,
+                        'status'     => 'accepted',
+                        'created_at' => now(),
+                        'updated_at' => now(),
                     ]);
                 }
 
                 return response()->json([
                     'message'   => 'Already accepted',
                     'course_id' => $course->id,
-                    'course'    => $this->coursePayload($course),
-                    'inviter'   => $this->userPayload(User::find($inv->inviter_id)),
                 ]);
             }
 
-            // 1) Dołącz/aktualizuj pivota
-            $exists = $course->users()->where('user_id', $me->id)->exists();
+            // Ustaw/aktualizuj pivot
+            $exists = DB::table('courses_users')
+                ->where('course_id', $course->id)
+                ->where('user_id', $me->id)
+                ->exists();
+
             if ($exists) {
-                $course->users()->updateExistingPivot($me->id, [
-                    'role'   => $pivotRole,
-                    'status' => 'accepted',
-                ]);
+                DB::table('courses_users')
+                    ->where('course_id', $course->id)
+                    ->where('user_id', $me->id)
+                    ->update([
+                        'role'       => $pivotRole,
+                        'status'     => 'accepted',
+                        'updated_at' => now(),
+                    ]);
             } else {
-                $course->users()->attach($me->id, [
-                    'role'   => $pivotRole,
-                    'status' => 'accepted',
+                DB::table('courses_users')->insert([
+                    'course_id'  => $course->id,
+                    'user_id'    => $me->id,
+                    'role'       => $pivotRole,
+                    'status'     => 'accepted',
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
             }
 
-            // 2) Oznacz zaproszenie jako accepted
+            // Oznacz zaproszenie jako accepted
             $inv->status       = 'accepted';
             $inv->responded_at = now();
             $inv->user_id      = $me->id;
@@ -312,26 +313,21 @@ class InvitationController extends Controller
             return response()->json([
                 'message'   => 'Invitation accepted',
                 'course_id' => $course->id,
-                'course'    => $this->coursePayload($course),
-                'inviter'   => $this->userPayload(User::find($inv->inviter_id)),
             ]);
         });
     }
 
-    /** POST /api/invitations/{token}/reject */
+    // ─────────────────────────────────────────────────────────────────────────────
+    // POST /api/invitations/{token}/reject
+    // ─────────────────────────────────────────────────────────────────────────────
     public function rejectInvitation(string $token)
     {
-        $me = Auth::user();
+        $me = $this->me();
         $inv = Invitation::where('token', $token)->first();
 
-        if (!$inv) {
-            return response()->json(['error' => 'Invitation not found'], 404);
-        }
-        if ($inv->hasExpired()) {
-            return response()->json(['error' => 'Invitation expired'], 422);
-        }
+        if (!$inv) return response()->json(['error' => 'Invitation not found'], 404);
+        if ($inv->hasExpired()) return response()->json(['error' => 'Invitation expired'], 422);
 
-        // Porównanie po formie kanonicznej (odporne na case/IDN/whitespace)
         $invitedNorm = $this->canonicalEmail($inv->invited_email);
         $meNorm      = $this->canonicalEmail($me->email);
         if ($invitedNorm !== $meNorm) {
@@ -339,16 +335,7 @@ class InvitationController extends Controller
         }
 
         if ($inv->status === 'rejected') {
-            return response()->json([
-                'message' => 'Already rejected',
-                'invite'  => [
-                    'id'           => $inv->id,
-                    'status'       => $inv->status,
-                    'course'       => $this->coursePayload(Course::find($inv->course_id)),
-                    'inviter'      => $this->userPayload(User::find($inv->inviter_id)),
-                    'responded_at' => optional($inv->responded_at)?->toISOString(),
-                ],
-            ]);
+            return response()->json(['message' => 'Already rejected']);
         }
 
         $inv->status       = 'rejected';
@@ -356,15 +343,6 @@ class InvitationController extends Controller
         $inv->user_id      = $me->id;
         $inv->save();
 
-        return response()->json([
-            'message' => 'Invitation rejected',
-            'invite'  => [
-                'id'           => $inv->id,
-                'status'       => $inv->status,
-                'course'       => $this->coursePayload(Course::find($inv->course_id)),
-                'inviter'      => $this->userPayload(User::find($inv->inviter_id)),
-                'responded_at' => optional($inv->responded_at)?->toISOString(),
-            ],
-        ]);
+        return response()->json(['message' => 'Invitation rejected']);
     }
 }
