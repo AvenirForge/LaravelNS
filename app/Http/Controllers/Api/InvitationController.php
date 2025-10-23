@@ -85,6 +85,8 @@ class InvitationController extends Controller
     // POST /api/courses/{courseId}/invite-user
     // Tworzy zaproszenie (z rolą). Blokuje po 3 odrzuceniach w danym kursie.
     // ─────────────────────────────────────────────────────────────────────────────
+    // app/Http/Controllers/Api/InvitationController.php
+
     public function inviteUser(Request $request, $courseId)
     {
         $course = Course::findOrFail($courseId);
@@ -98,19 +100,25 @@ class InvitationController extends Controller
             'role'  => 'sometimes|in:owner,admin,moderator,user,member',
         ]);
 
-        $emailRaw  = $data['email'];
-        $emailNorm = $this->canonicalEmail($emailRaw);
+        $emailRaw      = $data['email'];
+        $emailLowerRaw = trim(mb_strtolower($emailRaw)); // ← surowa normalizacja (bez IDN)
+        $emailNorm     = $this->canonicalEmail($emailRaw); // ← kanoniczna (z IDN)
 
         // Jeżeli istnieje user o tym e-mailu (po formie kanonicznej), złap jego ID:
-        $existingUser = User::whereRaw('LOWER(TRIM(email)) = ?', [$emailNorm])->first();
+        $existingUser  = User::whereRaw('LOWER(TRIM(email)) = ?', [$emailNorm])->first();
         $existingUserId = $existingUser?->id;
 
-        // Transakcja: licz odrzucenia + ewentualnie utwórz zaproszenie
-        return DB::transaction(function () use ($course, $data, $emailRaw, $emailNorm, $existingUserId) {
-            // Liczba odrzuceń w TYM kursie dla Tego adresu/tego user_id (spięte OR)
+        return DB::transaction(function () use ($course, $data, $emailRaw, $emailLowerRaw, $emailNorm, $existingUserId) {
+            // Liczymy odrzucenia w TYM kursie:
+            //  - dopasuj po raw-lower (LOWER/TRIM),
+            //  - lub po kanonicznym (LOWER/TRIM),
+            //  - lub po user_id, jeśli znany.
             $rejectedCount = Invitation::where('course_id', $course->id)
-                ->where(function ($q) use ($emailNorm, $existingUserId) {
-                    $q->whereRaw('LOWER(TRIM(invited_email)) = ?', [$emailNorm]);
+                ->where(function ($q) use ($emailLowerRaw, $emailNorm, $existingUserId) {
+                    $q->where(function ($qq) use ($emailLowerRaw, $emailNorm) {
+                        $qq->whereRaw('LOWER(TRIM(invited_email)) = ?', [$emailLowerRaw])
+                            ->orWhereRaw('LOWER(TRIM(invited_email)) = ?', [$emailNorm]);
+                    });
                     if ($existingUserId) {
                         $q->orWhere('user_id', $existingUserId);
                     }
@@ -119,14 +127,12 @@ class InvitationController extends Controller
                 ->lockForUpdate()
                 ->count();
 
-            // Twarda blokada — po 3 odrzuceniach nie pozwalamy tworzyć nowych zaproszeń
             if ($rejectedCount >= 3) {
                 return response()->json([
                     'error' => 'Too many rejections for this email. Further invites are blocked.',
                 ], 422);
             }
 
-            // Normalizacja roli na potrzeby pivota: 'user' → 'member'
             $role = $data['role'] ?? 'member';
             if ($role === 'user') $role = 'member';
 
@@ -134,9 +140,9 @@ class InvitationController extends Controller
                 'course_id'     => $course->id,
                 'inviter_id'    => Auth::guard('api')->id(),
                 'user_id'       => $existingUserId,
-                'invited_email' => $emailRaw,   // przechowujemy „raw” (do widoków, powiadomień)
+                'invited_email' => $emailRaw,   // przechowujemy „raw” (do UI/mailingu)
                 'status'        => 'pending',
-                'role'          => $role,       // ← zapis roli (wymaga role w $fillable!)
+                'role'          => $role,       // upewnij się, że 'role' jest w $fillable w modelu!
                 'token'         => Str::random(48),
                 'expires_at'    => now()->addDays(14),
             ]);
@@ -153,6 +159,7 @@ class InvitationController extends Controller
             ], 200);
         });
     }
+
 
     // ─────────────────────────────────────────────────────────────────────────────
     // GET /api/me/invitations-received
