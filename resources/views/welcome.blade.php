@@ -78,7 +78,7 @@
         .nav-inner{display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:12px; width:100%}
         .brand{display:inline-flex; align-items:center; gap:10px; color:#e8eeff;}
         .brand span{font-family:Pacifico,cursive; font-size:28px; letter-spacing:.2px; opacity:.95}
-        .brand-logo{width:28px; height:auto; margin-right:4px; fill:#fff; transition:transform .25s ease, opacity .25s ease}
+        .brand-logo{width:60px; height:auto; margin-right:4px; fill:#fff; transition:transform .25s ease, opacity .25s ease}
         .brand:hover .brand-logo{transform:rotate(-5deg) scale(1.05); opacity:.9}
         .links{justify-self:center; display:flex; gap:18px}
         .link{padding:10px 12px; border-radius:10px; color:#e8eeff}
@@ -354,10 +354,9 @@
 <div class="nav" role="banner">
     <div class="container nav-inner">
         <a class="brand" href="#top" aria-label="Strona główna">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 412 511.87" class="brand-logo"><path d="M35.7 32.95h33.54V11.18C69.24 5.01 74.25 0 80.43 0c6.17 0 11.18 5.01 11.18 11.18v21.77h49.21V11.18c0-6.17 5.01-11.18 11.19-11.18 6.17 0 11.18 5.01 11.18 11.18v21.77h49.21V11.18C212.4 5.01 217.41 0 223.59 0c6.17 0 11.18 5.01 11.18 11.18v21.77h49.21V11.18c0-6.17 5.01-11.18 11.19-11.18 6.17 0 11.18 5.01 11.18 11.18v21.77h34.55c9.83 0 18.76 4.03 25.21 10.49 5.36 5.35 9.04 12.4 10.15 20.23h.04c9.82 0 18.76 4.03 25.21 10.48C407.98 80.62 412 89.56 412 99.37v376.8c0 9.77-4.04 18.7-10.49 25.17-6.51 6.5-15.45 10.53-25.21 10.53H67.71c-9.81 0-18.75-4.02-25.22-10.49-6.14-6.14-10.09-14.53-10.45-23.8-8.36-.86-15.9-4.66-21.55-10.31C4.03 460.82 0 451.89 0 442.06V68.65c0-9.83 4.03-18.77 10.48-25.22 6.45-6.45 15.39-10.48 25.22-10.48z" fill="#fff"/></svg>
+            <img src="/assets/images/logo-notesync.jpg" class="brand-logo" alt="" />
             <span>NoteSync</span>
         </a>
-
         <nav class="links" aria-label="Nawigacja główna">
             <a class="link" href="#features">Funkcje</a>
             <a class="link" href="#screens">Zrzuty</a>
@@ -461,7 +460,7 @@
         <div class="card" aria-label="Zespół">
             <h3 style="margin:0 0 8px">Zespół</h3>
             <ul style="list-style:none;margin:0;padding:0;display:grid;gap:10px">
-                <li><strong>Frontend (React Native):</strong> UI/UX, offline-first, animacje, dostępność.</li>
+                <li><strong>Frontend (React Native):</strong> UI/UX, animacje, dostępność.</li>
                 <li><strong>Backend (Laravel API):</strong> architektura, bezpieczeństwo, synchronizacja.</li>
                 <li><strong>DevOps:</strong> CI/CD, monitoring, stabilność aktualizacji.</li>
             </ul>
@@ -473,10 +472,6 @@
     <div class="container">
         <h2 id="faq-title" style="margin:0 0 10px">FAQ — najczęstsze pytania</h2>
         <div class="faq-list" role="list">
-            <div class="faq-item" role="listitem">
-                <button class="faq-q" aria-expanded="false"><span>Czy NoteSync działa offline?</span><span class="faq-icon">＋</span></button>
-                <div class="faq-a"><p>Tak — edytujesz bez internetu, a połączenie uruchamia automatyczną synchronizację.</p></div>
-            </div>
             <div class="faq-item" role="listitem">
                 <button class="faq-q" aria-expanded="false"><span>Jak wygląda synchronizacja między urządzeniami?</span><span class="faq-icon">＋</span></button>
                 <div class="faq-a"><p>Laravel REST API + wersjonowanie zmian; aplikacja mobilna scala je bezkolizyjnie.</p></div>

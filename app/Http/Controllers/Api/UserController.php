@@ -208,6 +208,34 @@ class UserController extends Controller
         return response()->json(['message' => 'User logged out successfully']);
     }
 
+    // POST /api/me/refresh
+    public function refresh(): JsonResponse
+    {
+        try {
+            // Odśwież token. To automatycznie unieważni stary token (doda do blacklisty)
+            // i zwróci nowy, ważny token.
+            $newToken = auth('api')->refresh();
+
+            /** @var User $user */
+            $user = auth('api')->user();
+
+        } catch (JWTException $e) {
+            // Błąd odświeżania (np. stary token wygasł i minął refresh_ttl,
+            // lub jest na czarnej liście)
+            return response()->json(['error' => 'Could not refresh token: ' . $e->getMessage()], 401);
+        }
+
+        // Zwróć odpowiedź w formacie identycznym jak login()
+        return response()->json([
+            'message'     => 'Token refreshed successfully',
+            'userId'      => $user->id,
+            'token'       => $newToken,
+            'token_type'  => 'Bearer',
+            'expires_in'  => auth('api')->factory()->getTTL() * 60, // sekundy
+            'user'        => $user->only(['id', 'name', 'email']) + ['avatar_url' => $user->avatar_url],
+        ]);
+    }
+
     // GET /api/me/profile (alias show)
     public function show(): JsonResponse
     {
