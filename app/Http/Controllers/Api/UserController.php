@@ -221,7 +221,7 @@ class UserController extends Controller
 
         } catch (JWTException $e) {
             // Błąd odświeżania (np. stary token wygasł i minął refresh_ttl,
-            // lub jest na czarnej liście)
+            // jest na czarnej liście, LUB podpis jest niepoprawny - Twój przypadek)
             return response()->json(['error' => 'Could not refresh token: ' . $e->getMessage()], 401);
         }
 

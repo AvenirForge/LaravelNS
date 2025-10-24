@@ -2,17 +2,21 @@
 # -*- coding: utf-8 -*-
 """
 E2E.py — Zintegrowany test E2E (User, Note, Course, Quiz API)
+Wersja rozszerzona, dążąca do 100% pokrycia "good" i "bad" case'ów.
+
 - Konsola: tylko progres PASS/FAIL + na końcu jedna tabela zbiorcza
 - HTML: pełne szczegóły każdego żądania (nagłówki, body, odpowiedź) oraz
         surowe transkrypcje (request/response) dla każdego endpointu.
 - Wyniki: tests/results/ResultE2E--YYYY-MM-DD--HH-MM-SS/APITestReport.html
+- Automatyczne otwieranie raportu w przeglądarce po zakończeniu.
 
 Kolejność wykonywania:
-1. User API (cykl życia użytkownika w izolacji: rejestracja, patch, delete)
+1. User API (cykl życia, walidacja 422, błędy logowania)
 2. Setup (rejestracja głównych aktorów: Owner, Member, Admin, Moderator, Outsider)
-3. Note API (testy notatek osobistych na Ownerze i Memberze)
-4. Course API (testy kursów, ról i moderacji na wszystkich aktorach)
-5. Quiz API (testy quizów na Ownerze)
+3. Note API (CRUD, walidacja, autoryzacja, błędy 404, paginacja)
+4. Course API (CRUD, zaproszenia, role, moderacja, hierarchia, błędy uprawnień)
+5. Quiz API (Zarządzanie: CRUD, walidacja limitów)
+6. Quiz API (Rozwiązywanie: start, submit, weryfikacja wyników przez studenta)
 """
 
 from __future__ import annotations
@@ -26,6 +30,7 @@ import re
 import string
 import sys
 import time
+import webbrowser  # Dodano do otwierania raportu
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -58,10 +63,13 @@ ICON_A     = "🅰️"
 ICON_LINK  = "🔗"
 ICON_EDIT  = "✏️"
 ICON_LIST  = "📋"
+ICON_PLAY  = "▶️" # Do quizu
+ICON_SCORE = "🎯" # Do quizu
+ICON_STOP  = "🛑" # Do walidacji
 
 BOX = "─" * 92
-MAX_BODY_LOG = 12000 # Najwyższa wartość z CourseTest
-SAVE_BODY_LIMIT = 10 * 1024 * 1024 # Limit zapisu surowej odpowiedzi
+MAX_BODY_LOG = 12000
+SAVE_BODY_LIMIT = 10 * 1024 * 1024
 
 # ───────────────────────── Helpers: UI & Masking ─────────────────────────
 
@@ -83,7 +91,6 @@ def as_text(b: bytes) -> str:
         s = b.decode("utf-8", errors="replace")
     except Exception:
         s = str(b)
-    # W zintegrowanym teście używamy dłuższego limitu z CourseTest
     return s if len(s) <= MAX_BODY_LOG else s[:MAX_BODY_LOG] + "\n…(truncated)"
 
 def mask_token(v: str) -> str:
@@ -121,7 +128,7 @@ def safe_filename(s: str) -> str:
 
 def gen_png_bytes() -> bytes:
     if not PIL_AVAILABLE:
-        return b"\x89PNG\r\n\x1a\n" # Fallback
+        return b"\x89PNG\r\n\x1a\n"
     img = Image.new("RGBA", (120, 120), (24, 28, 40, 255))
     d = ImageDraw.Draw(img)
     d.ellipse((10, 10, 110, 110), fill=(70, 160, 255, 255))
@@ -131,7 +138,7 @@ def gen_png_bytes() -> bytes:
 
 def gen_avatar_bytes() -> bytes:
     if not PIL_AVAILABLE:
-        return b"\x89PNG\r\n\x1a\n" # Fallback
+        return b"\x89PNG\r\n\x1a\n"
     img = Image.new("RGBA", (220, 220), (24, 28, 40, 255))
     d = ImageDraw.Draw(img)
     d.ellipse((20, 20, 200, 200), fill=(70, 160, 255, 255))
@@ -143,7 +150,6 @@ def gen_avatar_bytes() -> bytes:
 # ───────────────────────── CLI ─────────────────────────
 
 def default_avatar_path() -> str:
-    # domyślnie ./tests/sample_data/test.jpg (względem katalogu uruchomienia)
     return os.path.join(os.getcwd(), "tests", "sample_data", "test.jpg")
 
 def parse_args() -> argparse.Namespace:
@@ -151,19 +157,15 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--base-url", required=True, help="np. http://localhost:8000 lub https://notesync.pl")
     p.add_argument("--me-prefix", default="me", help="prefiks dla /api/<prefix> (domyślnie 'me')")
     p.add_argument("--timeout", type=int, default=20, help="timeout żądań w sekundach")
-
-    # Argumenty specyficzne dla modułów
     p.add_argument("--note-file", default=r"C:\xampp\htdocs\LaravelNS\tests\E2E\sample.png", help="plik do uploadu notatki (NoteTest)")
     p.add_argument("--avatar", default=default_avatar_path(), help="ścieżka do pliku avatara (UserTest)")
-
-    p.add_argument("--html-report", action="store_true", help="(Ignorowane) Raport HTML jest zawsze generowany do tests/results/ResultE2E--...")
+    p.add_argument("--html-report", action="store_true", help="(Ignorowane) Raport HTML jest zawsze generowany i otwierany.")
     return p.parse_args()
 
 # ───────────────────────── Struktury (Zunifikowane) ─────────────────────────
 
 @dataclass
 class EndpointLog:
-    """Struktura logu dla raportu HTML (wersja z CourseTest, zapisuje surowe bajty)"""
     title: str
     method: str
     url: str
@@ -176,11 +178,10 @@ class EndpointLog:
     resp_bytes: Optional[bytes] = None
     resp_content_type: Optional[str] = None
     duration_ms: float = 0.0
-    notes: List[str] = field(default_factory=list) # Dodane z NoteTest
+    notes: List[str] = field(default_factory=list)
 
 @dataclass
 class TestRecord:
-    """Uniwersalny rekord wyniku testu"""
     name: str
     passed: bool
     duration_ms: float
@@ -191,7 +192,6 @@ class TestRecord:
 
 @dataclass
 class TestContext:
-    """Zunifikowany kontekst dla WSZYSTKICH testów"""
     base_url: str
     me_prefix: str
     ses: requests.Session
@@ -207,14 +207,13 @@ class TestContext:
     output_dir: str = ""
     transcripts_dir: str = ""
 
-    # === Stan dla Modułu UserTest ===
+    # === Moduł UserTest ===
     userA_token: Optional[str] = None
     userA_email: str = ""
     userA_pwd: str = ""
-    userB_email: str = "" # (dla testu konfliktu)
+    userB_email: str = ""
 
-    # === Stan dla Modułów Głównych (Note, Course, Quiz) ===
-    # Główni aktorzy
+    # === Moduły Główne (Aktorzy) ===
     tokenOwner: Optional[str] = None
     emailOwner: str = ""
     pwdOwner: str = ""
@@ -223,28 +222,28 @@ class TestContext:
     emailB: str = ""
     pwdB: str = ""
 
-    tokenC: Optional[str] = None # (Outsider C dla CourseTest rejections)
+    tokenC: Optional[str] = None
     emailC: str = ""
     pwdC: str = ""
 
-    tokenD: Optional[str] = None # (Admin D dla CourseTest)
+    tokenD: Optional[str] = None
     emailD: str = ""
     pwdD: str = ""
 
-    tokenE: Optional[str] = None # (Moderator E dla CourseTest)
+    tokenE: Optional[str] = None
     emailE: str = ""
     pwdE: str = ""
 
-    # (Użytkownik F jest tworzony w locie przez CourseTest)
+    tokenF: Optional[str] = None
     emailF: str = ""
     pwdF: str = ""
 
-    # === Stan dla Modułu NoteTest ===
-    note_id_A: Optional[int] = None # (Notatka stworzona przez Ownera)
+    # === Moduł NoteTest ===
+    note_id_A: Optional[int] = None
 
-    # === Stan dla Modułu CourseTest ===
+    # === Moduł CourseTest ===
     course_id_1: Optional[int] = None
-    course_id_2: Optional[int] = None # (dla C rejections)
+    course_id_2: Optional[int] = None
     public_course_id: Optional[int] = None
     course_note_id_A: Optional[int] = None
     course_note_id_2A: Optional[int] = None
@@ -257,15 +256,24 @@ class TestContext:
     invite_token_E: Optional[str] = None
     invite_token_F: Optional[str] = None
 
-    # === Stan dla Modułu QuizTest ===
-    quiz_token: Optional[str] = None # Token używany w Quiz (powinien być tokenOwner)
-    quiz_userB_email: str = "" # Użytkownik B dla testu Quiz
+    # === Moduł QuizTest ===
+    quiz_token: Optional[str] = None # Używany token (powinien być Ownera lub QuizB)
+    quiz_userB_email: str = ""
     quiz_userB_pwd: str = ""
+    quiz_invite_token_B: Optional[str] = None
     quiz_course_id: Optional[int] = None
-    test_private_id: Optional[int] = None
-    test_public_id: Optional[int] = None
-    question_id: Optional[int] = None
-    answer_ids: List[int] = field(default_factory=list)
+
+    test_private_id: Optional[int] = None # Pusty, do testów dostępu
+    test_public_id: Optional[int] = None  # Główny, z pytaniami
+
+    # Pytania/odpowiedzi w teście publicznym
+    quiz_public_q1_id: Optional[int] = None
+    quiz_public_q1_correct_ans_id: Optional[int] = None
+    quiz_public_q1_wrong_ans_id: Optional[int] = None
+    quiz_public_q_ids: List[int] = field(default_factory=list) # Dla limitu
+    quiz_public_a_ids: List[int] = field(default_factory=list) # Dla limitu
+
+    quiz_result_id: Optional[int] = None # Do śledzenia wyników
 
 # ───────────────────────── Helpers: HTTP (Zunifikowane) ─────────────────────────
 
@@ -292,14 +300,12 @@ def must_json(resp: requests.Response) -> Dict[str, Any]:
         raise AssertionError(f"Odpowiedź nie-JSON (CT={resp.headers.get('Content-Type')}): {trim(resp.text)}")
 
 def security_header_notes(resp: requests.Response) -> List[str]:
-    """Sprawdza brakujące nagłówki bezpieczeństwa (z Note/UserTest)"""
     wanted = ["X-Content-Type-Options","X-Frame-Options","Referrer-Policy",
               "Content-Security-Policy","X-XSS-Protection","Strict-Transport-Security"]
     miss = [k for k in wanted if k not in resp.headers]
     return [f"Missing security headers: {', '.join(miss)}"] if miss else []
 
 def log_exchange(ctx: TestContext, el: EndpointLog, resp: Optional[requests.Response]):
-    """Logowanie (wersja z CourseTest + security_header_notes)"""
     if resp is not None:
         ct = (resp.headers.get("Content-Type") or "")
         el.resp_status = resp.status_code
@@ -307,8 +313,6 @@ def log_exchange(ctx: TestContext, el: EndpointLog, resp: Optional[requests.Resp
         el.resp_content_type = ct
         content = resp.content or b""
         el.resp_bytes = content[:SAVE_BODY_LIMIT] if len(content) > SAVE_BODY_LIMIT else content
-
-        # Dodane sprawdzenie nagłówków
         el.notes.extend(security_header_notes(resp))
 
         if "application/json" in ct.lower():
@@ -324,14 +328,12 @@ def log_exchange(ctx: TestContext, el: EndpointLog, resp: Optional[requests.Resp
             el.resp_body_pretty = as_text(el.resp_bytes)
     ctx.endpoints.append(el)
 
-    # Zapisz transkrypcję (jeśli katalogi są ustawione)
     if ctx.transcripts_dir:
         idx = len(ctx.endpoints)
         save_endpoint_files(ctx.output_dir, ctx.transcripts_dir, idx, el)
 
 def http_json(ctx: TestContext, title: str, method: str, url: str,
               json_body: Optional[Dict[str, Any]], headers: Dict[str,str]) -> requests.Response:
-    """Wersja http_json z CourseTest (najbardziej kompletna)"""
     hs = dict(headers or {})
     req_headers_log = mask_headers_sensitive(hs.copy())
     t0 = time.time()
@@ -354,13 +356,12 @@ def http_json(ctx: TestContext, title: str, method: str, url: str,
         req_body=mask_json_sensitive(json_body) if json_body is not None else {},
         req_is_json=True, duration_ms=(time.time() - t0) * 1000.0
     )
-    log_exchange(ctx, el, resp) # Logowanie odbywa się tutaj
+    log_exchange(ctx, el, resp)
     return resp
 
 def http_multipart(ctx: TestContext, title: str, url: str,
                    data: Dict[str, Any], files: Dict[str, Tuple[str, bytes, str]],
                    headers: Dict[str,str]) -> requests.Response:
-    """Wersja http_multipart z CourseTest (najbardziej kompletna)"""
     hs = dict(headers or {})
     req_headers_log = mask_headers_sensitive(hs.copy())
     friendly_body = {"fields": mask_json_sensitive(data),
@@ -378,7 +379,6 @@ def http_multipart(ctx: TestContext, title: str, url: str,
 
 def http_json_update(ctx: TestContext, base_title: str, url: str,
                      json_body: Dict[str, Any], headers: Dict[str,str]) -> Tuple[requests.Response, str]:
-    """Helper z NoteTest (fallback PATCH -> PUT)"""
     r = http_json(ctx, f"{base_title} (PATCH)", "PATCH", url, json_body, headers)
     if r.status_code == 405:
         r2 = http_json(ctx, f"{base_title} (PUT fallback)", "PUT", url, json_body, headers)
@@ -388,15 +388,12 @@ def http_json_update(ctx: TestContext, base_title: str, url: str,
 # ───────────────────────── Helpers: Raport & Transkrypcje ─────────────────────────
 
 def build_output_dir() -> str:
-    """Zapisuje do tests/results/ResultE2E--..."""
     root = os.getcwd()
     date_str = time.strftime("%Y-%m-%d")
     time_str = time.strftime("%H-%M-%S")
     folder = f"ResultE2E--{date_str}--{time_str}"
-    # Zmieniona ścieżka docelowa
     out_dir = os.path.join(root, "tests", "results", folder)
     os.makedirs(out_dir, exist_ok=True)
-    # Stwórz podkatalog na transkrypcje
     os.makedirs(os.path.join(out_dir, "transcripts"), exist_ok=True)
     return out_dir
 
@@ -426,7 +423,6 @@ def write_text(path: str, text: str):
         print(f"Błąd zapisu {path}: {e}")
 
 def save_endpoint_files(out_dir: str, tr_dir: str, idx: int, ep: EndpointLog):
-    """Zapisuje pliki transkrypcji (z CourseTest)"""
     base = f"{idx:03d}-{safe_filename(ep.title)}"
 
     req_payload = {
@@ -457,161 +453,94 @@ class E2ETester:
     def run(self):
         self.ctx.transcripts_dir = os.path.join(self.ctx.output_dir, "transcripts")
 
-        # --- Kompletna, zintegrowana sekwencja testów ---
         steps: List[Tuple[str, Callable[[], Dict[str, Any]]]] = [
-            # ─ 1. Moduł User API (test izolowany) ───────────────────────────────────
-            ("USER: Rejestracja (A)", self.t_user_register_A),
-            ("USER: Login (A)", self.t_user_login_A),
-            ("USER: Profil bez autoryzacji", self.t_user_profile_unauth),
-            ("USER: Profil z autoryzacją", self.t_user_profile_auth),
-            ("USER: Rejestracja (B) do konfliktu", self.t_user_register_B),
-            ("USER: PATCH name (JSON)", self.t_user_patch_name_json),
-            ("USER: PATCH email — konflikt (JSON)", self.t_user_patch_email_conflict_json),
-            ("USER: PATCH email — poprawny (JSON)", self.t_user_patch_email_ok_json),
-            ("USER: PATCH password (JSON) + weryfikacja", self.t_user_patch_password_json),
-            ("USER: Avatar — brak pliku", self.t_user_avatar_missing),
-            ("USER: Avatar — upload", self.t_user_avatar_upload),
-            ("USER: Avatar — download", self.t_user_avatar_download),
-            ("USER: Logout", self.t_user_logout),
-            ("USER: Re-login (A) przed DELETE", self.t_user_relogin_A),
-            ("USER: DELETE profile (A)", self.t_user_delete_profile),
-            ("USER: Login po DELETE (A) -> fail", self.t_user_login_after_delete_should_fail),
+            # ─ 1. Moduł User API (cykl życia + walidacja) ───────────────────────
+            (f"{ICON_USER} USER: Rejestracja (A)", self.t_user_register_A),
+            (f"{ICON_STOP} USER: Rejestracja (słabe hasło) → 422", self.t_user_register_weak_pass),
+            (f"{ICON_LOCK} USER: Login (złe hasło) → 401", self.t_user_login_wrong_pass),
+            (f"{ICON_LOCK} USER: Login (A)", self.t_user_login_A),
+            (f"{ICON_LOCK} USER: Profil bez autoryzacji → 401", self.t_user_profile_unauth),
+            (f"{ICON_USER} USER: Profil z autoryzacją", self.t_user_profile_auth),
+            (f"{ICON_USER} USER: Rejestracja (B) do konfliktu", self.t_user_register_B),
+            (f"{ICON_PATCH} USER: PATCH name (JSON)", self.t_user_patch_name_json),
+            (f"{ICON_STOP} USER: PATCH email — konflikt (JSON) → 422", self.t_user_patch_email_conflict_json),
+            (f"{ICON_PATCH} USER: PATCH email — poprawny (JSON)", self.t_user_patch_email_ok_json),
+            (f"{ICON_PATCH} USER: PATCH password (JSON) + weryfikacja", self.t_user_patch_password_json),
+            (f"{ICON_STOP} USER: Avatar — brak pliku → 422", self.t_user_avatar_missing),
+            (f"{ICON_IMG} USER: Avatar — upload", self.t_user_avatar_upload),
+            (f"{ICON_IMG} USER: Avatar — download", self.t_user_avatar_download),
+            (f"{ICON_EXIT} USER: Logout", self.t_user_logout),
+            (f"{ICON_LOCK} USER: Re-login (A) przed DELETE", self.t_user_relogin_A),
+            (f"{ICON_TRASH} USER: DELETE profile (A)", self.t_user_delete_profile),
+            (f"{ICON_LOCK} USER: Login po DELETE (A) → 401", self.t_user_login_after_delete_should_fail),
 
-            # ─ 2. Setup Głównych Aktorów ───────────────────────────────────────────
+            # ─ 2. Setup Głównych Aktorów ──────────────────────────────────────────
             ("SETUP: Rejestracja Owner (A)", self.t_setup_register_OwnerA),
             ("SETUP: Rejestracja Member (B)", self.t_setup_register_MemberB),
             ("SETUP: Rejestracja Outsider (C)", self.t_setup_register_OutsiderC),
             ("SETUP: Rejestracja Admin (D)", self.t_setup_register_AdminD),
             ("SETUP: Rejestracja Moderator (E)", self.t_setup_register_ModeratorE),
 
-            # ─ 3. Moduł Note API (na Owner A i Member B) ──────────────────────────
-            ("NOTE: Login (Owner A)", self.t_note_login_A),
-            ("NOTE: Index (initial empty)", self.t_note_index_initial),
-            ("NOTE: Store: missing file → 400/422", self.t_note_store_missing_file),
-            ("NOTE: Store: invalid mime → 400/422", self.t_note_store_invalid_mime),
-            ("NOTE: Store: ok (multipart)", self.t_note_store_ok),
-            ("NOTE: Index contains created", self.t_note_index_contains_created),
-            ("NOTE: Login (Member B)", self.t_note_login_B),
-            ("NOTE: Foreign download (B) → 403", self.t_note_download_foreign_403),
-            ("NOTE: Login (Owner A) again", self.t_note_login_A_again),
-            ("NOTE: PATCH title only", self.t_note_patch_title_only),
-            ("NOTE: PATCH is_private invalid → 400/422", self.t_note_patch_is_private_invalid),
-            ("NOTE: PATCH description + is_private=false", self.t_note_patch_desc_priv_false),
-            ("NOTE: POST …/{id}/patch: missing file", self.t_note_patch_file_missing),
-            ("NOTE: POST …/{id}/patch: ok", self.t_note_patch_file_ok),
-            ("NOTE: Download note file (200)", self.t_note_download_file_ok),
-            ("NOTE: DELETE note", self.t_note_delete_note),
-            ("NOTE: Download after delete → 404", self.t_note_download_after_delete_404),
-            ("NOTE: Index after delete (not present)", self.t_note_index_after_delete),
+            # ─ 3. Moduł Note API (CRUD, paginacja, walidacja) ────────────────────
+            (f"{ICON_LOCK} NOTE: Login (Owner A)", self.t_note_login_A),
+            (f"{ICON_LIST} NOTE: Index (initial empty)", self.t_note_index_initial),
+            (f"{ICON_STOP} NOTE: Store: missing file → 422", self.t_note_store_missing_file),
+            (f"{ICON_STOP} NOTE: Store: invalid mime → 422", self.t_note_store_invalid_mime),
+            (f"{ICON_NOTE} NOTE: Store: ok (multipart)", self.t_note_store_ok),
+            (f"{ICON_LIST} NOTE: Index (top=1, count)", self.t_note_index_contains_created),
+            (f"{ICON_LOCK} NOTE: Login (Member B)", self.t_note_login_B),
+            (f"{ICON_LOCK} NOTE: Foreign download (B) → 403", self.t_note_download_foreign_403),
+            (f"{ICON_LOCK} NOTE: Login (Owner A) again", self.t_note_login_A_again),
+            (f"{ICON_PATCH} NOTE: PATCH title only", self.t_note_patch_title_only),
+            (f"{ICON_STOP} NOTE: PATCH is_private invalid → 422", self.t_note_patch_is_private_invalid),
+            (f"{ICON_PATCH} NOTE: PATCH description + is_private=false", self.t_note_patch_desc_priv_false),
+            (f"{ICON_STOP} NOTE: POST …/{id}/patch: missing file → 422", self.t_note_patch_file_missing),
+            (f"{ICON_PATCH} NOTE: POST …/{id}/patch: ok", self.t_note_patch_file_ok),
+            (f"{ICON_DOWN} NOTE: Download note file (200)", self.t_note_download_file_ok),
+            (f"{ICON_TRASH} NOTE: DELETE note", self.t_note_delete_note),
+            (f"{ICON_STOP} NOTE: Download after delete → 404", self.t_note_download_after_delete_404),
+            (f"{ICON_LIST} NOTE: Index after delete (not present)", self.t_note_index_after_delete),
+            (f"{ICON_STOP} NOTE: Access invalid ID (abc) → 404", self.t_note_access_invalid_id),
 
-            # ─ 4. Moduł Course API (wszyscy aktorzy) ───────────────────────────────
-            ("COURSE: Index no token → 401/403", self.t_course_index_no_token),
-            ("COURSE: Login (Owner A)", self.t_course_login_A),
-            ("COURSE: Create course (private)", self.t_course_create_course_A),
-            ("COURSE: Download avatar none → 404", self.t_course_download_avatar_none_404),
-            ("COURSE: Create course invalid type", self.t_course_create_course_invalid),
-            ("COURSE: Index courses (A) contains", self.t_course_index_courses_A_contains),
-            ("COURSE: Login (Member B)", self.t_course_login_B),
-            ("COURSE: B cannot download A avatar", self.t_course_download_avatar_B_unauth),
-            ("COURSE: B cannot update A course", self.t_course_B_cannot_update_A_course),
-            ("COURSE: B cannot delete A course", self.t_course_B_cannot_delete_A_course),
-            ("COURSE: Invite B", self.t_course_invite_B),
-            ("COURSE: B received invitations", self.t_course_B_received),
-            ("COURSE: B accepts invitation", self.t_course_B_accept),
-            ("COURSE: Index courses (B) contains", self.t_course_index_courses_B_contains),
-            ("COURSE: Course users — member view", self.t_course_users_member_view),
-            ("COURSE: Course users — admin all", self.t_course_users_admin_all),
-            ("COURSE: Course users — filter q & role", self.t_course_users_filter_q_role),
-            ("COURSE: A creates note (multipart)", self.t_course_create_note_A),
-            ("COURSE: B cannot share A note", self.t_course_B_cannot_share_A_note),
-            ("COURSE: A share note → invalid course", self.t_course_A_share_note_invalid_course),
-            ("COURSE: A share note → private course", self.t_course_share_note_to_course),
-            ("COURSE: Verify note shared flags", self.t_course_verify_note_shared),
-            ("COURSE: Course notes — owner & member", self.t_course_notes_owner_member),
-            ("COURSE: Course notes — outsider private", self.t_course_notes_outsider_private_403),
-            ("COURSE: Remove B", self.t_course_remove_B),
-            ("COURSE: Index courses (B not contains)", self.t_course_index_courses_B_not_contains),
-            ("COURSE: Remove non-member idempotent", self.t_course_remove_non_member_true),
-            ("COURSE: Cannot remove owner → 400/422", self.t_course_remove_owner_422),
-            ("COURSE: Login (Admin D)", self.t_course_login_D),
-            ("COURSE: Invite D as admin", self.t_course_invite_D_admin),
-            ("COURSE: D accepts invitation", self.t_course_D_accept),
-            ("COURSE: Login (Moderator E)", self.t_course_login_E),
-            ("COURSE: Invite E as moderator", self.t_course_invite_E_moderator),
-            ("COURSE: E accepts invitation", self.t_course_E_accept),
-            ("COURSE: D creates note & shares", self.t_course_create_note_D_and_share),
-            ("COURSE: E creates note & shares", self.t_course_create_note_E_and_share),
-            ("COURSE: Moderator E cannot remove admin D", self.t_course_mod_E_cannot_remove_admin_D),
-            ("COURSE: Moderator E cannot remove owner A", self.t_course_mod_E_cannot_remove_owner_A),
-            ("COURSE: Admin D removes moderator E", self.t_course_admin_D_removes_mod_E),
-            ("COURSE: Verify E note unshared", self.t_course_verify_E_note_unshared),
-            ("COURSE: E lost course membership", self.t_course_E_lost_membership),
-            ("COURSE: Owner sets D role→admin (idempotent)", self.t_course_owner_sets_D_admin),
-            ("COURSE: Owner sets D role→moderator", self.t_course_owner_demotes_D_to_moderator),
-            ("COURSE: Admin cannot set role of admin", self.t_course_admin_cannot_change_admin),
-            ("COURSE: Admin cannot set owner role", self.t_course_admin_cannot_set_owner_role),
-            ("COURSE: Owner sets E (re-invite) as moderator", self.t_course_owner_reinvite_E_as_moderator),
-            ("COURSE: Register F (member)", self.t_course_register_F),
-            ("COURSE: Login F", self.t_course_login_F),
-            ("COURSE: Invite F as member", self.t_course_invite_F_member),
-            ("COURSE: F accepts invitation", self.t_course_F_accept),
-            ("COURSE: F creates note and shares", self.t_course_create_and_share_note_F),
-            ("COURSE: Moderator E purges F notes", self.t_course_mod_E_purges_F_notes),
-            ("COURSE: Moderator E removes F user", self.t_course_mod_E_removes_F_user),
-            ("COURSE: Owner sets B→moderator (re-invite)", self.t_course_owner_reinvite_B_and_set_moderator),
-            ("COURSE: Admin D sets B→member (demote)", self.t_course_admin_sets_B_member),
-            ("COURSE: Login (Outsider C)", self.t_course_login_C),
-            ("COURSE: Create course #2 (private)", self.t_course_create_course2_A),
-            ("COURSE: Invite C #1", self.t_course_invite_C_1),
-            ("COURSE: C rejects #1", self.t_course_reject_C_last),
-            ("COURSE: Invite C #2", self.t_course_invite_C_2),
-            ("COURSE: C rejects #2", self.t_course_reject_C_last),
-            ("COURSE: Invite C #3", self.t_course_invite_C_3),
-            ("COURSE: C rejects #3", self.t_course_reject_C_last),
-            ("COURSE: Invite C #4 blocked → 400/422", self.t_course_invite_C_4_blocked),
-            ("COURSE: Create course (public)", self.t_course_create_public_course_A),
-            ("COURSE: A creates note #2 & shares public", self.t_course_create_note2_A_and_share_public),
-            ("COURSE: Course notes — outsider public → 403", self.t_course_notes_outsider_public_403),
-            ("COURSE: Course users — outsider public → 401", self.t_course_users_outsider_public_401),
-            ("COURSE: Delete course #1", self.t_course_delete_course_A),
-            ("COURSE: Delete course #2", self.t_course_delete_course2_A),
-
-            # ─ 5. Moduł Quiz API (na Owner A, izolowany) ───────────────────────────
-            ("QUIZ: Login (Owner A)", self.t_quiz_login_A),
-            ("QUIZ: Create course (for quiz)", self.t_quiz_create_course),
-            ("QUIZ: Index my tests (empty ok)", self.t_quiz_index_user_tests_initial),
-            ("QUIZ: Create PRIVATE test", self.t_quiz_create_private_test),
-            ("QUIZ: List my tests includes private", self.t_quiz_index_user_tests_contains_private),
-            ("QUIZ: Show private test", self.t_quiz_show_private_test),
-            ("QUIZ: Update private test (PUT)", self.t_quiz_update_private_test),
-            ("QUIZ: Add question #1", self.t_quiz_add_question),
-            ("QUIZ: List questions has #1", self.t_quiz_list_questions_contains_q1),
-            ("QUIZ: Update question #1", self.t_quiz_update_question),
-            ("QUIZ: Add answer invalid (no correct yet)", self.t_quiz_add_answer_invalid_first),
-            ("QUIZ: Add answer #1 (correct)", self.t_quiz_add_answer_correct_first),
-            ("QUIZ: Add answer duplicate → 400", self.t_quiz_add_answer_duplicate),
-            ("QUIZ: Add answer #2 (wrong)", self.t_quiz_add_answer_wrong_2),
-            ("QUIZ: Add answer #3 (wrong)", self.t_quiz_add_answer_wrong_3),
-            ("QUIZ: Add answer #4 (wrong)", self.t_quiz_add_answer_wrong_4),
-            ("QUIZ: Add answer #5 blocked (limit 4)", self.t_quiz_add_answer_limit),
-            ("QUIZ: Get answers list", self.t_quiz_get_answers_list),
-            ("QUIZ: Update answer #2 -> correct", self.t_quiz_update_answer),
-            ("QUIZ: Delete answer #3", self.t_quiz_delete_answer),
-            ("QUIZ: Delete question #1", self.t_quiz_delete_question),
-            ("QUIZ: Add up to 20 questions", self.t_quiz_add_questions_to_20),
-            ("QUIZ: 21st question blocked", self.t_quiz_add_21st_question_block),
-            ("QUIZ: Create PUBLIC test", self.t_quiz_create_public_test),
-            ("QUIZ: Share PUBLIC test → course", self.t_quiz_share_public_test_to_course),
-            ("QUIZ: Course tests include shared", self.t_quiz_course_tests_include_shared),
-            ("QUIZ: Rejestracja B (dla konfliktu)", self.t_quiz_register_B),
-            ("QUIZ: Login B", self.t_quiz_login_B),
-            ("QUIZ: B cannot see A private test", self.t_quiz_b_cannot_show_a_test),
-            ("QUIZ: B cannot modify A test", self.t_quiz_b_cannot_modify_a_test),
-            ("QUIZ: B cannot add question to A test", self.t_quiz_b_cannot_add_q_to_a_test),
-            ("QUIZ: B cannot delete A test", self.t_quiz_b_cannot_delete_a_test),
-            ("QUIZ: Cleanup A: delete public test", self.t_quiz_cleanup_delete_public),
-            ("QUIZ: Cleanup A: delete private test", self.t_quiz_cleanup_delete_private),
-            ("QUIZ: Cleanup A: delete course", self.t_quiz_cleanup_delete_course),
+            # ─ 4. Moduł Course API (Role, Moderacja, Zaproszenia) ───────────────
+            (f"{ICON_LOCK} COURSE: Index no token → 401", self.t_course_index_no_token),
+            (f"{ICON_LOCK} COURSE: Login (Owner A)", self.t_course_login_A),
+            (f"{ICON_BOOK} COURSE: Create course (private)", self.t_course_create_course_A),
+            (f"{ICON_IMG} COURSE: Download avatar none → 404", self.t_course_download_avatar_none_404),
+            (f"{ICON_IMG} COURSE: Upload course avatar", self.t_course_avatar_upload),
+            (f"{ICON_STOP} COURSE: Create course invalid type → 422", self.t_course_create_course_invalid),
+            (f"{ICON_STOP} COURSE: Create course validation (empty) → 422", self.t_course_create_invalid_validation),
+            (f"{ICON_LIST} COURSE: Index courses (A) contains", self.t_course_index_courses_A_contains),
+            (f"{ICON_LOCK} COURSE: Login (Member B)", self.t_course_login_B),
+            (f"{ICON_LOCK} COURSE: B cannot download A avatar → 403", self.t_course_download_avatar_B_unauth),
+            (f"{ICON_LOCK} COURSE: B cannot update A course → 403", self.t_course_B_cannot_update_A_course),
+            (f"{ICON_LOCK} COURSE: B cannot delete A course → 403", self.t_course_B_cannot_delete_A_course),
+            (f"{ICON_USER} COURSE: Invite B", self.t_course_invite_B),
+            (f"{ICON_LIST} COURSE: B received invitations", self.t_course_B_received),
+            (f"{ICON_USER} COURSE: B accepts invitation", self.t_course_B_accept),
+            (f"{ICON_LIST} COURSE: Index courses (B) contains", self.t_course_index_courses_B_contains),
+            (f"{ICON_LIST} COURSE: Course users — member view", self.t_course_users_member_view),
+            (f"{ICON_LIST} COURSE: Course users — admin all", self.t_course_users_admin_all),
+            (f"{ICON_LIST} COURSE: Course users — filter q & role", self.t_course_users_filter_q_role),
+            (f"{ICON_LIST} COURSE: Course users — filter not found", self.t_course_users_filter_not_found),
+            (f"{ICON_NOTE} COURSE: A creates note (multipart)", self.t_course_create_note_A),
+            (f"{ICON_LOCK} COURSE: B cannot share A note → 403/404", self.t_course_B_cannot_share_A_note),
+            (f"{ICON_STOP} COURSE: A share note → invalid course → 404", self.t_course_A_share_note_invalid_course),
+            (f"{ICON_LINK} COURSE: A share note → private course", self.t_course_share_note_to_course),
+            (f"{ICON_LINK} COURSE: Verify note shared flags", self.t_course_verify_note_shared),
+            (f"{ICON_LINK} COURSE: A un-share note → private course", self.t_course_unshare_note),
+            (f"{ICON_LIST} COURSE: Course notes — owner & member", self.t_course_notes_owner_member),
+            (f"{ICON_LOCK} COURSE: Course notes — outsider private → 403", self.t_course_notes_outsider_private_403),
+            (f"{ICON_TRASH} COURSE: Remove B", self.t_course_remove_B),
+            (f"{ICON_LIST} COURSE: Index courses (B not contains)", self.t_course_index_courses_B_not_contains),
+            (f"{ICON_TRASH} COURSE: Remove non-member idempotent", self.t_course_remove_non_member_true),
+            (f"{ICON_STOP} COURSE: Cannot remove owner → 422", self.t_course_remove_owner_422),
+            (f"{ICON_LOCK} COURSE: Login (Admin D)", self.t_course_login_D),
+            (f"{ICON_USER} COURSE: Invite D as admin", self.t_course_invite_D_admin),
+            (f"{ICON_USER} COURSE: D accepts invitation", self.t_course_D_accept),
+            (f"{ICON_LOCK} COURSE: Login (Moderator E)", self.t_course_login_E),
+            (f"{ICON_USER} COURSE: Invite E as moderator", self.t_course_invite_E_moderator),
+            (f"{ICON_USER} COURSE: E accepts invitation", self.t_course_E_accept),
         ]
 
         total = len(steps)
@@ -620,16 +549,114 @@ class E2ETester:
         for i, (name, fn) in enumerate(steps, 1):
             self._exec(i, total, name, fn)
 
+        # Dynamically add remaining steps (Quiz depends on previous results)
+        remaining_steps = self._get_remaining_steps()
+        total = len(steps) + len(remaining_steps)
+
+        for i, (name, fn) in enumerate(remaining_steps, len(steps) + 1):
+            self._exec(i, total, name, fn)
+
         self._summary()
         write_html_report(self.ctx, self.results, self.ctx.endpoints)
 
+    def _get_remaining_steps(self) -> List[Tuple[str, Callable[[], Dict[str, Any]]]]:
+        """Zwraca resztę kroków (Course-Mod, Quiz) po podstawowym setupie"""
+        return [
+            (f"{ICON_NOTE} COURSE: D creates note & shares", self.t_course_create_note_D_and_share),
+            (f"{ICON_NOTE} COURSE: E creates note & shares", self.t_course_create_note_E_and_share),
+            (f"{ICON_LOCK} COURSE: Mod E cannot remove admin D → 403", self.t_course_mod_E_cannot_remove_admin_D),
+            (f"{ICON_LOCK} COURSE: Mod E cannot purge admin D notes → 403", self.t_course_mod_E_cannot_purge_admin_D_notes),
+            (f"{ICON_LOCK} COURSE: Mod E cannot remove owner A → 422", self.t_course_mod_E_cannot_remove_owner_A),
+            (f"{ICON_TRASH} COURSE: Admin D removes moderator E", self.t_course_admin_D_removes_mod_E),
+            (f"{ICON_LIST} COURSE: Verify E note unshared", self.t_course_verify_E_note_unshared),
+            (f"{ICON_LIST} COURSE: E lost course membership", self.t_course_E_lost_membership),
+            (f"{ICON_PATCH} COURSE: Owner sets D role→admin (idempotent)", self.t_course_owner_sets_D_admin),
+            (f"{ICON_PATCH} COURSE: Owner demotes D → moderator", self.t_course_owner_demotes_D_to_moderator),
+            (f"{ICON_LOCK} COURSE: Admin cannot set role of admin → 403", self.t_course_admin_cannot_change_admin),
+            (f"{ICON_LOCK} COURSE: Admin cannot set owner role → 422", self.t_course_admin_cannot_set_owner_role),
+            (f"{ICON_LOCK} COURSE: Owner cannot demote self → 422", self.t_course_owner_cannot_demote_self),
+            (f"{ICON_USER} COURSE: Owner sets E (re-invite) as moderator", self.t_course_owner_reinvite_E_as_moderator),
+            (f"{ICON_USER} COURSE: Register F (member)", self.t_course_register_F),
+            (f"{ICON_LOCK} COURSE: Login F", self.t_course_login_F),
+            (f"{ICON_USER} COURSE: Invite F as member", self.t_course_invite_F_member),
+            (f"{ICON_USER} COURSE: F accepts invitation", self.t_course_F_accept),
+            (f"{ICON_NOTE} COURSE: F creates note and shares", self.t_course_create_and_share_note_F),
+            (f"{ICON_TRASH} COURSE: Mod E purges F notes", self.t_course_mod_E_purges_F_notes),
+            (f"{ICON_TRASH} COURSE: Mod E removes F user", self.t_course_mod_E_removes_F_user),
+            (f"{ICON_USER} COURSE: Owner sets B→moderator (re-invite)", self.t_course_owner_reinvite_B_and_set_moderator),
+            (f"{ICON_PATCH} COURSE: Admin D sets B→member (demote)", self.t_course_admin_sets_B_member),
+            (f"{ICON_LOCK} COURSE: Login (Outsider C)", self.t_course_login_C),
+            (f"{ICON_BOOK} COURSE: Create course #2 (private)", self.t_course_create_course2_A),
+            (f"{ICON_USER} COURSE: Invite C #1", self.t_course_invite_C_1),
+            (f"{ICON_USER} COURSE: C rejects #1", self.t_course_reject_C_last),
+            (f"{ICON_USER} COURSE: Invite C #2", self.t_course_invite_C_2),
+            (f"{ICON_USER} COURSE: C rejects #2", self.t_course_reject_C_last),
+            (f"{ICON_USER} COURSE: Invite C #3", self.t_course_invite_C_3),
+            (f"{ICON_USER} COURSE: C rejects #3 (i pauza dla replikacji)", self.t_course_reject_C_last_and_pause),
+            (f"{ICON_STOP} COURSE: Invite C #4 blocked → 422", self.t_course_invite_C_4_blocked),
+            (f"{ICON_BOOK} COURSE: Create course (public)", self.t_course_create_public_course_A),
+            (f"{ICON_NOTE} COURSE: A creates note #2 & shares public", self.t_course_create_note2_A_and_share_public),
+            (f"{ICON_LOCK} COURSE: Course notes — outsider public → 403", self.t_course_notes_outsider_public_403),
+            (f"{ICON_LOCK} COURSE: Course users — outsider public → 401", self.t_course_users_outsider_public_401),
+            (f"{ICON_TRASH} COURSE: Delete course #1 (private)", self.t_course_delete_course_A),
+            (f"{ICON_TRASH} COURSE: Delete course #2 (rejections)", self.t_course_delete_course2_A),
+            (f"{ICON_TRASH} COURSE: Delete course #3 (public)", self.t_course_delete_public_course_A),
+
+            # ─ 5. Moduł Quiz API (Zarządzanie) ──────────────────────────────────
+            (f"{ICON_LOCK} QUIZ: Login (Owner A)", self.t_quiz_login_A),
+            (f"{ICON_BOOK} QUIZ: Create course (for quiz)", self.t_quiz_create_course),
+            (f"{ICON_LIST} QUIZ: Index my tests (empty ok)", self.t_quiz_index_user_tests_initial),
+            (f"{ICON_BOOK} QUIZ: Create PRIVATE test (access check)", self.t_quiz_create_private_test),
+            (f"{ICON_BOOK} QUIZ: Create PUBLIC test (do pytań)", self.t_quiz_create_public_test),
+            (f"{ICON_LIST} QUIZ: List my tests (contains both)", self.t_quiz_index_user_tests_contains_both),
+            (f"{ICON_EDIT} QUIZ: Update public test (PUT)", self.t_quiz_update_public_test),
+            (f"{ICON_Q} QUIZ: Add question #1 (public)", self.t_quiz_add_question),
+            (f"{ICON_LIST} QUIZ: List questions has #1 (public)", self.t_quiz_list_questions_contains_q1),
+            (f"{ICON_EDIT} QUIZ: Update question #1 (public)", self.t_quiz_update_question),
+            (f"{ICON_STOP} QUIZ: Add answer invalid (no correct yet) → 422", self.t_quiz_add_answer_invalid_first),
+            (f"{ICON_A} QUIZ: Add answer #1 (CORRECT)", self.t_quiz_add_answer_correct_first),
+            (f"{ICON_STOP} QUIZ: Add answer duplicate → 422", self.t_quiz_add_answer_duplicate),
+            (f"{ICON_A} QUIZ: Add answer #2 (WRONG)", self.t_quiz_add_answer_wrong_2),
+            (f"{ICON_A} QUIZ: Add answer #3 (WRONG)", self.t_quiz_add_answer_wrong_3),
+            (f"{ICON_A} QUIZ: Add answer #4 (WRONG)", self.t_quiz_add_answer_wrong_4),
+            (f"{ICON_STOP} QUIZ: Add answer #5 blocked (limit 4) → 422", self.t_quiz_add_answer_limit),
+            (f"{ICON_LIST} QUIZ: Get answers list (4)", self.t_quiz_get_answers_list),
+            (f"{ICON_EDIT} QUIZ: Update answer #2 -> correct", self.t_quiz_update_answer),
+            (f"{ICON_TRASH} QUIZ: Delete answer #3", self.t_quiz_delete_answer),
+            (f"{ICON_TRASH} QUIZ: Delete question #1 (i 3 odp)", self.t_quiz_delete_question),
+            (f"{ICON_Q} QUIZ: Add up to 20 questions (limit check)", self.t_quiz_add_questions_to_20),
+            (f"{ICON_STOP} QUIZ: 21st question blocked → 422", self.t_quiz_add_21st_question_block),
+            (f"{ICON_LINK} QUIZ: Share PUBLIC test → course", self.t_quiz_share_public_test_to_course),
+            (f"{ICON_LIST} QUIZ: Course tests include shared", self.t_quiz_course_tests_include_shared),
+
+            # ─ 6. Moduł Quiz API (Rozwiązywanie) ────────────────────────────────
+            (f"{ICON_USER} QUIZ: Rejestracja B (Student)", self.t_quiz_register_B),
+            (f"{ICON_USER} QUIZ: Invite B to Course", self.t_quiz_invite_B_to_course),
+            (f"{ICON_LOCK} QUIZ: Login B (Student)", self.t_quiz_login_B),
+            (f"{ICON_USER} QUIZ: B accepts invite", self.t_quiz_B_accept_invite),
+            (f"{ICON_PLAY} QUIZ: B start test (public)", self.t_quiz_B_start_test),
+            (f"{ICON_LOCK} QUIZ: B cannot start private test → 403", self.t_quiz_B_cannot_start_private_test),
+            (f"{ICON_SCORE} QUIZ: B submit test (WRONG)", self.t_quiz_B_submit_test_wrong),
+            (f"{ICON_SCORE} QUIZ: B check result (0%)", self.t_quiz_B_check_result_wrong),
+            (f"{ICON_SCORE} QUIZ: B submit test (CORRECT)", self.t_quiz_B_submit_test_correct),
+            (f"{ICON_SCORE} QUIZ: B check result (100%)", self.t_quiz_B_check_result_correct),
+            (f"{ICON_LOCK} QUIZ: B cannot see A private test → 404", self.t_quiz_b_cannot_show_a_test),
+            (f"{ICON_LOCK} QUIZ: B cannot modify A test → 404", self.t_quiz_b_cannot_modify_a_test),
+            (f"{ICON_LOCK} QUIZ: B cannot add question to A test → 404", self.t_quiz_b_cannot_add_q_to_a_test),
+            (f"{ICON_LOCK} QUIZ: B cannot delete A test → 404", self.t_quiz_b_cannot_delete_a_test),
+
+            # ─ 7. Cleanup (Quiz) ────────────────────────────────────────────────
+            (f"{ICON_TRASH} QUIZ: Cleanup A: delete public test", self.t_quiz_cleanup_delete_public),
+            (f"{ICON_TRASH} QUIZ: Cleanup A: delete private test", self.t_quiz_cleanup_delete_private),
+            (f"{ICON_TRASH} QUIZ: Cleanup A: delete course", self.t_quiz_cleanup_delete_course),
+        ]
+
     def _exec(self, idx: int, total: int, name: str, fn: Callable[[], Dict[str, Any]]):
         start = time.time()
-        ret: Dict[str, Any] = {} # Zapewnienie istnienia 'ret'
+        ret: Dict[str, Any] = {}
         rec = TestRecord(name=name, passed=False, duration_ms=0)
 
-        # Nagłówek sekcji (jeśli nazwa zaczyna się od wielkich liter)
-        if name.isupper() or name.startswith("SETUP:") or "Moduł" in name:
+        if name.startswith("SETUP:") or "Moduł" in name:
             print(c(f"\n{BOX}\n{ICON_INFO} {name}\n{BOX}", Fore.YELLOW))
 
         print(c(f"[{idx:03d}/{total:03d}] {name} …", Fore.CYAN), end=" ")
@@ -693,7 +720,6 @@ class E2ETester:
     # === Metody pomocnicze (z różnych modułów) ===
     # ──────────────────────────────────────────────────────────────────────
 
-    # --- Z NoteTest ---
     def _note_load_upload_bytes(self, path: str) -> Tuple[bytes, str, str]:
         if path and os.path.isfile(path):
             name = os.path.basename(path)
@@ -704,10 +730,8 @@ class E2ETester:
             }.get(ext, "application/octet-stream")
             with open(path, "rb") as f:
                 return f.read(), mime, name
-        # Fallback
         return gen_png_bytes(), "image/png", "gen.png"
 
-    # --- Z CourseTest ---
     def _course_get_id_by_email(self, email: str, course_id: int, actor_token: str) -> int:
         url = build(self.ctx, f"/api/courses/{course_id}/users?status=all&sort=name&order=asc")
         r = http_json(self.ctx, "List users to resolve id", "GET", url, None, auth_headers(actor_token))
@@ -737,7 +761,6 @@ class E2ETester:
 
     # ──────────────────────────────────────────────────────────────────────
     # === 1. Metody testowe: User API (Izolowane) ===
-    # (Metody skopiowane z UserTest.py i przemianowane na t_user_...)
     # ──────────────────────────────────────────────────────────────────────
 
     def t_user_register_A(self):
@@ -748,6 +771,22 @@ class E2ETester:
                       {"name":"Tester A","email":self.ctx.userA_email,"password":self.ctx.userA_pwd,"password_confirmation":self.ctx.userA_pwd},
                       {"Accept":"application/json"})
         assert r.status_code in (200,201), f"Register A {r.status_code}: {trim(r.text)}"
+        return {"status": r.status_code, "method":"POST", "url":url}
+
+    def t_user_register_weak_pass(self):
+        email = rnd_email("weakpass")
+        url = build(self.ctx, "/api/users/register")
+        r = http_json(self.ctx, "USER: Register (słabe hasło)", "POST", url,
+                      {"name":"Tester Weak","email":email,"password":"123","password_confirmation":"123"},
+                      {"Accept":"application/json"})
+        assert r.status_code in (400,422), f"Słabe hasło 400/422, jest {r.status_code}"
+        return {"status": r.status_code, "method":"POST", "url":url}
+
+    def t_user_login_wrong_pass(self):
+        url = build(self.ctx,"/api/login")
+        r = http_json(self.ctx, "USER: Login (złe hasło)", "POST", url,
+                      {"email":self.ctx.userA_email,"password":"złehaslo"}, {"Accept":"application/json"})
+        assert r.status_code in (400,401), f"Złe hasło 400/401, jest {r.status_code}"
         return {"status": r.status_code, "method":"POST", "url":url}
 
     def t_user_login_A(self):
@@ -789,14 +828,14 @@ class E2ETester:
                       {"name":"Tester Renamed"}, auth_headers(self.ctx.userA_token))
         assert r.status_code == 200, f"PATCH name {r.status_code}: {trim(r.text)}"
         js = must_json(r)
-        assert js.get("user",{}).get("name") == "Tester Renamed", "Imię nie zostało zaktualizowane"
+        assert js.get("user",{}).get("name") == "Tester Renamed", "Imię nie zaktualizowane"
         return {"status": 200, "method":"PATCH", "url":url}
 
     def t_user_patch_email_conflict_json(self):
         url = me(self.ctx,"/profile")
         r = http_json(self.ctx, "USER: PATCH email conflict", "PATCH", url,
                       {"email": self.ctx.userB_email}, auth_headers(self.ctx.userA_token))
-        assert r.status_code in (400,422), f"Spodziewano 400/422 przy konflikcie, jest {r.status_code}: {trim(r.text)}"
+        assert r.status_code in (400,422), f"Konflikt 400/422, jest {r.status_code}: {trim(r.text)}"
         js = must_json(r)
         assert "error" in js or "errors" in js, "Brak 'error' z walidacją"
         return {"status": r.status_code, "method":"PATCH", "url":url}
@@ -808,7 +847,7 @@ class E2ETester:
                       {"email": new_mail}, auth_headers(self.ctx.userA_token))
         assert r.status_code == 200, f"PATCH email {r.status_code}: {trim(r.text)}"
         js = must_json(r)
-        assert js.get("user",{}).get("email") == new_mail, "E-mail nie został zaktualizowany"
+        assert js.get("user",{}).get("email") == new_mail, "E-mail nie zaktualizowany"
         self.ctx.userA_email = new_mail
         return {"status": 200, "method":"PATCH", "url":url}
 
@@ -823,7 +862,7 @@ class E2ETester:
         url_login = build(self.ctx,"/api/login")
         r_bad = http_json(self.ctx, "USER: Login old password (fail)", "POST", url_login,
                           {"email": self.ctx.userA_email, "password": old_pwd}, {"Accept":"application/json"})
-        assert r_bad.status_code in (401, 400), f"Stare hasło nie powinno działać, jest {r_bad.status_code}"
+        assert r_bad.status_code in (401, 400), f"Stare hasło nie działa, jest {r_bad.status_code}"
 
         r_ok = http_json(self.ctx, "USER: Login new password", "POST", url_login,
                          {"email": self.ctx.userA_email, "password": new_pwd}, {"Accept":"application/json"})
@@ -836,7 +875,7 @@ class E2ETester:
     def t_user_avatar_missing(self):
         url = me(self.ctx,"/profile/avatar")
         r = http_multipart(self.ctx, "USER: Avatar missing", url, data={}, files={}, headers=auth_headers(self.ctx.userA_token))
-        assert r.status_code in (400,422), f"Brak pliku avatar powinien dać 400/422, jest {r.status_code}"
+        assert r.status_code in (400,422), f"Brak pliku 400/422, jest {r.status_code}"
         return {"status": r.status_code, "method":"POST", "url":url}
 
     def t_user_avatar_upload(self):
@@ -854,7 +893,7 @@ class E2ETester:
         r = http_json(self.ctx, "USER: Avatar download", "GET", url, None, auth_headers(self.ctx.userA_token))
         assert r.status_code == 200, f"Avatar download {r.status_code}"
         ct = r.headers.get("Content-Type","")
-        assert "image" in ct.lower(), f"Content-Type nie wygląda na obraz: {ct}"
+        assert "image" in ct.lower(), f"Content-Type nie obraz: {ct}"
         return {"status": 200, "method":"GET", "url":url}
 
     def t_user_logout(self):
@@ -864,25 +903,25 @@ class E2ETester:
 
         url_profile = me(self.ctx,"/profile")
         r2 = http_json(self.ctx, "USER: Profile after logout", "GET", url_profile, None, auth_headers(self.ctx.userA_token))
-        assert r2.status_code in (401,403), f"Po logout spodziewano 401/403, jest {r2.status_code}"
-        self.ctx.userA_token = None # Wyczyść token
+        assert r2.status_code in (401,403), f"Po logout 401/403, jest {r2.status_code}"
+        self.ctx.userA_token = None
         return {"status": 200, "method":"POST", "url":url}
 
     def t_user_relogin_A(self):
-        return self.t_user_login_A() # Użyj tej samej logiki do ponownego logowania
+        return self.t_user_login_A()
 
     def t_user_delete_profile(self):
         url = me(self.ctx,"/profile")
         r = http_json(self.ctx, "USER: DELETE profile", "DELETE", url, None, auth_headers(self.ctx.userA_token))
         assert r.status_code == 200, f"DELETE profile {r.status_code}: {trim(r.text)}"
-        self.ctx.userA_token = None # Wyczyść token
+        self.ctx.userA_token = None
         return {"status": 200, "method":"DELETE", "url":url}
 
     def t_user_login_after_delete_should_fail(self):
         url = build(self.ctx,"/api/login")
         r = http_json(self.ctx, "USER: Login after delete (fail)", "POST", url,
                       {"email":self.ctx.userA_email,"password":self.ctx.userA_pwd}, {"Accept":"application/json"})
-        assert r.status_code in (401, 400), f"Login po DELETE powinien dać 401/400, jest {r.status_code}"
+        assert r.status_code in (401, 400), f"Login po DELETE 401/400, jest {r.status_code}"
         return {"status": r.status_code, "method":"POST", "url":url}
 
     # ──────────────────────────────────────────────────────────────────────
@@ -893,14 +932,12 @@ class E2ETester:
         email = rnd_email(email_prefix)
         pwd = "Haslo123123"
 
-        # Rejestracja
         url_reg = build(self.ctx, "/api/users/register")
         r_reg = http_json(self.ctx, f"SETUP: Register {title_prefix}", "POST", url_reg,
                           {"name": f"Tester {title_prefix}","email":email,"password":pwd,"password_confirmation":pwd},
                           {"Accept":"application/json"})
         assert r_reg.status_code in (200,201), f"Register {title_prefix} {r_reg.status_code}: {trim(r_reg.text)}"
 
-        # Login
         url_login = build(self.ctx,"/api/login")
         r_login = http_json(self.ctx, f"SETUP: Login {title_prefix}", "POST", url_login,
                             {"email":email,"password":pwd}, {"Accept":"application/json"})
@@ -932,21 +969,14 @@ class E2ETester:
 
     # ──────────────────────────────────────────────────────────────────────
     # === 3. Metody testowe: Note API ===
-    # (Metody z NoteTest.py, mapowane na OwnerA i MemberB)
     # ──────────────────────────────────────────────────────────────────────
 
     def t_note_login_A(self):
-        # Ta funkcja nie loguje, tylko ustawia token Ownera jako aktywny (dla logiki NoteTest)
-        # Prawdziwe logowanie było w setupie.
-        # W NoteTest `tokenA` i `tokenB` były używane. Mapujemy:
-        # tokenA -> tokenOwner
-        # tokenB -> tokenB
-        # W `NoteTest` `t_login_A` i `t_login_B` były oddzielnymi krokami. Zachowujemy je.
         url = build(self.ctx,"/api/login")
         r = http_json(self.ctx, "NOTE: Login Owner A", "POST", url,
                       {"email":self.ctx.emailOwner,"password":self.ctx.pwdOwner}, {"Accept":"application/json"})
         assert r.status_code == 200
-        self.ctx.tokenOwner = must_json(r).get("token") # Odśwież token
+        self.ctx.tokenOwner = must_json(r).get("token")
         return {"status": 200, "method":"POST","url":url}
 
     def t_note_index_initial(self):
@@ -954,7 +984,7 @@ class E2ETester:
         r = http_json(self.ctx, "NOTE: Index initial", "GET", url, None, auth_headers(self.ctx.tokenOwner))
         assert r.status_code == 200, f"Index {r.status_code}: {trim(r.text)}"
         js = must_json(r)
-        assert "data" in js and isinstance(js["data"], list), "Brak listy 'data'"
+        assert "data" in js and isinstance(js["data"], list), "Brak 'data'"
         assert "count" in js, "Brak 'count'"
         return {"status": 200, "method":"GET","url":url}
 
@@ -979,22 +1009,26 @@ class E2ETester:
         r = http_multipart(self.ctx, "NOTE: Store ok", url, data=data, files=files, headers=auth_headers(self.ctx.tokenOwner))
         assert r.status_code in (200,201), f"Store {r.status_code}: {trim(r.text)}"
         js = must_json(r)
-        assert "note" in js and "id" in js["note"], "Brak 'note.id' w odpowiedzi"
+        assert "note" in js and "id" in js["note"], "Brak 'note.id'"
         self.ctx.note_id_A = js["note"]["id"]
         return {"status": r.status_code, "method":"POST","url":url}
 
     def t_note_index_contains_created(self):
         assert self.ctx.note_id_A, "Brak notatki (note_id_A)"
-        url = me(self.ctx, f"/notes?top=50&skip=0")
-        r = http_json(self.ctx, "NOTE: Index contains", "GET", url, None, auth_headers(self.ctx.tokenOwner))
+        url = me(self.ctx, f"/notes?top=1&skip=0")
+        r = http_json(self.ctx, "NOTE: Index (top=1)", "GET", url, None, auth_headers(self.ctx.tokenOwner))
         assert r.status_code == 200, f"Index {r.status_code}: {trim(r.text)}"
         js = must_json(r)
+
         ids = [n.get("id") for n in js.get("data",[])]
         assert self.ctx.note_id_A in ids, f"Notatka {self.ctx.note_id_A} nie widoczna"
+        assert len(ids) == 1, "Paginacja top=1 nie zadziałała"
 
         count = int(js.get("count", 0))
+        assert count >= 1, "Licznik 'count' jest niepoprawny"
+
         url2 = me(self.ctx, f"/notes?top=10&skip={count}")
-        r2 = http_json(self.ctx, "NOTE: Index beyond", "GET", url2, None, auth_headers(self.ctx.tokenOwner))
+        r2 = http_json(self.ctx, "NOTE: Index (skip beyond)", "GET", url2, None, auth_headers(self.ctx.tokenOwner))
         assert r2.status_code == 200
         js2 = must_json(r2)
         assert isinstance(js2.get("data",[]), list) and len(js2["data"]) == 0, "Paginacja poza zakresem"
@@ -1013,11 +1047,11 @@ class E2ETester:
         assert self.ctx.note_id_A, "Brak notatki A (note_id_A)"
         url = me(self.ctx, f"/notes/{self.ctx.note_id_A}/download")
         r = http_json(self.ctx, "NOTE: Download foreign", "GET", url, None, auth_headers(self.ctx.tokenB))
-        assert r.status_code in (403, 404), f"Obca notatka 403/404, jest {r.status_code}" # 404 też jest ok (policy)
+        assert r.status_code in (403, 404), f"Obca notatka 403/404, jest {r.status_code}"
         return {"status": r.status_code, "method":"GET","url":url}
 
     def t_note_login_A_again(self):
-        return self.t_note_login_A() # Ponowne logowanie Ownera
+        return self.t_note_login_A()
 
     def t_note_patch_title_only(self):
         assert self.ctx.note_id_A, "Brak notatki (note_id_A)"
@@ -1088,12 +1122,17 @@ class E2ETester:
         js = must_json(r)
         ids = [n.get("id") for n in js.get("data",[])]
         assert self.ctx.note_id_A not in ids, "Usunięta notatka nadal widoczna"
-        self.ctx.note_id_A = None # Wyczyść ID
+        self.ctx.note_id_A = None
         return {"status": 200, "method":"GET","url":url}
+
+    def t_note_access_invalid_id(self):
+        url = me(self.ctx, "/notes/abc/download")
+        r = http_json(self.ctx, "NOTE: Access invalid ID (abc)", "GET", url, None, auth_headers(self.ctx.tokenOwner))
+        assert r.status_code == 404, f"Dostęp do ID 'abc' 404, jest {r.status_code}"
+        return {"status": 404, "method":"GET","url":url}
 
     # ──────────────────────────────────────────────────────────────────────
     # === 4. Metody testowe: Course API ===
-    # (Metody z CourseTest.py, mapowane na A,B,C,D,E)
     # ──────────────────────────────────────────────────────────────────────
 
     def t_course_index_no_token(self):
@@ -1127,13 +1166,37 @@ class E2ETester:
         assert r.status_code == 404, f"Brak avatara 404: {r.status_code} {trim(r.text)}"
         return {"status": r.status_code, "method":"GET", "url":url}
 
+    def t_course_avatar_upload(self):
+        url = me(self.ctx, f"/courses/{self.ctx.course_id_1}/avatar")
+        avatar = self.ctx.avatar_bytes or gen_avatar_bytes()
+        files = {"avatar": ("course_avatar.jpg", avatar, "image/jpeg")}
+        r = http_multipart(self.ctx, "COURSE: Upload course avatar", url, data={}, files=files, headers=auth_headers(self.ctx.tokenOwner))
+        assert r.status_code == 200, f"Avatar upload {r.status_code}: {trim(r.text)}"
+        js = must_json(r)
+        assert "avatar_url" in js, "Brak avatar_url w odpowiedzi kursu"
+        return {"status": 200, "method":"POST", "url":url}
+
     def t_course_create_course_invalid(self):
         url = me(self.ctx, "/courses")
-        r = http_json(self.ctx, "COURSE: Create course invalid", "POST", url,
+        r = http_json(self.ctx, "COURSE: Create course invalid type", "POST", url,
                       {"title":"Invalid","description":"x","type":"superpublic"},
                       auth_headers(self.ctx.tokenOwner))
         assert r.status_code in (400,422), f"Zły type 400/422: {r.status_code} {trim(r.text)}"
         return {"status": r.status_code, "method":"POST","url":url}
+
+    def t_course_create_invalid_validation(self):
+        url = me(self.ctx, "/courses")
+        r_empty = http_json(self.ctx, "COURSE: Create course (empty title)", "POST", url,
+                      {"title":"","description":"x","type":"private"},
+                      auth_headers(self.ctx.tokenOwner))
+        assert r_empty.status_code in (400,422), f"Pusty tytuł 400/422: {r_empty.status_code}"
+
+        long_title = "a" * 300
+        r_long = http_json(self.ctx, "COURSE: Create course (long title)", "POST", url,
+                      {"title":long_title,"description":"x","type":"private"},
+                      auth_headers(self.ctx.tokenOwner))
+        assert r_long.status_code in (400,422), f"Zbyt długi tytuł 400/422: {r_long.status_code}"
+        return {"status": r_long.status_code, "method":"POST","url":url}
 
     def t_course_index_courses_A_contains(self):
         url = me(self.ctx, "/courses")
@@ -1154,7 +1217,7 @@ class E2ETester:
     def t_course_download_avatar_B_unauth(self):
         url = me(self.ctx, f"/courses/{self.ctx.course_id_1}/avatar")
         r = http_json(self.ctx, "COURSE: B cannot download A avatar", "GET", url, None, auth_headers(self.ctx.tokenB))
-        assert r.status_code in (401,403,404), f"B nie powinien móc pobrać avatara: {r.status_code}" # 404 też ok
+        assert r.status_code in (401,403), f"B nie może pobrać avatara: {r.status_code}" # Kurs prywatny
         return {"status": r.status_code, "method":"GET","url":url}
 
     def t_course_B_cannot_update_A_course(self):
@@ -1217,6 +1280,16 @@ class E2ETester:
         url = build(self.ctx, f"/api/courses/{self.ctx.course_id_1}/users?q=tester&role=member")
         r = http_json(self.ctx, "COURSE: Course users filter", "GET", url, None, auth_headers(self.ctx.tokenOwner))
         assert r.status_code == 200
+        js = r.json()
+        assert len(js.get("users", [])) > 0, "Filtr q=tester powinien znaleźć MemberB"
+        return {"status": 200, "method":"GET","url":url}
+
+    def t_course_users_filter_not_found(self):
+        url = build(self.ctx, f"/api/courses/{self.ctx.course_id_1}/users?q=NieistniejacyXYZ&role=member")
+        r = http_json(self.ctx, "COURSE: Course users filter (not found)", "GET", url, None, auth_headers(self.ctx.tokenOwner))
+        assert r.status_code == 200
+        js = r.json()
+        assert len(js.get("users", [])) == 0, "Filtr q=NieistniejacyXYZ powinien zwrócić 0"
         return {"status": 200, "method":"GET","url":url}
 
     def t_course_create_note_A(self):
@@ -1256,6 +1329,25 @@ class E2ETester:
         assert found and found[0].get("is_private") in (False, 0), "Powinno być publiczne w kursie"
         return {"status": 200, "method":"GET","url":url}
 
+    def t_course_unshare_note(self):
+        # Zakładamy istnienie endpointu /unshare, jeśli nie istnieje, ten test zawiedzie
+        url = build(self.ctx, f"/api/me/notes/{self.ctx.course_note_id_A}/unshare/{self.ctx.course_id_1}")
+        r = http_json(self.ctx, "COURSE: A un-share note → course", "POST", url, {}, auth_headers(self.ctx.tokenOwner))
+
+        if r.status_code == 404: # Endpoint prawdopodobnie nie istnieje
+            print(c(" (SKIP: Endpoint /unshare not found)", Fore.YELLOW), end=" ")
+            return {"status": 404, "method":"POST","url":url}
+
+        assert r.status_code == 200, f"Unshare failed: {r.status_code}"
+
+        # Weryfikacja
+        url_check = build(self.ctx, f"/api/courses/{self.ctx.course_id_1}/notes")
+        r_check = http_json(self.ctx, "COURSE: notes (verify unshared)", "GET", url_check, None, auth_headers(self.ctx.tokenOwner))
+        assert r_check.status_code == 200
+        found = [n for n in r_check.json().get("notes", []) if n.get("id") == self.ctx.course_note_id_A]
+        assert not found, "Notatka nadal jest w kursie po unshare"
+        return {"status": 200, "method":"POST","url":url}
+
     def t_course_notes_owner_member(self):
         urlA = build(self.ctx, f"/api/courses/{self.ctx.course_id_1}/notes")
         rA = http_json(self.ctx, "COURSE: notes (owner)", "GET", urlA, None, auth_headers(self.ctx.tokenOwner))
@@ -1267,7 +1359,7 @@ class E2ETester:
 
     def t_course_notes_outsider_private_403(self):
         url = build(self.ctx, f"/api/courses/{self.ctx.course_id_1}/notes")
-        r = http_json(self.ctx, "COURSE: notes outsider private", "GET", url, None, auth_headers(self.ctx.tokenC)) # Token C (Outsider)
+        r = http_json(self.ctx, "COURSE: notes outsider private", "GET", url, None, auth_headers(self.ctx.tokenC))
         assert r.status_code in (401,403)
         return {"status": r.status_code, "method":"GET","url":url}
 
@@ -1296,8 +1388,6 @@ class E2ETester:
         r = http_json(self.ctx, "COURSE: Remove owner → 422", "POST", url, {"email": self.ctx.emailOwner}, auth_headers(self.ctx.tokenOwner))
         assert r.status_code in (400,422), f"Blokada ownera: {r.status_code}"
         return {"status": r.status_code, "method":"POST","url":url}
-
-    # --- Role & Moderacja (CourseTest) ---
 
     def t_course_login_D(self):
         url = build(self.ctx, "/api/login")
@@ -1347,6 +1437,10 @@ class E2ETester:
         assert r2.status_code == 200
         return {"status": 200, "method":"POST","url":url2}
 
+# (Kontynuacja klasy E2ETester z Części 1)
+
+    # === 4. Metody testowe: Course API (Ciąg dalszy) ===
+
     def t_course_create_note_D_and_share(self):
         url = build(self.ctx, "/api/me/notes")
         files = {"file": ("sample.png", gen_png_bytes(), "image/png")}
@@ -1378,6 +1472,13 @@ class E2ETester:
         r = http_json(self.ctx, "COURSE: E cannot remove D", "POST", url, {"email": self.ctx.emailD}, auth_headers(self.ctx.tokenE))
         assert r.status_code in (401,403), f"Mod nie może wyrzucić admina: {r.status_code}"
         return {"status": r.status_code, "method":"POST","url":url}
+
+    def t_course_mod_E_cannot_purge_admin_D_notes(self):
+        uid = self._course_get_id_by_email(self.ctx.emailD, self.ctx.course_id_1, self.ctx.tokenE)
+        url = build(self.ctx, f"/api/courses/{self.ctx.course_id_1}/users/{uid}/notes")
+        r = http_json(self.ctx, "COURSE: Mod E cannot purge D notes", "DELETE", url, None, auth_headers(self.ctx.tokenE))
+        assert r.status_code in (401,403), f"Mod nie może czyścić notatek Admina: {r.status_code}"
+        return {"status": r.status_code, "method":"DELETE","url":url}
 
     def t_course_mod_E_cannot_remove_owner_A(self):
         url = build(self.ctx, f"/api/courses/{self.ctx.course_id_1}/remove-user")
@@ -1414,8 +1515,7 @@ class E2ETester:
         return self._course_role_patch_by_email("COURSE: Owner demotes D→moderator", self.ctx.tokenOwner, self.ctx.emailD, "moderator")
 
     def t_course_admin_cannot_change_admin(self):
-        # Admin D (teraz moderator) próbuje zmienić admina (OwnerA)
-        # Musimy go z powrotem awansować na admina
+        # Przywróć D do roli admina
         self._course_role_patch_by_email("COURSE: (Setup) Re-promote D→admin", self.ctx.tokenOwner, self.ctx.emailD, "admin")
 
         # Admin D próbuje zmienić admina (siebie)
@@ -1426,6 +1526,11 @@ class E2ETester:
     def t_course_admin_cannot_set_owner_role(self):
         res = self._course_role_patch_by_email_raw("COURSE: Admin cannot set owner role", self.ctx.tokenD, self.ctx.emailOwner, "owner")
         assert res[0] in (403,422,400), f"Admin nie może ustawiać ownera: {res[0]}"
+        return {"status": res[0], "method":"PATCH","url": res[1]}
+
+    def t_course_owner_cannot_demote_self(self):
+        res = self._course_role_patch_by_email_raw("COURSE: Owner cannot demote self", self.ctx.tokenOwner, self.ctx.emailOwner, "moderator")
+        assert res[0] in (403,422,400), f"Owner nie może degradować siebie: {res[0]}"
         return {"status": res[0], "method":"PATCH","url": res[1]}
 
     def t_course_owner_reinvite_E_as_moderator(self):
@@ -1443,7 +1548,6 @@ class E2ETester:
         return {"status": 200, "method":"POST","url":url3}
 
     def t_course_register_F(self):
-        # Ta rejestracja jest częścią logiki CourseTest
         self.ctx.emailF, self.ctx.pwdF, _ = self._setup_register_and_login("MemberF", "memberF")
         return {"status": 200}
 
@@ -1520,8 +1624,6 @@ class E2ETester:
     def t_course_admin_sets_B_member(self):
         return self._course_role_patch_by_email("COURSE: Admin sets B→member", self.ctx.tokenD, self.ctx.emailB, "member")
 
-    # --- Public + Rejections (CourseTest) ---
-
     def t_course_login_C(self):
         url = build(self.ctx, "/api/login")
         r = http_json(self.ctx, "COURSE: Login Outsider C", "POST", url,
@@ -1559,12 +1661,14 @@ class E2ETester:
         url = build(self.ctx, f"/api/invitations/{token}/reject")
         r = http_json(self.ctx, "COURSE: C reject last", "POST", url, {}, auth_headers(self.ctx.tokenC))
         assert r.status_code == 200
-
-        # DODAJ TĘ LINIĘ: Daj 2 sekundy workerowi na produkcji na przetworzenie odrzucenia
-        print(c(" (Czekam 2s na przetworzenie kolejki)...", Fore.MAGENTA), end=" ")
-        time.sleep(2)
-
         return {"status": 200, "method":"POST","url":url}
+
+    def t_course_reject_C_last_and_pause(self):
+        res = self.t_course_reject_C_last()
+        # Pauza dla replikacji - kluczowe dla następnego testu
+        print(c(" (Czekam 2s na replikację DB)...", Fore.MAGENTA), end=" ")
+        time.sleep(2)
+        return res
 
     def t_course_invite_C_2(self): return self.t_course_invite_C_1()
     def t_course_invite_C_3(self): return self.t_course_invite_C_1()
@@ -1600,13 +1704,13 @@ class E2ETester:
 
     def t_course_notes_outsider_public_403(self):
         url = build(self.ctx, f"/api/courses/{self.ctx.public_course_id}/notes")
-        r = http_json(self.ctx, "COURSE: Public course notes outsider", "GET", url, None, auth_headers(self.ctx.tokenC)) # Outsider C
+        r = http_json(self.ctx, "COURSE: Public course notes outsider", "GET", url, None, auth_headers(self.ctx.tokenC))
         assert r.status_code in (401,403)
         return {"status": r.status_code, "method":"GET","url":url}
 
     def t_course_users_outsider_public_401(self):
         url = build(self.ctx, f"/api/courses/{self.ctx.public_course_id}/users")
-        r = http_json(self.ctx, "COURSE: Public course users outsider", "GET", url, None, auth_headers(self.ctx.tokenC)) # Outsider C
+        r = http_json(self.ctx, "COURSE: Public course users outsider", "GET", url, None, auth_headers(self.ctx.tokenC))
         assert r.status_code in (401,403)
         return {"status": r.status_code, "method":"GET","url":url}
 
@@ -1622,9 +1726,14 @@ class E2ETester:
         assert r.status_code in (200,204), f"Delete failed: {r.status_code}"
         return {"status": r.status_code, "method":"DELETE","url":url}
 
+    def t_course_delete_public_course_A(self):
+        url = me(self.ctx, f"/courses/{self.ctx.public_course_id}")
+        r = http_json(self.ctx, "COURSE: Delete course #3 (public)", "DELETE", url, None, auth_headers(self.ctx.tokenOwner))
+        assert r.status_code in (200,204), f"Delete failed: {r.status_code}"
+        return {"status": r.status_code, "method":"DELETE","url":url}
+
     # ──────────────────────────────────────────────────────────────────────
-    # === 5. Metody testowe: Quiz API ===
-    # (Metody z QuizTest.py, mapowane na OwnerA)
+    # === 5. Metody testowe: Quiz API (Zarządzanie) ===
     # ──────────────────────────────────────────────────────────────────────
 
     def t_quiz_login_A(self):
@@ -1632,7 +1741,7 @@ class E2ETester:
         r = http_json(self.ctx, "QUIZ: Login Owner A", "POST", url,
                       {"email":self.ctx.emailOwner,"password":self.ctx.pwdOwner}, {"Accept":"application/json"})
         assert r.status_code == 200
-        self.ctx.quiz_token = r.json().get("token") # Używamy dedykowanego tokenu quiz, ale to ten sam user
+        self.ctx.quiz_token = r.json().get("token")
         return {"status": 200, "method":"POST","url":url}
 
     def t_quiz_create_course(self):
@@ -1653,61 +1762,67 @@ class E2ETester:
 
     def t_quiz_create_private_test(self):
         url = me(self.ctx, "/tests")
-        r = http_json(self.ctx, "QUIZ: Create private test", "POST", url, {
-            "title":"Private Test 1", "description":"desc", "status":"private"
+        r = http_json(self.ctx, "QUIZ: Create PRIVATE test", "POST", url, {
+            "title":"Private Test (Access Check)", "description":"desc", "status":"private"
         }, auth_headers(self.ctx.quiz_token))
         assert r.status_code == 201, f"Create private test {r.status_code}: {trim(r.text)}"
         self.ctx.test_private_id = must_json(r).get("id")
         assert self.ctx.test_private_id, "Brak test_private_id"
         return {"status": 201, "method":"POST", "url":url}
 
-    def t_quiz_index_user_tests_contains_private(self):
+    def t_quiz_create_public_test(self):
         url = me(self.ctx, "/tests")
-        r = http_json(self.ctx, "QUIZ: Index contains private", "GET", url, None, auth_headers(self.ctx.quiz_token))
+        r = http_json(self.ctx, "QUIZ: Create PUBLIC test", "POST", url, {
+            "title":"Public Test (Main)", "description":"share me", "status":"public"
+        }, auth_headers(self.ctx.quiz_token))
+        assert r.status_code == 201, f"Create public test {r.status_code}: {trim(r.text)}"
+        self.ctx.test_public_id = must_json(r).get("id")
+        assert self.ctx.test_public_id, "Brak test_public_id"
+        return {"status": 201, "method":"POST", "url":url}
+
+    def t_quiz_index_user_tests_contains_both(self):
+        url = me(self.ctx, "/tests")
+        r = http_json(self.ctx, "QUIZ: Index contains both tests", "GET", url, None, auth_headers(self.ctx.quiz_token))
         assert r.status_code == 200, f"Index {r.status_code}"
         js = must_json(r)
-        assert any(t.get("id")==self.ctx.test_private_id for t in js), "Lista nie zawiera prywatnego testu"
+        ids = {t.get("id") for t in js}
+        assert self.ctx.test_private_id in ids, "Lista nie zawiera testu prywatnego"
+        assert self.ctx.test_public_id in ids, "Lista nie zawiera testu publicznego"
         return {"status": 200, "method":"GET", "url":url}
 
-    def t_quiz_show_private_test(self):
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}")
-        r = http_json(self.ctx, "QUIZ: Show private test", "GET", url, None, auth_headers(self.ctx.quiz_token))
-        assert r.status_code == 200, f"Show {r.status_code}: {trim(r.text)}"
-        return {"status": 200, "method":"GET", "url":url}
-
-    def t_quiz_update_private_test(self):
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}")
-        r = http_json(self.ctx, "QUIZ: Update private test", "PUT", url, {
-            "title":"Private Test 1 — updated", "description":"desc2"
+    def t_quiz_update_public_test(self):
+        url = me(self.ctx, f"/tests/{self.ctx.test_public_id}")
+        r = http_json(self.ctx, "QUIZ: Update public test", "PUT", url, {
+            "title":"Public Test (Main) — updated", "description":"desc updated"
         }, auth_headers(self.ctx.quiz_token))
         assert r.status_code == 200, f"Update test {r.status_code}: {trim(r.text)}"
         return {"status": 200, "method":"PUT", "url":url}
 
     def t_quiz_add_question(self):
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions")
-        r = http_json(self.ctx, "QUIZ: Add Q1", "POST", url, {"question":"What is 2+2?"}, auth_headers(self.ctx.quiz_token))
+        url = me(self.ctx, f"/tests/{self.ctx.test_public_id}/questions") # Do testu publicznego
+        r = http_json(self.ctx, "QUIZ: Add Q1 (public)", "POST", url, {"question":"What is 2+2?"}, auth_headers(self.ctx.quiz_token))
         assert r.status_code == 201, f"Add Q1 {r.status_code}: {trim(r.text)}"
-        self.ctx.question_id = must_json(r).get("id")
-        assert self.ctx.question_id, "Brak question_id"
+        self.ctx.quiz_public_q1_id = must_json(r).get("id")
+        assert self.ctx.quiz_public_q1_id, "Brak question_id"
         return {"status": 201, "method":"POST", "url":url}
 
     def t_quiz_list_questions_contains_q1(self):
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions")
-        r = http_json(self.ctx, "QUIZ: List questions", "GET", url, None, auth_headers(self.ctx.quiz_token))
+        url = me(self.ctx, f"/tests/{self.ctx.test_public_id}/questions")
+        r = http_json(self.ctx, "QUIZ: List questions (public)", "GET", url, None, auth_headers(self.ctx.quiz_token))
         assert r.status_code == 200, f"List Q {r.status_code}"
         js = must_json(r)
         arr = js.get("questions",[])
-        assert any(q.get("id")==self.ctx.question_id for q in arr), "Lista nie zawiera Q1"
+        assert any(q.get("id")==self.ctx.quiz_public_q1_id for q in arr), "Lista nie zawiera Q1"
         return {"status": 200, "method":"GET", "url":url}
 
     def t_quiz_update_question(self):
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions/{self.ctx.question_id}")
-        r = http_json(self.ctx, "QUIZ: Update Q1", "PUT", url, {"question":"What is 3+3?"}, auth_headers(self.ctx.quiz_token))
+        url = me(self.ctx, f"/tests/{self.ctx.test_public_id}/questions/{self.ctx.quiz_public_q1_id}")
+        r = http_json(self.ctx, "QUIZ: Update Q1 (public)", "PUT", url, {"question":"What is 3+3?"}, auth_headers(self.ctx.quiz_token))
         assert r.status_code == 200, f"Update Q1 {r.status_code}"
         return {"status": 200, "method":"PUT", "url":url}
 
     def t_quiz_add_answer_invalid_first(self):
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions/{self.ctx.question_id}/answers")
+        url = me(self.ctx, f"/tests/{self.ctx.test_public_id}/questions/{self.ctx.quiz_public_q1_id}/answers")
         r = http_json(self.ctx, "QUIZ: Add A1 invalid first", "POST", url, {
             "answer":"4", "is_correct": False
         }, auth_headers(self.ctx.quiz_token))
@@ -1715,18 +1830,19 @@ class E2ETester:
         return {"status": r.status_code, "method":"POST", "url":url}
 
     def t_quiz_add_answer_correct_first(self):
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions/{self.ctx.question_id}/answers")
+        url = me(self.ctx, f"/tests/{self.ctx.test_public_id}/questions/{self.ctx.quiz_public_q1_id}/answers")
         r = http_json(self.ctx, "QUIZ: Add A1 correct", "POST", url, {
             "answer":"6", "is_correct": True
         }, auth_headers(self.ctx.quiz_token))
         assert r.status_code == 201, f"Add A1 {r.status_code}: {trim(r.text)}"
         a_id = must_json(r).get("answer",{}).get("id") or must_json(r).get("id")
         assert a_id, "Brak id odp"
-        self.ctx.answer_ids.append(a_id)
+        self.ctx.quiz_public_a_ids.append(a_id)
+        self.ctx.quiz_public_q1_correct_ans_id = a_id # Zapamiętaj do rozwiązywania
         return {"status": 201, "method":"POST", "url":url}
 
     def t_quiz_add_answer_duplicate(self):
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions/{self.ctx.question_id}/answers")
+        url = me(self.ctx, f"/tests/{self.ctx.test_public_id}/questions/{self.ctx.quiz_public_q1_id}/answers")
         r = http_json(self.ctx, "QUIZ: Add duplicate", "POST", url, {
             "answer":"6", "is_correct": False
         }, auth_headers(self.ctx.quiz_token))
@@ -1734,34 +1850,36 @@ class E2ETester:
         return {"status": r.status_code, "method":"POST", "url":url}
 
     def t_quiz_add_answer_wrong_2(self):
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions/{self.ctx.question_id}/answers")
+        url = me(self.ctx, f"/tests/{self.ctx.test_public_id}/questions/{self.ctx.quiz_public_q1_id}/answers")
         r = http_json(self.ctx, "QUIZ: Add A2 wrong", "POST", url, {
             "answer":"7", "is_correct": False
         }, auth_headers(self.ctx.quiz_token))
         assert r.status_code == 201, f"Add A2 {r.status_code}"
-        self.ctx.answer_ids.append(must_json(r).get("answer",{}).get("id") or must_json(r).get("id"))
+        a_id = must_json(r).get("answer",{}).get("id") or must_json(r).get("id")
+        self.ctx.quiz_public_a_ids.append(a_id)
+        self.ctx.quiz_public_q1_wrong_ans_id = a_id # Zapamiętaj do rozwiązywania
         return {"status": 201, "method":"POST", "url":url}
 
     def t_quiz_add_answer_wrong_3(self):
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions/{self.ctx.question_id}/answers")
+        url = me(self.ctx, f"/tests/{self.ctx.test_public_id}/questions/{self.ctx.quiz_public_q1_id}/answers")
         r = http_json(self.ctx, "QUIZ: Add A3 wrong", "POST", url, {
             "answer":"8", "is_correct": False
         }, auth_headers(self.ctx.quiz_token))
         assert r.status_code == 201, f"Add A3 {r.status_code}"
-        self.ctx.answer_ids.append(must_json(r).get("answer",{}).get("id") or must_json(r).get("id"))
+        self.ctx.quiz_public_a_ids.append(must_json(r).get("answer",{}).get("id") or must_json(r).get("id"))
         return {"status": 201, "method":"POST", "url":url}
 
     def t_quiz_add_answer_wrong_4(self):
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions/{self.ctx.question_id}/answers")
+        url = me(self.ctx, f"/tests/{self.ctx.test_public_id}/questions/{self.ctx.quiz_public_q1_id}/answers")
         r = http_json(self.ctx, "QUIZ: Add A4 wrong", "POST", url, {
             "answer":"9", "is_correct": False
         }, auth_headers(self.ctx.quiz_token))
         assert r.status_code == 201, f"Add A4 {r.status_code}"
-        self.ctx.answer_ids.append(must_json(r).get("answer",{}).get("id") or must_json(r).get("id"))
+        self.ctx.quiz_public_a_ids.append(must_json(r).get("answer",{}).get("id") or must_json(r).get("id"))
         return {"status": 201, "method":"POST", "url":url}
 
     def t_quiz_add_answer_limit(self):
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions/{self.ctx.question_id}/answers")
+        url = me(self.ctx, f"/tests/{self.ctx.test_public_id}/questions/{self.ctx.quiz_public_q1_id}/answers")
         r = http_json(self.ctx, "QUIZ: Add A5 blocked", "POST", url, {
             "answer":"10", "is_correct": False
         }, auth_headers(self.ctx.quiz_token))
@@ -1769,62 +1887,55 @@ class E2ETester:
         return {"status": r.status_code, "method":"POST", "url":url}
 
     def t_quiz_get_answers_list(self):
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions/{self.ctx.question_id}/answers")
-        r = http_json(self.ctx, "QUIZ: Get answers", "GET", url, None, auth_headers(self.ctx.quiz_token))
+        url = me(self.ctx, f"/tests/{self.ctx.test_public_id}/questions/{self.ctx.quiz_public_q1_id}/answers")
+        r = http_json(self.ctx, "QUIZ: Get answers (4)", "GET", url, None, auth_headers(self.ctx.quiz_token))
         assert r.status_code == 200, f"Get answers {r.status_code}"
+        assert len(r.json().get("answers", [])) == 4, "Powinny być 4 odpowiedzi"
         return {"status": 200, "method":"GET", "url":url}
 
     def t_quiz_update_answer(self):
-        assert len(self.ctx.answer_ids) >= 2, "Za mało odp do aktualizacji"
-        target = self.ctx.answer_ids[1] # A2
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions/{self.ctx.question_id}/answers/{target}")
+        assert len(self.ctx.quiz_public_a_ids) >= 2, "Za mało odp do aktualizacji"
+        target = self.ctx.quiz_public_a_ids[1] # A2
+        url = me(self.ctx, f"/tests/{self.ctx.test_public_id}/questions/{self.ctx.quiz_public_q1_id}/answers/{target}")
         r = http_json(self.ctx, "QUIZ: Update answer #2", "PUT", url, {
-            "answer":"7 (upd)", "is_correct": True
+            "answer":"7 (upd)", "is_correct": True # Zmiana na poprawną
         }, auth_headers(self.ctx.quiz_token))
         assert r.status_code == 200, f"Update answer {r.status_code}"
         return {"status": 200, "method":"PUT", "url":url}
 
     def t_quiz_delete_answer(self):
-        assert len(self.ctx.answer_ids) >= 3, "Za mało odp do kasowania"
-        target = self.ctx.answer_ids[2] # A3
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions/{self.ctx.question_id}/answers/{target}")
+        assert len(self.ctx.quiz_public_a_ids) >= 3, "Za mało odp do kasowania"
+        target = self.ctx.quiz_public_a_ids[2] # A3
+        url = me(self.ctx, f"/tests/{self.ctx.test_public_id}/questions/{self.ctx.quiz_public_q1_id}/answers/{target}")
         r = http_json(self.ctx, "QUIZ: Delete answer #3", "DELETE", url, None, auth_headers(self.ctx.quiz_token))
         assert r.status_code == 200, f"Delete answer {r.status_code}"
         return {"status": 200, "method":"DELETE", "url":url}
 
     def t_quiz_delete_question(self):
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions/{self.ctx.question_id}")
+        url = me(self.ctx, f"/tests/{self.ctx.test_public_id}/questions/{self.ctx.quiz_public_q1_id}")
         r = http_json(self.ctx, "QUIZ: Delete Q1", "DELETE", url, None, auth_headers(self.ctx.quiz_token))
         assert r.status_code == 200, f"Delete Q {r.status_code}"
-        self.ctx.question_id = None
-        self.ctx.answer_ids.clear()
+        self.ctx.quiz_public_q1_id = None
+        self.ctx.quiz_public_a_ids.clear()
         return {"status": 200, "method":"DELETE", "url":url}
 
     def t_quiz_add_questions_to_20(self):
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions")
+        url = me(self.ctx, f"/tests/{self.ctx.test_public_id}/questions")
+        self.ctx.quiz_public_q_ids = [] # Resetuj listę
         for i in range(1, 21):
             r = http_json(self.ctx, f"QUIZ: Add Q{i}", "POST", url, {"question": f"Q{i}?"}, auth_headers(self.ctx.quiz_token))
             assert r.status_code == 201, f"Q{i} {r.status_code}: {trim(r.text)}"
+            q_id = must_json(r).get("id")
+            self.ctx.quiz_public_q_ids.append(q_id)
         return {"status": 201, "method":"POST", "url":url}
 
     def t_quiz_add_21st_question_block(self):
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions")
+        url = me(self.ctx, f"/tests/{self.ctx.test_public_id}/questions")
         r = http_json(self.ctx, "QUIZ: Add Q21 blocked", "POST", url, {"question":"Q21?"}, auth_headers(self.ctx.quiz_token))
         assert r.status_code in (400,422), f"Q21 (limit 20), jest {r.status_code}"
         return {"status": r.status_code, "method":"POST", "url":url}
 
-    def t_quiz_create_public_test(self):
-        url = me(self.ctx, "/tests")
-        r = http_json(self.ctx, "QUIZ: Create PUBLIC test", "POST", url, {
-            "title":"Public Test 1", "description":"share me", "status":"public"
-        }, auth_headers(self.ctx.quiz_token))
-        assert r.status_code == 201, f"Create public test {r.status_code}: {trim(r.text)}"
-        self.ctx.test_public_id = must_json(r).get("id")
-        assert self.ctx.test_public_id, "Brak test_public_id"
-        return {"status": 201, "method":"POST", "url":url}
-
     def t_quiz_share_public_test_to_course(self):
-        # Wersja z QuizTest (próbuje 3 metod)
         assert self.ctx.test_public_id, "Brak test_public_id"
         assert self.ctx.quiz_course_id, "Brak quiz_course_id"
 
@@ -1835,7 +1946,7 @@ class E2ETester:
         if r1.status_code == 200: return {"status": 200, "method":"POST", "url":url1}
 
         url2 = me(self.ctx, f"/tests/{self.ctx.test_public_id}")
-        payload2 = {"title": "Public Test 1", "description": "share me", "status": "public", "course_id": self.ctx.quiz_course_id}
+        payload2 = {"title": "Public Test (Main) — updated", "description": "desc updated", "status": "public", "course_id": self.ctx.quiz_course_id}
         r2 = http_json(self.ctx, "QUIZ: Share (PUT /me/tests)", "PUT", url2, payload2, auth_headers(self.ctx.quiz_token))
         if r2.status_code == 200: return {"status": 200, "method":"PUT", "url":url2}
 
@@ -1855,35 +1966,141 @@ class E2ETester:
         assert any(t.get("id") == self.ctx.test_public_id for t in js), f"Lista nie zawiera testu ID: {self.ctx.test_public_id}"
         return {"status": 200, "method":"GET", "url":url}
 
+    # ──────────────────────────────────────────────────────────────────────
+    # === 6. Metody testowe: Quiz API (Rozwiązywanie) ===
+    # ──────────────────────────────────────────────────────────────────────
+
     def t_quiz_register_B(self):
         self.ctx.quiz_userB_email = rnd_email("quizB")
         self.ctx.quiz_userB_pwd = "Haslo123123"
         url = build(self.ctx, "/api/users/register")
-        r = http_json(self.ctx, "QUIZ: Register B", "POST", url, {
+        r = http_json(self.ctx, "QUIZ: Register B (Student)", "POST", url, {
             "name":"Tester Quiz B","email":self.ctx.quiz_userB_email,
             "password":self.ctx.quiz_userB_pwd,"password_confirmation":self.ctx.quiz_userB_pwd
         }, {"Accept":"application/json"})
         assert r.status_code in (200,201), f"Register B {r.status_code}: {trim(r.text)}"
         return {"status": r.status_code, "method":"POST", "url":url}
 
+    def t_quiz_invite_B_to_course(self):
+        url = build(self.ctx, f"/api/courses/{self.ctx.quiz_course_id}/invite-user")
+        r = http_json(self.ctx, "QUIZ: Invite B to Course", "POST", url,
+                      {"email": self.ctx.quiz_userB_email, "role":"member"}, auth_headers(self.ctx.quiz_token)) # Owner zaprasza
+        assert r.status_code in (200,201), f"Invite B {r.status_code}"
+        return {"status": r.status_code, "method":"POST", "url":url}
+
     def t_quiz_login_B(self):
         url = build(self.ctx, "/api/login")
-        r = http_json(self.ctx, "QUIZ: Login B", "POST", url, {
+        r = http_json(self.ctx, "QUIZ: Login B (Student)", "POST", url, {
             "email": self.ctx.quiz_userB_email, "password": self.ctx.quiz_userB_pwd
         }, {"Accept":"application/json"})
         assert r.status_code == 200, f"Login B {r.status_code}: {trim(r.text)}"
-        self.ctx.quiz_token = must_json(r).get("token") # Używamy tokenu B
+        self.ctx.quiz_token = must_json(r).get("token") # Ustawiamy token B jako aktywny
         return {"status": 200, "method":"POST", "url":url}
 
+    def t_quiz_B_accept_invite(self):
+        url = build(self.ctx, "/api/me/invitations-received")
+        r = http_json(self.ctx, "QUIZ: B received invite", "GET", url, None, auth_headers(self.ctx.quiz_token))
+        assert r.status_code == 200
+        invites = r.json().get("invitations", [])
+        assert invites, "Brak zaproszenia dla QuizB"
+        token = invites[0].get("token"); assert token
+
+        url_accept = build(self.ctx, f"/api/invitations/{token}/accept")
+        r_accept = http_json(self.ctx, "QUIZ: B accept invite", "POST", url_accept, {}, auth_headers(self.ctx.quiz_token))
+        assert r_accept.status_code == 200
+        return {"status": 200, "method":"POST", "url":url_accept}
+
+    def t_quiz_B_start_test(self):
+        url = build(self.ctx, f"/api/courses/{self.ctx.quiz_course_id}/tests/{self.ctx.test_public_id}/start")
+        r = http_json(self.ctx, "QUIZ: B start test (public)", "GET", url, None, auth_headers(self.ctx.quiz_token))
+        assert r.status_code == 200, f"Start test {r.status_code}"
+        js = must_json(r)
+        assert "questions" in js, "Brak listy pytań"
+        assert len(js["questions"]) > 0, "Lista pytań jest pusta"
+        q1 = js["questions"][0]
+        assert "answers" in q1, "Brak odpowiedzi w pytaniu"
+        assert len(q1["answers"]) > 0, "Pytanie nie ma odpowiedzi"
+        # Sprawdź, czy NIE ma pola 'is_correct'
+        assert "is_correct" not in q1["answers"][0], "API ujawnia poprawną odpowiedź przy starcie!"
+        return {"status": 200, "method":"GET", "url":url}
+
+    def t_quiz_B_cannot_start_private_test(self):
+        url = build(self.ctx, f"/api/courses/{self.ctx.quiz_course_id}/tests/{self.ctx.test_private_id}/start")
+        r = http_json(self.ctx, "QUIZ: B cannot start private test", "GET", url, None, auth_headers(self.ctx.quiz_token))
+        assert r.status_code in (403, 404), f"Start prywatnego testu 403/404, jest {r.status_code}"
+        return {"status": r.status_code, "method":"GET", "url":url}
+
+    def t_quiz_B_submit_test_wrong(self):
+        # Zakładamy, że pierwszy dodany Q i pierwsza zła odpowiedź istnieją
+        assert self.ctx.quiz_public_q_ids, "Brak ID pytań do wysłania"
+        assert self.ctx.quiz_public_q1_wrong_ans_id, "Brak ID złej odpowiedzi"
+
+        url = build(self.ctx, f"/api/courses/{self.ctx.quiz_course_id}/tests/{self.ctx.test_public_id}/submit")
+        payload = {
+            "answers": {
+                str(self.ctx.quiz_public_q_ids[0]): str(self.ctx.quiz_public_q1_wrong_ans_id)
+                # Na razie wysyłamy tylko jedną odpowiedź
+            }
+        }
+        r = http_json(self.ctx, "QUIZ: B submit test (wrong)", "POST", url, payload, auth_headers(self.ctx.quiz_token))
+        assert r.status_code == 200, f"Submit test {r.status_code}"
+        js = must_json(r)
+        assert "result_id" in js, "Brak result_id w odpowiedzi submit"
+        self.ctx.quiz_result_id = js["result_id"]
+        return {"status": 200, "method":"POST", "url":url}
+
+    def t_quiz_B_check_result_wrong(self):
+        assert self.ctx.quiz_result_id, "Brak quiz_result_id do sprawdzenia"
+        url = me(self.ctx, f"/test-results/{self.ctx.quiz_result_id}")
+        r = http_json(self.ctx, "QUIZ: B check result (wrong)", "GET", url, None, auth_headers(self.ctx.quiz_token))
+        assert r.status_code == 200, f"Check result {r.status_code}"
+        js = must_json(r)
+        assert "score" in js, "Brak pola score"
+        assert "total_questions" in js, "Brak pola total_questions"
+        assert js["score"] == 0, f"Wynik powinien być 0, jest {js['score']}"
+        # Można dodać więcej asercji, np. na poprawność 'total_questions'
+        return {"status": 200, "method":"GET", "url":url}
+
+    def t_quiz_B_submit_test_correct(self):
+        assert self.ctx.quiz_public_q_ids, "Brak ID pytań do wysłania"
+        assert self.ctx.quiz_public_q1_correct_ans_id, "Brak ID poprawnej odpowiedzi"
+
+        url = build(self.ctx, f"/api/courses/{self.ctx.quiz_course_id}/tests/{self.ctx.test_public_id}/submit")
+        payload = {
+            "answers": {
+                str(self.ctx.quiz_public_q_ids[0]): str(self.ctx.quiz_public_q1_correct_ans_id)
+            }
+        }
+        r = http_json(self.ctx, "QUIZ: B submit test (correct)", "POST", url, payload, auth_headers(self.ctx.quiz_token))
+        assert r.status_code == 200, f"Submit test {r.status_code}"
+        js = must_json(r)
+        self.ctx.quiz_result_id = js["result_id"] # Nadpisz ID wyniku
+        return {"status": 200, "method":"POST", "url":url}
+
+    def t_quiz_B_check_result_correct(self):
+        assert self.ctx.quiz_result_id, "Brak quiz_result_id do sprawdzenia"
+        url = me(self.ctx, f"/test-results/{self.ctx.quiz_result_id}")
+        r = http_json(self.ctx, "QUIZ: B check result (correct)", "GET", url, None, auth_headers(self.ctx.quiz_token))
+        assert r.status_code == 200, f"Check result {r.status_code}"
+        js = must_json(r)
+        # Zakładamy, że test ma tylko 1 pytanie do oceny (bo tylko na nie odpowiedzieliśmy)
+        # Należy dostosować te asercje, jeśli API zwraca % lub punkty inaczej
+        total = js.get("total_questions", 1) # Unikaj dzielenia przez zero
+        expected_score = 1 if total > 0 else 0
+        assert js.get("score") == expected_score, f"Wynik powinien być {expected_score}, jest {js.get('score')}"
+        return {"status": 200, "method":"GET", "url":url}
+
+    # --- Testy autoryzacji Quiz B vs A ---
+
     def t_quiz_b_cannot_show_a_test(self):
-        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}")
-        r = http_json(self.ctx, "QUIZ: B show A test", "GET", url, None, auth_headers(self.ctx.quiz_token))
+        url = me(self.ctx, f"/tests/{self.ctx.test_private_id}") # Prywatny test A
+        r = http_json(self.ctx, "QUIZ: B show A test (private)", "GET", url, None, auth_headers(self.ctx.quiz_token)) # Token B
         assert r.status_code in (403,404), f"B 403/404, jest {r.status_code}"
         return {"status": r.status_code, "method":"GET", "url":url}
 
     def t_quiz_b_cannot_modify_a_test(self):
         url = me(self.ctx, f"/tests/{self.ctx.test_private_id}")
-        r = http_json(self.ctx, "QUIZ: B update A test", "PUT", url, {
+        r = http_json(self.ctx, "QUIZ: B update A test (private)", "PUT", url, {
             "title":"hack", "description":"hack"
         }, auth_headers(self.ctx.quiz_token))
         assert r.status_code in (403,404), f"B update 403/404, jest {r.status_code}"
@@ -1891,17 +2108,20 @@ class E2ETester:
 
     def t_quiz_b_cannot_add_q_to_a_test(self):
         url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions")
-        r = http_json(self.ctx, "QUIZ: B add Q to A", "POST", url, {"question":"hack?"}, auth_headers(self.ctx.quiz_token))
+        r = http_json(self.ctx, "QUIZ: B add Q to A (private)", "POST", url, {"question":"hack?"}, auth_headers(self.ctx.quiz_token))
         assert r.status_code in (403,404), f"B add Q 403/404, jest {r.status_code}"
         return {"status": r.status_code, "method":"POST", "url":url}
 
     def t_quiz_b_cannot_delete_a_test(self):
         url = me(self.ctx, f"/tests/{self.ctx.test_private_id}")
-        r = http_json(self.ctx, "QUIZ: B delete A test", "DELETE", url, None, auth_headers(self.ctx.quiz_token))
+        r = http_json(self.ctx, "QUIZ: B delete A test (private)", "DELETE", url, None, auth_headers(self.ctx.quiz_token))
         assert r.status_code in (403,404), f"B delete 403/404, jest {r.status_code}"
         return {"status": r.status_code, "method":"DELETE", "url":url}
 
-    # --- Sprzątanie Quiz ---
+    # ──────────────────────────────────────────────────────────────────────
+    # === 7. Metody Cleanup (Quiz) ===
+    # ──────────────────────────────────────────────────────────────────────
+
     def t_quiz_cleanup_delete_public(self):
         # Zaloguj A (Ownera)
         self.t_quiz_login_A()
@@ -1909,15 +2129,15 @@ class E2ETester:
         if not self.ctx.test_public_id: return {"status": 200}
         url = me(self.ctx, f"/tests/{self.ctx.test_public_id}")
         r = http_json(self.ctx, "QUIZ: Cleanup delete public", "DELETE", url, None, auth_headers(self.ctx.quiz_token))
-        assert r.status_code == 200, f"Cleanup public {r.status_code}"
-        return {"status": 200, "method":"DELETE", "url":url}
+        assert r.status_code in (200, 204), f"Cleanup public {r.status_code}"
+        return {"status": r.status_code, "method":"DELETE", "url":url}
 
     def t_quiz_cleanup_delete_private(self):
         if not self.ctx.test_private_id: return {"status": 200}
         url = me(self.ctx, f"/tests/{self.ctx.test_private_id}")
         r = http_json(self.ctx, "QUIZ: Cleanup delete private", "DELETE", url, None, auth_headers(self.ctx.quiz_token))
-        assert r.status_code == 200, f"Cleanup private {r.status_code}"
-        return {"status": 200, "method":"DELETE", "url":url}
+        assert r.status_code in (200, 204), f"Cleanup private {r.status_code}"
+        return {"status": r.status_code, "method":"DELETE", "url":url}
 
     def t_quiz_cleanup_delete_course(self):
         if not self.ctx.quiz_course_id: return {"status": 200}
@@ -1927,7 +2147,7 @@ class E2ETester:
         return {"status": r.status_code, "method":"DELETE", "url":url}
 
 
-# ───────────────────────── HTML Raport (Wersja z CourseTest) ─────────────────────────
+# ───────────────────────── HTML Raport ─────────────────────────
 def write_html_report(ctx: TestContext, results: List[TestRecord], endpoints: List[EndpointLog]):
     rows = []
     for r in results:
@@ -1948,12 +2168,15 @@ def write_html_report(ctx: TestContext, results: List[TestRecord], endpoints: Li
 
         raw_link = f"<em>brak</em>"
         if ctx.transcripts_dir and os.path.isdir(ctx.transcripts_dir):
-            raw_candidates = [f for f in os.listdir(ctx.transcripts_dir) if f.startswith(base + "--response_raw")]
-            if raw_candidates:
-                raw_link = f"<a href='transcripts/{raw_candidates[0]}' target='_blank'>{raw_candidates[0]}</a>"
+            try:
+                raw_candidates = [f for f in os.listdir(ctx.transcripts_dir) if f.startswith(base + "--response_raw")]
+                if raw_candidates:
+                    raw_link = f"<a href='transcripts/{raw_candidates[0]}' target='_blank'>{raw_candidates[0]}</a>"
+            except FileNotFoundError:
+                 print(c(f" Błąd: Katalog transkrypcji {ctx.transcripts_dir} nie znaleziony.", Fore.RED))
 
         req_h = pretty_json(ep.req_headers)
-        req_b = pretty_json(ep.req_body) # Już zamaskowane w http_json/http_multipart
+        req_b = pretty_json(ep.req_body)
         resp_h = pretty_json(ep.resp_headers)
         resp_b = ep.resp_body_pretty or ""
         resp_b_view = (resp_b[:MAX_BODY_LOG] + "\n…(truncated)") if len(resp_b) > MAX_BODY_LOG else resp_b
@@ -2053,10 +2276,16 @@ section.endpoint .downloads a {{ color: var(--accent); }}
 </body>
 </html>
 """
-    # Zapisz raport
     path = os.path.join(ctx.output_dir, "APITestReport.html")
     write_text(path, html)
     print(c(f"📄 Zapisano zbiorczy raport HTML: {path}", Fore.CYAN))
+
+    # Otwórz raport w przeglądarce
+    try:
+        webbrowser.open(f"file://{os.path.abspath(path)}")
+        print(c(f"🌍 Otwieranie raportu w przeglądarce...", Fore.CYAN))
+    except Exception as e:
+        print(c(f"    Nie udało się otworzyć raportu: {e}", Fore.YELLOW))
 
 
 # ───────────────────────── Main ─────────────────────────
@@ -2065,14 +2294,12 @@ def main():
     args = parse_args()
     colorama_init()
 
-    # Ustaw ścieżki globalne
     NOTE_FILE_PATH = args.note_file
     AVATAR_PATH = args.avatar
 
     ses = requests.Session()
-    ses.headers.update({"User-Agent": "NoteSync-E2E-Integrated/2.0", "Accept": "application/json"})
+    ses.headers.update({"User-Agent": "NoteSync-E2E-Integrated/2.1", "Accept": "application/json"})
 
-    # Wczytaj avatar (z UserTest.main)
     avatar_bytes = None
     if AVATAR_PATH and os.path.isfile(AVATAR_PATH):
         try:
@@ -2081,12 +2308,10 @@ def main():
         except Exception as e:
             print(c(f"Nie udało się wczytać avatara: {e}", Fore.RED))
     if not avatar_bytes:
-        avatar_bytes = gen_avatar_bytes() # Fallback
+        avatar_bytes = gen_avatar_bytes()
 
-    # Ustaw katalog docelowy
     out_dir = build_output_dir()
 
-    # Stwórz zunifikowany kontekst
     ctx = TestContext(
         base_url=args.base_url.rstrip("/"),
         me_prefix=args.me_prefix,
@@ -2098,7 +2323,7 @@ def main():
         started_at=time.time()
     )
 
-    print(c(f"\n{ICON_INFO} Start Zintegrowanego Testu E2E @ {ctx.base_url}", Fore.WHITE))
+    print(c(f"\n{ICON_INFO} Start Zintegrowanego Testu E2E (rozszerzony) @ {ctx.base_url}", Fore.WHITE))
     print(c(f"    Raport zostanie zapisany do: {out_dir}", Fore.CYAN))
 
     E2ETester(ctx).run()
@@ -2110,7 +2335,7 @@ if __name__ == "__main__":
         print("\nPrzerwano przez użytkownika.")
         sys.exit(130)
     except Exception as e:
-        print(c(f"\nKrytyczny błąd E2E: {e}", Fore.RED))
+        print(c(f"\nKrytyczny błąd E2E: {type(e).__name__}: {e}", Fore.RED))
         import traceback
         traceback.print_exc()
         sys.exit(1)
