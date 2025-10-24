@@ -212,20 +212,30 @@ class UserController extends Controller
     public function refresh(): JsonResponse
     {
         try {
-            // Odśwież token. To automatycznie unieważni stary token (doda do blacklisty)
-            // i zwróci nowy, ważny token.
-            $newToken = auth('api')->refresh();
-
+            // KROK 1: Pobierz dane użytkownika na podstawie STAREGO tokenu.
+            // Musi to być zrobione PRZED odświeżeniem, ponieważ refresh() unieważnia stary token.
             /** @var User $user */
             $user = auth('api')->user();
 
+            // Jeśli z jakiegoś powodu użytkownik nie istnieje (np. token już wygasł poza refresh_ttl)
+            // refresh() poniżej i tak rzuci wyjątkiem, ale możemy też sprawdzić to jawnie.
+            if (!$user) {
+                return response()->json(['error' => 'User not found or token invalid'], 404);
+            }
+
+            // KROK 2: Dopiero teraz odśwież token.
+            // To automatycznie unieważni stary token (doda do blacklisty)
+            // i zwróci nowy, ważny token.
+            $newToken = auth('api')->refresh();
+
         } catch (JWTException $e) {
             // Błąd odświeżania (np. stary token wygasł i minął refresh_ttl,
-            // jest na czarnej liście, LUB podpis jest niepoprawny - Twój przypadek)
+            // jest na czarnej liście lub niepoprawny podpis)
             return response()->json(['error' => 'Could not refresh token: ' . $e->getMessage()], 401);
         }
 
-        // Zwróć odpowiedź w formacie identycznym jak login()
+        // KROK 3: Zwróć odpowiedź.
+        // Zmienna $user jest już poprawnie zainicjowana danymi użytkownika.
         return response()->json([
             'message'     => 'Token refreshed successfully',
             'userId'      => $user->id,
