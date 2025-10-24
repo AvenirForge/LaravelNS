@@ -270,14 +270,9 @@ class UserController extends Controller
             return response()->json(['error' => 'Course not found'], 404);
         }
 
-        // --- Aliasy statusów i ról ---
+        // --- Aliasy statusów (potrzebne do autoryzacji i filtrowania prywatności) ---
         $ACCEPTED_STATUSES = ['accepted','active','approved','joined'];
-        $ROLE_ALIASES = [
-            'member'    => ['member','user'],
-            'admin'     => ['admin'],
-            'owner'     => ['owner'],
-            'moderator' => ['moderator'],
-        ];
+        // Usunięto $ROLE_ALIASES (niepotrzebne bez filtrowania ról)
 
         // Czy JA jestem właścicielem / admin-like / accepted member?
         $meId    = $me?->id;
@@ -294,56 +289,32 @@ class UserController extends Controller
         $isMemberAccepted = $status ? in_array($status, $ACCEPTED_STATUSES, true) : false;
         $isAdminLike      = $isOwner || in_array($role, ['owner','admin','moderator'], true);
 
+        // Użytkownik musi być właścicielem, adminem lub zaakceptowanym członkiem, aby zobaczyć listę
         if (!$isOwner && !$isMemberAccepted && !$isAdminLike) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        // --- Filtry / sort / paginacja ---
-        $needle  = $request->string('q')->trim()->toString() ?: null;
-        $roleF   = $request->string('role')->trim()->toString() ?: null;
-        $statusF = $request->string('status')->trim()->toString() ?: null;
+        // --- Usunięto filtry / sort (z requestu) / paginacja ---
+        // (Wszystkie $needle, $roleF, $statusF, $sort, $order, $perPage zostały usunięte)
 
-        $sort  = $request->string('sort')->trim()->toString() ?: 'name';
-        $order = strtolower($request->string('order')->trim()->toString() ?: 'asc');
-        $order = in_array($order, ['asc','desc'], true) ? $order : 'asc';
-
-        $perPage = max(1, min(100, (int)($request->input('per_page', 20))));
-
+        // --- Budowanie zapytania (tylko z filtrem prywatności) ---
         $builder = $course->users()
             ->select('users.id','users.name','users.email','users.avatar')
             ->withPivot(['role','status','created_at'])
+            // Zwykli członkowie widzą tylko innych zaakceptowanych członków
             ->when(!$isAdminLike, function($q) use ($ACCEPTED_STATUSES) {
                 $q->whereIn('courses_users.status', $ACCEPTED_STATUSES);
-            })
-            ->when($needle, function($q, $n) {
-                $like = "%{$n}%";
-                $q->where(function($w) use ($like) {
-                    $w->where('users.name','like',$like)
-                        ->orWhere('users.email','like',$like);
-                });
-            })
-            // role filter: akceptuj aliasy (member→member|user)
-            ->when($roleF, function($q) use ($ROLE_ALIASES, $roleF) {
-                $opts = $ROLE_ALIASES[$roleF] ?? [$roleF];
-                $q->whereIn('courses_users.role', $opts);
-            })
-            // status filter (aliasy); dla 'all' nie filtruj
-            ->when($statusF && $statusF !== 'all', function($q) use ($ACCEPTED_STATUSES, $statusF) {
-                $opts = $statusF === 'accepted' ? $ACCEPTED_STATUSES : [$statusF];
-                $q->whereIn('courses_users.status', $opts);
             });
+        // Usunięto .when() dla $needle, $roleF, $statusF
 
-        if ($sort === 'role') {
-            $builder->orderBy('courses_users.role', $order)->orderBy('users.name', 'asc');
-        } elseif ($sort === 'joined') {
-            $builder->orderBy('courses_users.created_at', $order);
-        } else {
-            $builder->orderBy('users.name', $order);
-        }
+        // --- Sortowanie (Domyślne) ---
+        $builder->orderBy('users.name', 'asc');
+        // Usunięto warunkowe sortowanie na podstawie $request
 
-        $page = $builder->paginate($perPage);
+        // --- Pobranie i mapowanie wyników (bez paginacji) ---
+        $users = $builder->get(); // Zmieniono z paginate() na get()
 
-        $items = $page->getCollection()->map(function(\App\Models\User $u) {
+        $items = $users->map(function(\App\Models\User $u) { // Zmieniono $page->getCollection() na $users
             return [
                 'id'         => $u->id,
                 'name'       => $u->name,
@@ -355,72 +326,20 @@ class UserController extends Controller
             ];
         })->all();
 
-        // ── Rozszerzone metadane kursu (nieinwazyjne dla istniejących testów) ──
-        // Owner (preferuj relację 'user', w razie czego fallback do SELECT)
-        $owner = null;
-        if (method_exists($course, 'user')) {
-            $course->loadMissing(['user:id,name,avatar']);
-            $owner = $course->user;
-        } else {
-            $owner = User::select('id','name','avatar')->find($course->user_id);
-        }
-
-        // Publiczny URL avatara (null jeśli brak ścieżki — nie psuje testów 404 na endpointzie pobierania)
-        $avatarUrl = $course->avatar ? Storage::disk('public')->url($course->avatar) : null;
-
-        // Statystyki (pomocne w UI; nie zmieniają kontraktu testów)
-        $acceptedMembers = method_exists($course, 'users')
-            ? $course->users()->wherePivotIn('status', $ACCEPTED_STATUSES)->count()
-            : null;
-
-        $permissions = [
-            'is_owner'            => $isOwner,
-            'is_admin_like'       => $isAdminLike,
-            'is_member_accepted'  => $isMemberAccepted,
-            'can_manage_members'  => $isOwner || in_array($role, ['owner','admin','moderator'], true),
-        ];
-
+        // --- Uproszczona odpowiedź (bez paginacji i filtrów) ---
+        // Zwracamy tylko podstawowe info o kursie oraz pełną listę użytkowników.
         return response()->json([
-            // ⬇️ zachowuję istniejące klucze i dodaję tylko nowe pola
             'course' => [
                 'id'          => $course->id,
                 'title'       => $course->title,
                 'type'        => $course->type,
-                'role'        => $role,
-                'is_owner'    => $isOwner,
-
-                // NOWE (pełne info)
-                'description' => $course->description,
-                'avatar_path' => $course->avatar,
-                'avatar_url'  => $avatarUrl,
-                'owner'       => $owner ? [
-                    'id'         => $owner->id ?? null,
-                    'name'       => $owner->name ?? null,
-                    'avatar_url' => $owner->avatar_url ?? null,
-                ] : null,
-                'stats' => [
-                    'members_accepted' => $acceptedMembers,
-                    'users_filtered'   => $page->total(),
-                ],
-                'permissions' => $permissions,
-                'created_at'  => optional($course->created_at)?->toISOString(),
-                'updated_at'  => optional($course->updated_at)?->toISOString(),
+                'my_role'     => $role,       // Rola zalogowanego użytkownika
+                'is_my_owner' => $isOwner,    // Czy zalogowany użytkownik jest właścicielem
             ],
-            'filters' => [
-                'q'        => $needle,
-                'role'     => $roleF,
-                'status'   => $statusF ?: ($isAdminLike ? 'all' : 'accepted'),
-                'sort'     => $sort,
-                'order'    => $order,
-                'per_page' => $perPage,
-            ],
-            'pagination' => [
-                'total'        => $page->total(),
-                'per_page'     => $page->perPage(),
-                'current_page' => $page->currentPage(),
-                'last_page'    => $page->lastPage(),
-            ],
+            // Zwracamy bezpośrednio tablicę użytkowników
             'users' => $items,
+            // Usunięto klucz 'filters'
+            // Usunięto obiekt paginacji (total, per_page, etc.)
         ]);
     }
 
