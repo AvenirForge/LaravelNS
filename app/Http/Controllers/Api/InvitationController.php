@@ -136,7 +136,10 @@ class InvitationController extends Controller
             //  - user_id (jeśli znany)
             $variants = array_values(array_unique([$emailLowerRaw, $emailNorm, $normNoIdn]));
 
-            $rejectedCount = Invitation::where('course_id', $course->id)
+            $defaultConnection = config('database.default');
+
+            $rejectedCount = Invitation::on($defaultConnection) // Wymuś użycie domyślnego połączenia (zapis/primary)
+            ->where('course_id', $course->id)
                 ->where(function ($q) use ($variants, $existingUserId) {
                     $q->where(function ($qq) use ($variants) {
                         foreach ($variants as $v) {
@@ -148,7 +151,7 @@ class InvitationController extends Controller
                     }
                 })
                 ->where('status', 'rejected')
-                ->lockForUpdate()
+                ->lockForUpdate() // Zabezpiecza przed race conditions podczas odczytu i aktualizacji
                 ->count();
 
             if ($rejectedCount >= 3) {
