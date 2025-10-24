@@ -324,22 +324,18 @@ class NoteController extends Controller
         /** @var Course|null $course */
         $course = Course::find($courseId);
         if (!$course) {
-            return response()->json(['error' => 'Course not found'], 404); // Użyto 404
+            return response()->json(['error' => 'Course not found'], Http::HTTP_NOT_FOUND);
         }
 
         // Ustalenie ról/członkostwa
         $meId    = $me?->id;
         $isOwner = $meId ? ((int)$course->user_id === (int)$meId) : false;
+        $pivot   = $meId ? $course->users()->where('user_id', $meId)->first() : null;
 
-        // Użyj bezpośrednio pivotu z DB (spójne z usersForCourse)
-        $pivot = $meId
-            ? DB::table('courses_users')->where('course_id', $course->id)->where('user_id', $meId)->first()
-            : null;
+        $role    = $pivot?->pivot?->role;
+        $status  = $pivot?->pivot?->status;
 
-        $role    = $pivot?->role;
-        $status  = $pivot?->status;
-
-        // Akceptowane statusy członkostwa
+        // Akceptowane statusy członkostwa (spójne z testami)
         $ACCEPTED_STATUSES = ['accepted', 'active', 'approved', 'joined'];
         $isMemberAccepted  = $status ? in_array($status, $ACCEPTED_STATUSES, true) : false;
 
@@ -347,43 +343,71 @@ class NoteController extends Controller
 
         // TWARDY wymóg członkostwa
         if (!$isOwner && !$isAdminLike && !$isMemberAccepted) {
-            return response()->json(['error' => 'Unauthorized'], 403); // Użyto 403
+            return response()->json(['error' => 'Unauthorized'], Http::HTTP_FORBIDDEN);
         }
 
-        // Usunięto Filtry i parametry (needle, authorId, visibility, sort, order, perPage)
+        // Filtry i parametry
+        $needle     = $request->string('q')->trim()->toString() ?: null;
+        $authorId   = $request->integer('user_id') ?: null;
+        $visibility = $request->string('visibility')->trim()->toString() ?: 'auto';
+
+        $sort  = $request->string('sort')->trim()->toString() ?: 'created_at';
+        $order = strtolower($request->string('order')->trim()->toString() ?: 'desc');
+        $order = in_array($order, ['asc','desc'], true) ? $order : 'desc';
+
+        $perPage = max(1, min(100, (int)($request->input('per_page', 20))));
 
         // Query na notatki w kursie
         $q = Note::query()
             ->where('course_id', $course->id)
-            ->with(['user:id,name,avatar']); // Zachowano eager loading autora
+            ->with(['user:id,name,avatar']);
 
-        // Widoczność wg ról (logika prywatności zachowana)
+        // Widoczność wg ról
         if ($isAdminLike) {
-            // Admin/Właściciel widzi wszystko - brak dodatkowych filtrów
+            if ($visibility === 'public')      { $q->where('is_private', false); }
+            elseif ($visibility === 'private')  { $q->where('is_private', true); }
         } else {
-            // Zwykły członek: publiczne + prywatne własne
+            // Member accepted: publiczne + prywatne własne
             $q->where(function($w) use ($meId) {
                 $w->where('is_private', false)
                     ->orWhere('user_id', $meId);
             });
+            if ($visibility === 'public') {
+                $q->where('is_private', false);
+            } elseif ($visibility === 'private') {
+                $q->where('user_id', $meId)->where('is_private', true);
+            }
         }
 
-        // Usunięto bloki .when() dla $needle i $authorId
+        // Filtry
+        if ($needle) {
+            $like = "%{$needle}%";
+            $q->where(function($w) use ($like) {
+                $w->where('title','like',$like)
+                    ->orWhere('description','like',$like);
+            });
+        }
+        if ($authorId) {
+            $q->where('user_id', (int)$authorId);
+        }
 
-        // Sortowanie (Domyślne)
-        $q->orderBy('created_at', 'desc');
-        // Usunięto warunkowe sortowanie
+        // Sort
+        if (in_array($sort, ['created_at','updated_at','title'], true)) {
+            $q->orderBy($sort, $order);
+        } else {
+            $q->orderBy('created_at', 'desc');
+        }
 
-        $notes = $q->get(); // Zmieniono z paginate() na get()
+        $page = $q->paginate($perPage);
 
-        $items = $notes->map(function (Note $n) { // Zmieniono $page->getCollection() na $notes
+        $items = $page->getCollection()->map(function (Note $n) {
             return [
                 'id'          => $n->id,
                 'title'       => $n->title,
                 'description' => $n->description,
                 'is_private'  => (bool)$n->is_private,
                 'file_url'    => $n->file_url, // accessor
-                'user'        => [ // Zachowano informacje o autorze
+                'user'        => [
                     'id'         => $n->user?->id,
                     'name'       => $n->user?->name,
                     'avatar_url' => $n->user?->avatar_url,
@@ -393,22 +417,60 @@ class NoteController extends Controller
             ];
         })->all();
 
-        // Usunięto rozszerzone metadane kursu (owner, avatarUrl, stats)
+        // Metadane kursu
+        $owner = null;
+        if (method_exists($course, 'user')) {
+            $course->loadMissing(['user:id,name,avatar']);
+            $owner = $course->user;
+        } else {
+            $owner = User::select('id','name','avatar')->find($course->user_id);
+        }
 
-        // Uproszczona odpowiedź (bez paginacji i filtrów)
+        $avatarUrl = $course->avatar ? Storage::disk('public')->url($course->avatar) : null;
+
+        $totalNotesInCourse = Note::where('course_id', $course->id)->count();
+        $acceptedMembers = method_exists($course, 'users')
+            ? $course->users()->wherePivotIn('status', $ACCEPTED_STATUSES)->count()
+            : null;
+
         return response()->json([
             'course' => [
                 'id'          => $course->id,
                 'title'       => $course->title,
+                'description' => $course->description,
                 'type'        => $course->type,
-                'my_role'     => $role,       // Rola zalogowanego użytkownika
-                'my_status'   => $status,     // Status zalogowanego użytkownika
-                'is_my_owner' => $isOwner,
+                'avatar_path' => $course->avatar,
+                'avatar_url'  => $avatarUrl,
+                'owner'       => $owner ? [
+                    'id'         => $owner->id ?? null,
+                    'name'       => $owner->name ?? null,
+                    'avatar_url' => $owner->avatar_url ?? null,
+                ] : null,
+                'my_role'     => $role,
+                'my_status'   => $status,
+                'stats'       => [
+                    'members_accepted' => $acceptedMembers,
+                    'notes_total'      => $totalNotesInCourse,
+                    'notes_filtered'   => $page->total(),
+                ],
+                'created_at' => optional($course->created_at)?->toISOString(),
+                'updated_at' => optional($course->updated_at)?->toISOString(),
             ],
-            // Zwracamy bezpośrednio tablicę notatek
+            'filters' => [
+                'q'          => $needle,
+                'user_id'    => $authorId,
+                'visibility' => $visibility,
+                'sort'       => $sort,
+                'order'      => $order,
+                'per_page'   => $perPage,
+            ],
+            'pagination' => [
+                'total'        => $page->total(),
+                'per_page'     => $page->perPage(),
+                'current_page' => $page->currentPage(),
+                'last_page'    => $page->lastPage(),
+            ],
             'notes' => $items,
-            // Usunięto klucz 'filters'
-            // Usunięto klucz 'pagination'
         ]);
     }
 }
