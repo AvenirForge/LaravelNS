@@ -22,4 +22,6 @@ yarn-error.log
 /.zed
 .env
 /tests/results
+gitpush.sh
+refresh.sh
 
