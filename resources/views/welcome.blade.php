@@ -119,19 +119,38 @@
             border-bottom:1px solid var(--border);
             box-shadow:var(--shadow);
         }
-        .nav-inner{display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:12px; width:100%}
+        /* POPRAWKA: Zmiana z grid na flex dla lepszej kontroli na mobilnych */
+        .nav-inner{
+            display:flex; /* Zamiast grid */
+            justify-content: space-between; /* Kluczowe dla mobilnych */
+            align-items:center;
+            gap:12px;
+            width:100%
+        }
         .brand{display:inline-flex; align-items:center; gap:10px; color:var(--fg);}
         .brand span{font-family:Pacifico,cursive; font-size:28px; letter-spacing:.2px; opacity:.95}
         .brand-logo{width:60px; height:auto; margin-right:4px; fill:var(--fg); transition:transform .25s ease, opacity .25s ease}
         .brand:hover .brand-logo{transform:rotate(-5deg) scale(1.05); opacity:.9}
-        .links{justify-self:center; display:flex; gap:18px}
+
+        /* POPRAWKA: Użycie flex-grow dla .links, aby wycentrować je na desktopie */
+        .links{
+            display:flex;
+            justify-content: center; /* Centrowanie linków */
+            flex-grow: 1; /* Linki zajmują wolne miejsce */
+            gap:18px
+        }
         .link{padding:10px 12px; border-radius:10px; color:var(--fg); opacity:0.9;}
         .link:hover,.link:focus-visible{
             background:color-mix(in srgb, var(--fg) 10%, transparent);
             opacity: 1;
             outline:none
         }
-        .nav-actions{justify-self:end; display:flex; align-items:center; gap: 8px;} /* Zmniejszony odstęp */
+        .nav-actions{
+            display:flex;
+            align-items:center;
+            gap: 8px;
+            /* justify-self:end; -- niepotrzebne przy flex */
+        }
         .btn{
             display:inline-flex; gap:10px; align-items:center; padding:12px 18px; border-radius:12px;
             font-weight:800; letter-spacing:.2px;
@@ -164,7 +183,7 @@
         html[data-theme="light"] .icon-sun { display: block; }
         html[data-theme="light"] .icon-moon { display: none; }
 
-        /* NOWY: Przełącznik języka (Slider) */
+        /* Przełącznik języka (Slider) */
         .lang-slider {
             position: relative;
             display: flex;
@@ -250,8 +269,19 @@
         @media (max-width:980px){
             .links{display:none}
             .burger{display:grid} /* Pokazuje burger na mobile */
-            /* Ukrywa tylko przycisk "Kontakt", zostawia przełączniki */
-            .nav-actions .btn{display:none}
+            /* POPRAWKA: Ukrywa przycisk, przełącznik języka i motywu */
+            .nav-actions .btn,
+            .nav-actions .lang-slider,
+            .nav-actions .theme-toggle {
+                display: none;
+            }
+        }
+
+        /* POPRAWKA: Ukrywa tekst logo na najmniejszych ekranach */
+        @media (max-width: 480px) {
+            .brand span {
+                display: none;
+            }
         }
 
         .scrim{position:fixed; inset:var(--nav) 0 0 0; background:rgba(0,0,0,.55); backdrop-filter:blur(2px); opacity:0; pointer-events:none; transition:opacity .3s ease}
@@ -287,6 +317,56 @@
             border:1px solid var(--border); color:var(--fg); font-weight:600;
             box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--fg) 6%, transparent);
         }
+
+        /* POPRAWKA: Nowe style dla akcji w menu mobilnym */
+        .mobile-actions {
+            padding: 0 26px 22px; /* Dopasowany padding */
+            margin-top: 10px;
+            border-top: 1px solid var(--border);
+            padding-top: 22px; /* Odstęp od kreski */
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .lang-slider-mobile {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+        }
+        .lang-slider-mobile .lang-option {
+            font-weight: 800;
+            color: var(--fg-muted);
+            font-size: 16px;
+            text-transform: uppercase;
+        }
+        .lang-slider-mobile .lang-option.active {
+            color: var(--fg);
+        }
+        .theme-toggle-mobile {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+            padding: 14px;
+            border-radius: 12px;
+            background: color-mix(in srgb, var(--fg) 9%, transparent);
+            border: 1px solid var(--border);
+            color: var(--fg);
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .theme-toggle-mobile svg {
+            width: 20px;
+            height: 20px;
+        }
+        /* Logika pokazywania ikon słońca/księżyca dla przycisku mobilnego */
+        .theme-toggle-mobile .icon-sun { display: none; }
+        .theme-toggle-mobile .icon-moon { display: block; }
+        html[data-theme="light"] .theme-toggle-mobile .icon-sun { display: block; }
+        html[data-theme="light"] .theme-toggle-mobile .icon-moon { display: none; }
+
 
         /* HERO (2/3 ekranu) */
         .hero{
@@ -523,7 +603,7 @@
         body.no-scroll{overflow:hidden}
         @supports(height:100dvh){ #expoModal{min-height:100dvh} }
 
-        /* ====== NOWOŚĆ: Style dla animacji na scroll ====== */
+        /* ====== Style dla animacji na scroll ====== */
         [data-reveal] {
             opacity: 0;
             transform: translateY(24px);
@@ -618,19 +698,23 @@
         </nav>
 
         <div class="nav-actions">
+            {{-- Ten przycisk będzie ukryty na @media (max-width: 980px) --}}
             <a class="btn" href="#contact" id="contactBtn">{{ __('messages.nav.contact') }}</a>
 
+            {{-- Ten przełącznik będzie ukryty na @media (max-width: 980px) --}}
             <div class="lang-slider @if($isEn) lang-en @endif">
                 <span class="lang-slider-thumb"></span>
                 <a href="{{ $langSwitchUrlPl }}" class="lang-option @if(!$isEn) active @endif" aria-label="{{ __('messages.lang_toggle_aria_pl') }}" lang="pl">PL</a>
                 <a href="{{ $langSwitchUrlEn }}" class="lang-option @if($isEn) active @endif" aria-label="{{ __('messages.lang_toggle_aria_en') }}" lang="en">EN</a>
             </div>
 
+            {{-- Ten przełącznik będzie ukryty na @media (max-width: 980px) --}}
             <button id="theme-toggle" class="theme-toggle" aria-label="{{ __('messages.theme_toggle_aria') }}">
                 <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
                 <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
             </button>
 
+            {{-- Ten przycisk będzie WIDOCZNY tylko na @media (max-width: 980px) --}}
             <button id="burger" class="burger" aria-controls="mobilePanel" aria-expanded="false" aria-label="{{ __('messages.menu_aria') }}">
                 <svg class="burger-svg" viewBox="0 0 24 24">
                     <path class="burger-line burger-line1" d="M 3,6 H 21" />
@@ -650,6 +734,19 @@
             <a href="#faq">{{ __('messages.nav.faq') }}</a>
             <a href="#download">{{ __('messages.nav.download') }}</a>
             <a href="#contact">{{ __('messages.nav.contact') }}</a>
+        </div>
+
+        <div class="mobile-actions">
+            <div class="lang-slider-mobile">
+                <a href="{{ $langSwitchUrlPl }}" class="lang-option @if(!$isEn) active @endif" lang="pl">PL</a>
+                <a href="{{ $langSwitchUrlEn }}" class="lang-option @if($isEn) active @endif" lang="en">EN</a>
+            </div>
+            <button id="theme-toggle-mobile" class="theme-toggle-mobile">
+                {{-- Ikony skopiowane z przycisku desktopowego --}}
+                <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                <span>{{ __('messages.theme_toggle_aria') }}</span>
+            </button>
         </div>
     </div>
 </div>
@@ -743,7 +840,6 @@
             <div class="faq-item" role="listitem" data-reveal style="--idx: 0">
                 <button class="faq-q" aria-expanded="false">
                     <span>{{ __('messages.faq.q1') }}</span>
-                    {{-- NOWOŚĆ: Ikona SVG zamiast tekstu --}}
                     <svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </button>
                 <div class="faq-a"><p>{{ __('messages.faq.a1') }}</p></div>
@@ -751,7 +847,6 @@
             <div class="faq-item" role="listitem" data-reveal style="--idx: 1">
                 <button class="faq-q" aria-expanded="false">
                     <span>{{ __('messages.faq.q2') }}</span>
-                    {{-- NOWOŚĆ: Ikona SVG zamiast tekstu --}}
                     <svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </button>
                 <div class="faq-a"><p>{{ __('messages.faq.a2') }}</p></div>
@@ -759,7 +854,6 @@
             <div class="faq-item" role="listitem" data-reveal style="--idx: 2">
                 <button class="faq-q" aria-expanded="false">
                     <span>{{ __('messages.faq.q3') }}</span>
-                    {{-- NOWOŚĆ: Ikona SVG zamiast tekstu --}}
                     <svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </button>
                 <div class="faq-a"><p>{{ __('messages.faq.a3') }}</p></div>
@@ -767,7 +861,6 @@
             <div class="faq-item" role="listitem" data-reveal style="--idx: 3">
                 <button class="faq-q" aria-expanded="false">
                     <span>{{ __('messages.faq.q4') }}</span>
-                    {{-- NOWOŚĆ: Ikona SVG zamiast tekstu --}}
                     <svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </button>
                 <div class="faq-a"><p>{{ __('messages.faq.a4') }}</p></div>
@@ -811,7 +904,6 @@
 </section>
 
 <footer>
-    {{-- NOWOŚĆ: Ikona SVG zamiast tekstu --}}
     <a class="top" href="#top" aria-label="{{ __('messages.footer.top_aria') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="18 15 12 9 6 15"></polyline>
@@ -892,6 +984,9 @@
             scrim.classList.toggle('open', open);
             burger.classList.toggle('open', open); // Kontroluje animację ikony
             burger.setAttribute('aria-expanded', String(open));
+
+            // POPRAWKA: Blokowanie scrolla na body
+            document.body.classList.toggle('no-scroll', open);
         }
 
         burger.addEventListener('click', function(){ setState(!open); });
@@ -936,11 +1031,10 @@
         document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && container.classList.contains('open')) close(); });
     })();
 
-    /* Przełącznik motywów */
+    /* POPRAWKA: Przełącznik motywów (dla obu przycisków) */
     (function() {
-        var toggleBtn = document.getElementById('theme-toggle');
-
-        function toggleTheme(e) {
+        // Wspólna funkcja do zmiany motywu
+        function toggleTheme() {
             var currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
             var newTheme = currentTheme === 'dark' ? 'light' : 'dark';
             document.documentElement.setAttribute('data-theme', newTheme);
@@ -951,8 +1045,18 @@
             }
         }
 
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', toggleTheme);
+        // Znajdź oba przyciski
+        var desktopToggleBtn = document.getElementById('theme-toggle');
+        var mobileToggleBtn = document.getElementById('theme-toggle-mobile'); // Nowy ID
+
+        // Dodaj listener do przycisku desktopowego
+        if (desktopToggleBtn) {
+            desktopToggleBtn.addEventListener('click', toggleTheme);
+        }
+
+        // Dodaj listener do przycisku mobilnego
+        if (mobileToggleBtn) {
+            mobileToggleBtn.addEventListener('click', toggleTheme);
         }
     })();
 
@@ -1050,7 +1154,7 @@
         }
     })();
 
-    /* ====== NOWOŚĆ: Animacje na scroll (Intersection Observer) ====== */
+    /* ====== Animacje na scroll (Intersection Observer) ====== */
     (function(){
         // Sprawdź, czy użytkownik nie preferuje zredukowanego ruchu
         var prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
