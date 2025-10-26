@@ -110,9 +110,12 @@ class CourseController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        // AUTORYZACJA: Sprawdzamy, czy użytkownik ma rolę admina lub nauczyciela w kursie
+        // AUTORYZACJA: Dodano sprawdzenie, czy użytkownik jest twórcą kursu
         $role = $user->roleInCourse($course);
-        if ($role !== 'admin' && $role !== 'teacher') {
+        $isCreator = $user->id === $course->user_id;
+
+        // Zablokuj, jeśli użytkownik NIE jest adminem, nauczycielem ANI twórcą
+        if ($role !== 'admin' && $role !== 'teacher' && !$isCreator) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
@@ -140,7 +143,6 @@ class CourseController extends Controller
             'course'  => $course->only(['id', 'title', 'description', 'type', 'user_id']) + ['avatar_url' => $course->avatar_url],
         ]);
     }
-
     /**
      * Aktualizuje avatar kursu (POST /api/courses/{id}/avatar)
      */
