@@ -21,7 +21,7 @@ return [
         'lead' => 'A fast, lightweight note-taking app with secure synchronization.',
         'cta_android' => 'Download for Android',
         'cta_ios' => 'Download for iOS',
-        'cta_ios_tooltip' => 'iOS version temporarily unavailable. </br>We are working on the App Store release.',
+        'cta_ios_tooltip' => 'iOS version temporarily unavailable.  We are working on the App Store release.',
         'cta_expo' => 'Preview in Expo GO',
     ],
     'shots' => [
