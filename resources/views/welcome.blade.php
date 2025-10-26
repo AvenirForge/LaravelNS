@@ -1,7 +1,9 @@
 @php
-    // NAPRAWA: Ustawienie języka na podstawie parametru URL lub domyślnego 'pl'
-    // To zapewnia, że 'pl' jest domyślny, jeśli 'lang' nie jest ustawiony.
-    $locale = request()->query('lang', config('app.fallback_locale', 'pl'));
+    // PERFEKCYJNA POPRAWKA: Domyślny język to 'pl', chyba że ?lang=en jest w URL.
+    // Używamy 'pl' jako twardego domyślnego, ignorując config('app.fallback_locale')
+    $locale = request()->query('lang', 'pl');
+
+    // Walidacja, na wypadek gdyby ktoś podał np. ?lang=de
     if (!in_array($locale, ['pl', 'en'])) {
         $locale = 'pl';
     }
@@ -12,6 +14,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+    {{-- Użycie tłumaczenia w tytule --}}
     <title>{{ __('messages.title') }}</title>
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Pacifico&display=swap" rel="stylesheet" />
@@ -44,7 +47,7 @@
 
             /* === STAŁE === */
             --radius: 16px;
-            --nav: 78px;
+            --nav: 70px; /* Zmniejszona wysokość dla zgrabniejszego wyglądu */
             --container: 1400px;
             --blur: 16px;
         }
@@ -119,24 +122,21 @@
             border-bottom:1px solid var(--border);
             box-shadow:var(--shadow);
         }
-        /* POPRAWKA: Zmiana z grid na flex dla lepszej kontroli na mobilnych */
         .nav-inner{
-            display:flex; /* Zamiast grid */
-            justify-content: space-between; /* Kluczowe dla mobilnych */
+            display:grid;
+            grid-template-columns:auto 1fr auto; /* [Logo] [Links] [Actions] */
             align-items:center;
             gap:12px;
             width:100%
         }
         .brand{display:inline-flex; align-items:center; gap:10px; color:var(--fg);}
-        .brand span{font-family:Pacifico,cursive; font-size:28px; letter-spacing:.2px; opacity:.95}
-        .brand-logo{width:60px; height:auto; margin-right:4px; fill:var(--fg); transition:transform .25s ease, opacity .25s ease}
+        .brand span{font-family:Pacifico,cursive; font-size:26px; letter-spacing:.2px; opacity:.95} /* Lekko zmniejszone dla balansu */
+        .brand-logo{width:54px; height:auto; margin-right:4px; fill:var(--fg); transition:transform .25s ease, opacity .25s ease} /* Lekko zmniejszone */
         .brand:hover .brand-logo{transform:rotate(-5deg) scale(1.05); opacity:.9}
 
-        /* POPRAWKA: Użycie flex-grow dla .links, aby wycentrować je na desktopie */
         .links{
+            justify-self:center; /* Kluczowe dla GRID */
             display:flex;
-            justify-content: center; /* Centrowanie linków */
-            flex-grow: 1; /* Linki zajmują wolne miejsce */
             gap:18px
         }
         .link{padding:10px 12px; border-radius:10px; color:var(--fg); opacity:0.9;}
@@ -146,10 +146,10 @@
             outline:none
         }
         .nav-actions{
+            justify-self:end; /* Kluczowe dla GRID */
             display:flex;
             align-items:center;
             gap: 8px;
-            /* justify-self:end; -- niepotrzebne przy flex */
         }
         .btn{
             display:inline-flex; gap:10px; align-items:center; padding:12px 18px; border-radius:12px;
@@ -161,7 +161,7 @@
         }
         .btn:hover{transform:translateY(-1px); filter:saturate(1.08); box-shadow:0 12px 34px rgba(0,0,0,.42), inset 0 0 0 1px color-mix(in srgb, var(--text-on-primary) 35%, transparent)}
 
-        /* Przełącznik motywu (Desktop i Mobile) */
+        /* Przełącznik motywu (Desktop) */
         .theme-toggle {
             display: grid;
             place-items: center;
@@ -183,7 +183,7 @@
         html[data-theme="light"] .icon-sun { display: block; }
         html[data-theme="light"] .icon-moon { display: none; }
 
-        /* Przełącznik języka (Slider) */
+        /* Przełącznik języka (Desktop Slider) */
         .lang-slider {
             position: relative;
             display: flex;
@@ -228,7 +228,7 @@
         }
 
 
-        /* Mobile */
+        /* === Mobile === */
 
         /* Animowany Burger */
         .burger{
@@ -266,20 +266,20 @@
             transform: translateY(-7px) rotate(-45deg);
         }
 
-        @media (max-width:980px){
+        /* Media query dla mobilnej nawigacji */
+        @media (max-width: 980px){
+            /* Zmiana na flex, aby rozsunąć logo i burgera */
+            .nav-inner {
+                display: flex;
+                justify-content: space-between;
+            }
             .links{display:none}
             .burger{display:grid} /* Pokazuje burger na mobile */
-            /* POPRAWKA: Ukrywa przycisk, przełącznik języka i motywu */
+
+            /* Ukrywa WSZYSTKIE akcje desktopowe z belki */
             .nav-actions .btn,
             .nav-actions .lang-slider,
             .nav-actions .theme-toggle {
-                display: none;
-            }
-        }
-
-        /* POPRAWKA: Ukrywa tekst logo na najmniejszych ekranach */
-        @media (max-width: 480px) {
-            .brand span {
                 display: none;
             }
         }
@@ -318,36 +318,55 @@
             box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--fg) 6%, transparent);
         }
 
-        /* POPRAWKA: Nowe style dla akcji w menu mobilnym */
+        /* Nowe, "perfekcyjne" style dla akcji mobilnych */
         .mobile-actions {
-            padding: 0 26px 22px; /* Dopasowany padding */
+            padding: 0 26px 22px;
             margin-top: 10px;
             border-top: 1px solid var(--border);
-            padding-top: 22px; /* Odstęp od kreski */
+            padding-top: 22px;
             display: flex;
             flex-direction: column;
+            align-items: center; /* Centrowanie przełączników */
             gap: 16px;
         }
-        .lang-slider-mobile {
+
+        /* Przełącznik języka (Mobile - Segmented Control) */
+        .mobile-lang-switch {
             display: flex;
-            justify-content: center;
-            gap: 12px;
+            width: 100%;
+            max-width: 320px; /* Ograniczenie szerokości dla estetyki */
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--bg3);
         }
-        .lang-slider-mobile .lang-option {
+        .mobile-lang-switch .lang-option {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            font-size: 14px;
             font-weight: 800;
             color: var(--fg-muted);
-            font-size: 16px;
             text-transform: uppercase;
+            transition: all 0.25s ease;
         }
-        .lang-slider-mobile .lang-option.active {
+        /* Aktywna opcja ma wyraźne tło */
+        .mobile-lang-switch .lang-option.active {
             color: var(--fg);
+            background: var(--card);
+            border-radius: 10px; /* Wewnętrzny radius */
+            margin: 3px; /* Daje efekt "pigułki" */
+            box-shadow: 0 2px 4px rgba(0,0,0,.2);
         }
+
+        /* Przełącznik motywu (Mobile) */
         .theme-toggle-mobile {
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 12px;
             width: 100%;
+            max-width: 320px; /* Dopasowanie do przełącznika języka */
             padding: 14px;
             border-radius: 12px;
             background: color-mix(in srgb, var(--fg) 9%, transparent);
@@ -361,7 +380,6 @@
             width: 20px;
             height: 20px;
         }
-        /* Logika pokazywania ikon słońca/księżyca dla przycisku mobilnego */
         .theme-toggle-mobile .icon-sun { display: none; }
         .theme-toggle-mobile .icon-moon { display: block; }
         html[data-theme="light"] .theme-toggle-mobile .icon-sun { display: block; }
@@ -386,7 +404,6 @@
             max-width:980px; margin-inline:auto;
             display:flex; flex-direction:column; align-items:center; gap:22px; text-align:center;
         }
-        /* Kicker usunięty zgodnie z dostarczonym plikiem */
         h1{
             margin:6px 0 10px; font-weight:800; line-height:1.02; font-size:clamp(42px,6.2vw,74px);
             background:linear-gradient(180deg, var(--fg) 60%, color-mix(in srgb, var(--fg) 80%, var(--primary)) 100%);
@@ -399,6 +416,7 @@
             background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); color:var(--text-on-primary);
             box-shadow:0 14px 40px rgba(0,0,0,.35), inset 0 0 0 1px color-mix(in srgb, var(--text-on-primary) 28%, transparent);
             transition:transform .18s ease, box-shadow .2s ease, filter .2s ease;
+            text-decoration: none; /* Upewnij się, że linki nie mają podkreślenia */
         }
         .cta:hover{transform:translateY(-2px); filter:saturate(1.05); box-shadow:0 18px 48px rgba(0,0,0,.45), inset 0 0 0 1px color-mix(in srgb, var(--text-on-primary) 36%, transparent)}
 
@@ -471,8 +489,6 @@
         .faq-q{width:100%; text-align:left; background:transparent; color:var(--fg); padding:16px 18px; font-weight:800; border:0; cursor:pointer; display:flex; justify-content:space-between; align-items:center}
         .faq-a{max-height:0; overflow:hidden; transition:max-height .45s cubic-bezier(.25,.8,.25,1), opacity .35s ease; opacity:0; padding:0 18px}
         .faq-item.open .faq-a{opacity:1; padding:0 18px 16px}
-
-        /* POPRAWKA: Styl dla ikony SVG + animacja */
         .faq-icon{
             transition:transform .35s ease;
             width: 20px;
@@ -500,7 +516,6 @@
         footer{border-top:1px solid var(--border); padding:28px 18px 44px; color:var(--fg-muted); position:relative; text-align:center}
         .top{position:absolute; right:18px; top:18px; width:42px; height:42px; display:grid; place-items:center; border-radius:999px; background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); color:var(--text-on-primary); font-weight:900; box-shadow:var(--shadow)}
         .top:hover{transform:translateY(-2px)}
-        /* NOWOŚĆ: Styl dla ikony SVG w przycisku .top */
         .top svg {
             width: 20px;
             height: 20px;
@@ -509,14 +524,48 @@
 
         /* ====== DODATKI CTA + MODAL EXPO (RESPONSYWNE) ====== */
         .cta-stack{display:flex; flex-direction:column; gap:12px; width:100%; max-width:520px}
-        .cta-icon{width:20px; height:20px; object-fit:contain}
+
+        /* POPRAWKA: Ikony w .cta mają pełną widoczność */
+        .cta-icon{
+            width:20px;
+            height:20px;
+            object-fit:contain;
+            opacity: 1; /* Upewnij się, że są w pełni widoczne */
+            filter: none; /* Usuń ewentualne filtry */
+        }
+        /* POPRAWKA: Subtelny cień dla ikony Expo dla lepszego kontrastu */
+        .cta-icon[src*="expogo"] {
+            filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.7));
+        }
+
+        /* PERFEKCYJNA POPRAWKA: Style dla .cta-disabled skopiowane 1:1 z Twojego przykładu */
         .cta-disabled{
             background:linear-gradient(90deg, rgba(200,210,224,.65), rgba(160,170,186,.65));
-            color:rgba(8,16,33,.75); cursor:not-allowed;
+            color:rgba(8,16,33,.75);
+            cursor:not-allowed;
             box-shadow:0 10px 28px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.18);
         }
-        .cta-disabled:hover{transform:none; filter:none; box-shadow:0 10px 28px rgba(0,0,0,.28), inset 0 0 0 1px rgba(255,255,255,.20)}
+        .cta-disabled:hover{
+            transform:none; /* Blokuje efekt hover z .cta */
+            filter:none; /* Blokuje efekt hover z .cta */
+            /* Zostawia box-shadow jak w stanie normalnym, ale z lekką zmianą z Twojego przykładu */
+            box-shadow:0 10px 28px rgba(0,0,0,.28), inset 0 0 0 1px rgba(255,255,255,.20);
+        }
+
+        /* Styl dla kłódki pozostał bez zmian z Twojego przykładu */
         .padlock{width:18px; height:18px; opacity:.85}
+
+        /* POPRAWKA: Ikony wewnątrz .cta-disabled są lekko przezroczyste, ale czytelne */
+        .cta-disabled .cta-icon,
+        .cta-disabled .padlock {
+            opacity: 0.6;
+            filter: none; /* Usuń filtry, jeśli były */
+        }
+        /* Dla Expo można zachować drop-shadow, ale mniej intensywny */
+        .cta-disabled .cta-icon[src*="expogo"] {
+            filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.4));
+        }
+
 
         /* Tooltip na desktop */
         .tooltip{position:relative}
@@ -527,26 +576,53 @@
             padding:8px 10px; border-radius:10px; border:1px solid var(--border);
             white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .18s ease, transform .18s ease;
             box-shadow:0 12px 30px rgba(0,0,0,.35);
-        }
-        .tooltip:hover::after{opacity:1; transform:translateX(-50%) translateY(0)}
 
-        /* Toast dla przycisku iOS na mobile */
-        .mobile-toast {
+            /* Ukryj ten tooltip na urządzeniach dotykowych */
+            @media (hover: none) or (max-width: 980px) {
+                display: none !important;
+            }
+        }
+
+        /* NOWY, PERFEKCYJNY TOAST MOBILNY (bez zmian) */
+        .mobile-toast-perfect {
+            position: absolute;
+            bottom: 100%; /* Pokaż nad przyciskiem */
+            left: 50%;
+
             background: var(--bg3);
             color: var(--fg);
-            padding: 10px 14px;
+            padding: 12px 16px;
             border-radius: 10px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+
+            width: 90vw; /* Elastyczna szerokość */
+            max-width: 320px; /* Ale nie za szeroko */
             text-align: center;
             font-size: 14px;
             font-weight: 600;
-            margin-top: 10px;
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow);
-            animation: fadeIn .2s ease;
+
+            white-space: normal; /* Pozwala na zawijanie tekstu - kluczowe! */
+            margin-bottom: 10px; /* Odstęp od przycisku */
+
+            /* Domyślnie ukryty i gotowy do animacji */
+            opacity: 0;
+            visibility: hidden;
+            transform: translateX(-50%) translateY(5px); /* Lekkie przesunięcie w dół */
+            transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+            pointer-events: none; /* Nie blokuje kliknięć */
+            z-index: 10;
         }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-5px); }
-            to { opacity: 1; transform: translateY(0); }
+        .mobile-toast-perfect.is-visible {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(0);
+        }
+        /* Ukryj na desktopie (gdzie działa tooltip CSS) */
+        @media (hover: hover) and (min-width: 981px) {
+            .mobile-toast-perfect {
+                display: none !important;
+            }
         }
 
         /* Modal Expo GO */
@@ -685,10 +761,12 @@
 
 <div class="nav" role="banner">
     <div class="container nav-inner">
+
         <a class="brand" href="#top" aria-label="{{ __('messages.footer.home_aria') }}">
             <img src="/assets/images/logo-notesync.jpg" class="brand-logo" alt="" />
             <span>NoteSync</span>
         </a>
+
         <nav class="links" aria-label="Nawigacja główna">
             <a class="link" href="#features">{{ __('messages.nav.features') }}</a>
             <a class="link" href="#screens">{{ __('messages.nav.screens') }}</a>
@@ -698,6 +776,7 @@
         </nav>
 
         <div class="nav-actions">
+
             {{-- Ten przycisk będzie ukryty na @media (max-width: 980px) --}}
             <a class="btn" href="#contact" id="contactBtn">{{ __('messages.nav.contact') }}</a>
 
@@ -737,12 +816,13 @@
         </div>
 
         <div class="mobile-actions">
-            <div class="lang-slider-mobile">
+
+            <div class="mobile-lang-switch">
                 <a href="{{ $langSwitchUrlPl }}" class="lang-option @if(!$isEn) active @endif" lang="pl">PL</a>
                 <a href="{{ $langSwitchUrlEn }}" class="lang-option @if($isEn) active @endif" lang="en">EN</a>
             </div>
+
             <button id="theme-toggle-mobile" class="theme-toggle-mobile">
-                {{-- Ikony skopiowane z przycisku desktopowego --}}
                 <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
                 <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
                 <span>{{ __('messages.theme_toggle_aria') }}</span>
@@ -762,20 +842,25 @@
                 {{ __('messages.hero.cta_android') }}
             </a>
 
-            <a id="download-ios"
-               class="cta cta-disabled tooltip"
-               href="#"
-               aria-disabled="true"
-               data-tip="{{ __('messages.hero.cta_ios_tooltip') }}"
-               title="{{ __('messages.hero.cta_ios_tooltip') }}">
-                <img class="cta-icon" src="{{ asset('assets/images/ios.svg') }}" alt="" aria-hidden="true">
-                {{ __('messages.hero.cta_ios') }}
-                <svg class="padlock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <rect x="3.5" y="11" width="17" height="9" rx="2" ry="2" />
-                    <path d="M7 11V8a5 5 0 0 1 10 0v3" />
-                </svg>
-            </a>
-            {{-- Kontener na dynamiczny toast mobilny pojawi się tutaj --}}
+            <div style="position: relative; width: 100%;">
+                <a id="download-ios"
+                   class="cta cta-disabled tooltip" {{-- Klasy definiujące wygląd --}}
+                   href="#" {{-- Link donikąd --}}
+                   aria-disabled="true" {{-- Dla czytników ekranu --}}
+                   data-tip="{{ __('messages.hero.cta_ios_tooltip') }}" {{-- Tooltip na desktop --}}
+                   title="{{ __('messages.hero.cta_ios_tooltip') }}"> {{-- Fallback title --}}
+                    <img class="cta-icon" src="{{ asset('assets/images/ios.svg') }}" alt="" aria-hidden="true">
+                    {{ __('messages.hero.cta_ios') }}
+                    <svg class="padlock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <rect x="3.5" y="11" width="17" height="9" rx="2" ry="2" />
+                        <path d="M7 11V8a5 5 0 0 1 10 0v3" />
+                    </svg>
+                </a>
+
+                <div id="ios-toast-mobile" class="mobile-toast-perfect" role="tooltip" aria-hidden="true">
+                    {{ __('messages.hero.cta_ios_tooltip') }}
+                </div>
+            </div>
 
             <a id="expogoBtn" class="cta" href="#" rel="nofollow" aria-haspopup="dialog" aria-controls="expoModal">
                 <img class="cta-icon" src="{{ asset('assets/images/expogo.svg') }}" alt="" aria-hidden="true">
@@ -985,7 +1070,7 @@
             burger.classList.toggle('open', open); // Kontroluje animację ikony
             burger.setAttribute('aria-expanded', String(open));
 
-            // POPRAWKA: Blokowanie scrolla na body
+            // Blokowanie scrolla na body
             document.body.classList.toggle('no-scroll', open);
         }
 
@@ -1031,7 +1116,7 @@
         document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && container.classList.contains('open')) close(); });
     })();
 
-    /* POPRAWKA: Przełącznik motywów (dla obu przycisków) */
+    /* Przełącznik motywów (dla obu przycisków) */
     (function() {
         // Wspólna funkcja do zmiany motywu
         function toggleTheme() {
@@ -1063,35 +1148,38 @@
     /* CTA iOS (disabled) + MODAL Expo GO */
     (function(){
         var iosBtn = document.getElementById('download-ios');
-        var clickCount = 0;
-        var existingToast = null;
+        var iosToast = document.getElementById('ios-toast-mobile'); // Znajdź idealny toast
         var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
-        if(iosBtn){
+        if(iosBtn && iosToast){ // Sprawdź czy oba elementy istnieją
             iosBtn.addEventListener('click', function(e){
-                e.preventDefault();
+                e.preventDefault(); // Zawsze blokuj kliknięcie
 
+                // Na urządzeniach dotykowych, przełączaj nasz "idealny" toast
                 if (isTouch) {
-                    clickCount++;
-                    if (clickCount === 1) {
-                        if (existingToast) existingToast.remove();
-                        var toast = document.createElement('div');
-                        toast.className = 'mobile-toast';
-                        toast.textContent = translations.iosToast; // Użycie tłumaczenia JS
-                        iosBtn.parentNode.insertBefore(toast, iosBtn.nextSibling);
-                        existingToast = toast;
-                    } else if (clickCount === 2) {
-                        if (existingToast) {
-                            existingToast.remove();
-                            existingToast = null;
-                        }
-                        clickCount = 0;
+                    // Przełącz klasę
+                    var isVisible = iosToast.classList.toggle('is-visible');
+                    // Ustaw ARIA dla dostępności
+                    iosToast.setAttribute('aria-hidden', !isVisible);
+                }
+                // Na desktopie (non-touch) nic się nie stanie (poza eventDefault)
+                // a tooltip CSS zadziała przy hover, co jest poprawnym zachowaniem
+            });
+
+            // Listener "click-away" dla lepszego UX
+            document.addEventListener('click', function(e) {
+                // Jeśli kliknięcie NIE jest w przycisk iOS I NIE jest w sam toast
+                if (!iosBtn.contains(e.target) && !iosToast.contains(e.target)) {
+                    // Tylko jeśli toast jest aktualnie widoczny
+                    if (iosToast.classList.contains('is-visible')) {
+                        iosToast.classList.remove('is-visible'); // Ukryj toast
+                        iosToast.setAttribute('aria-hidden', 'true');
                     }
                 }
             });
         }
 
-        // Modal Expo GO
+        // Modal Expo GO (bez zmian)
         var expoModal = document.createElement('div');
         expoModal.id = 'expoModal';
         expoModal.className = 'lightbox';
