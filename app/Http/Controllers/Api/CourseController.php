@@ -154,9 +154,11 @@ class CourseController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        // AUTORYZACJA: (Taka sama jak w update)
+        // AUTORYZACJA: Dodano sprawdzenie, czy użytkownik jest twórcą kursu
         $role = $user->roleInCourse($course);
-        if ($role !== 'admin' && $role !== 'teacher') {
+        $isCreator = $user->id === $course->user_id;
+
+        if ($role !== 'admin' && $role !== 'teacher' && !$isCreator) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
@@ -191,9 +193,6 @@ class CourseController extends Controller
         ]);
     }
 
-    /**
-     * Pobiera plik avatara kursu (GET /api/courses/{id}/avatar)
-     */
     public function downloadAvatar(string $id): BinaryFileResponse|JsonResponse
     {
         // Ta metoda nie wymaga autoryzacji, aby pobrać publiczny avatar kursu
