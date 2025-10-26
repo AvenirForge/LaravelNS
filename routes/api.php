@@ -26,6 +26,7 @@ Route::middleware('auth:api')->group(function () {
         // COURSES
         Route::get('/courses',                 [CourseController::class, 'index']);
         Route::get('/courses/{id}/avatar',     [CourseController::class, 'downloadAvatar']);
+        Route::post('/courses/{id}/avatar',     [CourseController::class, 'updateAvatar']);
         Route::post('/courses',                [CourseController::class, 'store']);
         Route::patch('/courses/{id}',          [CourseController::class, 'update']);
         Route::delete('/courses/{id}',         [CourseController::class, 'destroy']);

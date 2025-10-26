@@ -12,9 +12,12 @@ class Course extends Model
 {
     use HasFactory;
 
+    public const DEFAULT_AVATAR_RELATIVE = 'courses/avatars/default.png';
+
     protected $table = 'courses';
     protected $fillable = ['title', 'description', 'type', 'user_id', 'avatar'];
 
+    // ===== Relacje =====
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'courses_users')
@@ -25,10 +28,20 @@ class Course extends Model
     public function notes(): HasMany       { return $this->hasMany(Note::class); }
     public function invitations(): HasMany { return $this->hasMany(Invitation::class); }
 
-    public function downloadAvatar(): string
+    // ===== Atrybuty =====
+    public function getAvatarUrlAttribute(): ?string
     {
-        return ($this->avatar && Storage::disk('public')->exists($this->avatar))
-            ? $this->avatar
-            : 'avatars/default_course_avatar.png';
+        $rel = $this->avatar ?: self::DEFAULT_AVATAR_RELATIVE;
+        return Storage::disk('public')->exists($rel) ? Storage::url($rel) : null;
+    }
+
+    // ===== Avatar =====
+    public function changeAvatar($file): void
+    {
+        $disk = Storage::disk('public');
+        if ($this->avatar && $this->avatar !== self::DEFAULT_AVATAR_RELATIVE && $disk->exists($this->avatar)) {
+            $disk->delete($this->avatar);
+        }
+        $this->forceFill(['avatar' => $file->store('courses/avatars', 'public')])->save();
     }
 }

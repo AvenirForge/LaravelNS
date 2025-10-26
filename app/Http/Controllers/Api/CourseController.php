@@ -7,6 +7,7 @@ use App\Models\Course;
 use App\Models\Note;
 use App\Models\Test;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Response;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response as Http;
 
 class CourseController extends Controller
@@ -98,18 +100,118 @@ class CourseController extends Controller
         $courses = empty($ids) ? [] : Course::whereIn('id', $ids)->get();
         return response()->json($courses);
     }
-
-    public function downloadAvatar($id)
+    public function update(Request $request, string $id): JsonResponse
     {
         $course = Course::findOrFail($id);
-        if (!$this->checkPermissions($course)) return response()->json(['error'=>'Forbidden'], 403);
 
-        if (!$course->avatar) return response()->json(['error'=>'No avatar found for this course'], 404);
-        if (!Storage::disk('public')->exists($course->avatar)) return response()->json(['error'=>'Avatar file not found'], 404);
+        /** @var User|null $user */
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
-        $absolute = Storage::disk('public')->path($course->avatar);
-        $mime = Storage::disk('public')->mimeType($course->avatar) ?? 'image/jpeg';
-        return Response::file($absolute, ['Content-Type'=>$mime]);
+        // AUTORYZACJA: Sprawdzamy, czy użytkownik ma rolę admina lub nauczyciela w kursie
+        $role = $user->roleInCourse($course);
+        if ($role !== 'admin' && $role !== 'teacher') {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'title'       => 'sometimes|present|string|max:255',
+            'description' => 'sometimes|present|string|nullable',
+            'type'        => 'sometimes|present|string|max:100', // Możesz dodać regułę 'in:type1,type2'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->errors()], 400);
+        }
+
+        // Logika aktualizacji identyczna jak w User::update
+        if ($request->has('title'))       { $course->title       = (string) $request->input('title'); }
+        if ($request->has('description')) { $course->description = (string) $request->input('description'); }
+        if ($request->has('type'))        { $course->type        = (string) $request->input('type'); }
+
+        $course->save();
+        $course->refresh();
+
+        return response()->json([
+            'message' => 'Course updated successfully!',
+            // Zwracamy dane + avatar_url, tak jak w odpowiedzi User
+            'course'  => $course->only(['id', 'title', 'description', 'type', 'user_id']) + ['avatar_url' => $course->avatar_url],
+        ]);
+    }
+
+    /**
+     * Aktualizuje avatar kursu (POST /api/courses/{id}/avatar)
+     */
+    public function updateAvatar(Request $request, string $id): JsonResponse
+    {
+        $course = Course::findOrFail($id);
+
+        /** @var User|null $user */
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        // AUTORYZACJA: (Taka sama jak w update)
+        $role = $user->roleInCourse($course);
+        if ($role !== 'admin' && $role !== 'teacher') {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        // Walidacja identyczna jak w User::updateAvatar
+        if (!$request->hasFile('avatar')) {
+            return response()->json(['error' => ['avatar' => ['The avatar file is required.']]], 400);
+        }
+        $validator = Validator::make($request->all(), [
+            'avatar' => 'required|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->errors()], 400);
+        }
+
+        // Logika zapisu pliku identyczna jak w User::updateAvatar
+        if ($course->avatar && $course->avatar !== Course::DEFAULT_AVATAR_RELATIVE) {
+            if (Storage::disk('public')->exists($course->avatar)) {
+                Storage::disk('public')->delete($course->avatar);
+            }
+        }
+
+        $path = $request->file('avatar')->store('courses/avatars', 'public');
+        $course->avatar = $path;
+        $course->save();
+        $course->refresh();
+
+        // Odpowiedź identyczna jak w User::updateAvatar
+        return response()->json([
+            'message'    => 'Avatar updated successfully!',
+            'avatar_url' => $course->avatar_url,
+            'course'     => $course->only(['id', 'title', 'description', 'type', 'user_id']) + ['avatar_url' => $course->avatar_url],
+        ]);
+    }
+
+    /**
+     * Pobiera plik avatara kursu (GET /api/courses/{id}/avatar)
+     */
+    public function downloadAvatar(string $id): BinaryFileResponse|JsonResponse
+    {
+        // Ta metoda nie wymaga autoryzacji, aby pobrać publiczny avatar kursu
+        // W kontrolerze User była ona na zalogowanym użytkowniku, bo dotyczyła /me
+        $course = Course::findOrFail($id);
+
+        // Logika pobierania identyczna jak w User::downloadAvatar
+        $relative = $course->avatar ?: Course::DEFAULT_AVATAR_RELATIVE;
+
+        if (!Storage::disk('public')->exists($relative)) {
+            $relative = Course::DEFAULT_AVATAR_RELATIVE; // Spróbuj domyślnego, jeśli przypisany nie istnieje
+            if (!Storage::disk('public')->exists($relative)) {
+                return response()->json(['error' => 'Avatar not found'], 404); // Błąd, jeśli nawet domyślny nie istnieje
+            }
+        }
+
+        $absolute = Storage::disk('public')->path($relative);
+        return response()->download($absolute);
     }
 
     public function store(Request $request)
@@ -145,29 +247,7 @@ class CourseController extends Controller
         return response()->json(['message'=>'Course created successfully!','course'=>$course], 201);
     }
 
-    public function update(Request $request, $id)
-    {
-        $course = Course::findOrFail($id);
-        if (!$this->checkPermissions($course)) return response()->json(['error'=>'Forbidden'], 403);
 
-        $v = Validator::make($request->all(), [
-            'title'       => 'sometimes|required|string|max:255',
-            'description' => 'sometimes|required|string',
-            'type'        => 'sometimes|required|in:public,private,100% private',
-            'avatar'      => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
-        ]);
-        if ($v->fails()) return response()->json(['error'=>$v->errors()], 400);
-
-        $course->update($request->only('title','description','type'));
-        if ($request->hasFile('avatar')) {
-            if ($course->avatar && Storage::disk('public')->exists($course->avatar)) {
-                Storage::disk('public')->delete($course->avatar);
-            }
-            $course->avatar = $request->file('avatar')->store('courses/avatars','public');
-            $course->save();
-        }
-        return response()->json(['message'=>'Course updated successfully','course'=>$course]);
-    }
 
     public function destroy($id)
     {
