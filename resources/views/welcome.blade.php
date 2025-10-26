@@ -1,7 +1,7 @@
 {{-- resources/views/welcome.blade.php --}}
 
-    <!doctype html>
-<html lang="pl">
+    <!doctype html
+    <html lang="pl" data-theme="dark"> {{-- Domyślnie ciemny, JS w <head> to skoryguje --}}
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -11,29 +11,66 @@
 
     <style>
         :root{
-            --bg:#07101d; --bg2:#0b1530; --fg:#eef3ff; --muted:#b4c0d6;
-            --card:rgba(255,255,255,.10); --border:rgba(255,255,255,.18);
-            --ctaA:#bff0ea; --ctaB:#1794e0; --accent:#1ea9ff;
+            /* === PALETA APLIKACJI (DARK) === */
+            --bg: #121212;
+            --bg2: #1F1F1F;
+            --bg3: #252525;
+            --card: #1F1F1F;
+            --border: #2C2C2C;
+            --fg: #EAEAEA;
+            --fg-muted: #808080;
+            --fg-inverted: #1E1E1E;
 
-            --shadow:0 14px 48px rgba(0,0,0,.36);
-            --radius:16px;
-            --nav:78px;
-            --container:1400px; /* poszerzone sekcje */
-            --blur:16px;
+            /* Akcenty (Dark) */
+            --primary: #2c78a7;
+            --text-on-primary: #EAEAEA;
+            --ctaA: #0f1798;
+            --ctaB: #2c78a7;
+            --dangerA: #750303;
+            --dangerB: #803434;
+
+            /* UI */
+            --bg-nav: rgba(18, 18, 18, .85); /* --bg z przezroczystością */
+            --grid-line: rgba(255,255,255,.04);
+            --shadow: 0 14px 48px rgba(0,0,0,.36);
+            --blur-tint: 'dark';
+
+            /* === STAŁE === */
+            --radius: 16px;
+            --nav: 78px;
+            --container: 1400px;
+            --blur: 16px;
         }
-        @media (prefers-color-scheme: light){
-            :root{
-                --bg:#f6f8fc; --bg2:#e9eef6; --fg:#0a1224; --muted:#4a5872;
-                --card:#ffffff; --border:rgba(0,0,0,.10);
-                --ctaA:#c1f4ed; --ctaB:#1794e0;
-                --shadow:0 12px 36px rgba(2,6,23,.12);
-            }
+
+        html[data-theme="light"] {
+            /* === PALETA APLIKACJI (LIGHT) === */
+            --bg: #F5F7FA; /* secondaryBackground */
+            --bg2: #FFFFFF; /* background */
+            --bg3: #E8EBF0; /* thirdBackground */
+            --card: #FFFFFF; /* background */
+            --border: #E1E4E8;
+            --fg: #1E1E1E;
+            --fg-muted: #6E6E73;
+            --fg-inverted: #EAEAEA;
+
+            /* Akcenty (Light) */
+            --primary: #1794e0;
+            --text-on-primary: #FFFFFF;
+            --ctaA: #7e9ace;
+            --ctaB: #1794e0;
+            --dangerA: #d38d89;
+            --dangerB: #e53935;
+
+            /* UI */
+            --bg-nav: rgba(245, 247, 250, .85); /* --bg z przezroczystością */
+            --grid-line: rgba(0,0,0,.04);
+            --shadow: 0 12px 36px rgba(2,6,23,.12);
+            --blur-tint: 'light';
         }
+
         @media (prefers-reduced-motion: reduce){ *{animation:none!important; transition:none!important} }
 
         *{box-sizing:border-box}
-        /* === MODYFIKACJA 3: Globalna blokada przepełnienia === */
-        /* Ta reguła definitywnie naprawia problem ucinania treści na mobile */
         html,body{
             height:100%;
             overflow-x:clip;
@@ -42,26 +79,26 @@
             margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;
             -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
             color:var(--fg); background:var(--bg);
+            transition: color .2s ease, background-color .2s ease;
         }
         a{color:inherit; text-decoration:none}
         img{display:block; max-width:100%; height:auto}
-        /* === MODYFIKACJA 1: Responsywne dopełnienie === */
         .container{max-width:var(--container); margin:0 auto; padding:0 clamp(16px, 4vw, 26px)}
         .container-narrow{max-width:1160px; margin:0 auto; padding:0 clamp(16px, 4vw, 26px)}
         [id]{scroll-margin-top:calc(var(--nav) + 12px)}
 
-        /* Globalne tło – nowoczesny gradient dopasowany do headera */
+        /* Globalne tło – dopasowane do motywu */
         .page-bg{position:relative; isolation:isolate;
             background:
-                radial-gradient(1000px 500px at 10% -10%, rgba(30,169,255,.18), transparent 60%),
-                radial-gradient(800px 420px at 110% -15%, rgba(74,222,255,.12), transparent 60%),
+                radial-gradient(1000px 500px at 10% -10%, color-mix(in srgb, var(--primary) 18%, transparent) 60%),
+                radial-gradient(800px 420px at 110% -15%, color-mix(in srgb, var(--primary) 12%, transparent) 60%),
                 linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
         }
         .page-bg::after{
             content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
             background:
-                linear-gradient(to right, rgba(255,255,255,.04) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(255,255,255,.04) 1px, transparent 1px);
+                linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+                linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
             background-size:42px 42px;
             mask-image:radial-gradient(1200px 600px at 50% 0%, rgba(0,0,0,.45), transparent 75%);
         }
@@ -71,52 +108,132 @@
             position:fixed; inset:0 0 auto 0; height:var(--nav); z-index:1000;
             display:flex; align-items:center;
             backdrop-filter:saturate(160%) blur(var(--blur));
-            background:linear-gradient(180deg, rgba(6,12,28,.94) 0%, rgba(6,12,28,.85) 70%, rgba(6,12,28,.70) 100%);
-            border-bottom:1px solid rgba(255,255,255,.15);
-            box-shadow:0 8px 24px rgba(0,0,0,.35);
+            background:var(--bg-nav);
+            border-bottom:1px solid var(--border);
+            box-shadow:var(--shadow);
         }
         .nav-inner{display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:12px; width:100%}
-        .brand{display:inline-flex; align-items:center; gap:10px; color:#e8eeff;}
+        .brand{display:inline-flex; align-items:center; gap:10px; color:var(--fg);}
         .brand span{font-family:Pacifico,cursive; font-size:28px; letter-spacing:.2px; opacity:.95}
-        .brand-logo{width:60px; height:auto; margin-right:4px; fill:#fff; transition:transform .25s ease, opacity .25s ease}
+        .brand-logo{width:60px; height:auto; margin-right:4px; fill:var(--fg); transition:transform .25s ease, opacity .25s ease}
         .brand:hover .brand-logo{transform:rotate(-5deg) scale(1.05); opacity:.9}
         .links{justify-self:center; display:flex; gap:18px}
-        .link{padding:10px 12px; border-radius:10px; color:#e8eeff}
-        .link:hover,.link:focus-visible{background:rgba(255,255,255,.10); outline:none}
+        .link{padding:10px 12px; border-radius:10px; color:var(--fg); opacity:0.9;}
+        .link:hover,.link:focus-visible{
+            background:color-mix(in srgb, var(--fg) 10%, transparent);
+            opacity: 1;
+            outline:none
+        }
         .nav-actions{justify-self:end; display:flex; align-items:center; gap:10px}
         .btn{
             display:inline-flex; gap:10px; align-items:center; padding:12px 18px; border-radius:12px;
             font-weight:800; letter-spacing:.2px;
-            background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); color:#061021; border:0;
-            box-shadow:0 8px 24px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.25);
+            background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); color:var(--text-on-primary); border:0;
+            box-shadow:0 8px 24px rgba(0,0,0,.35), inset 0 0 0 1px color-mix(in srgb, var(--text-on-primary) 25%, transparent);
             transition:transform .18s ease, filter .2s ease, box-shadow .2s ease;
+            cursor: pointer;
         }
-        .btn:hover{transform:translateY(-1px); filter:saturate(1.08); box-shadow:0 12px 34px rgba(0,0,0,.42), inset 0 0 0 1px rgba(255,255,255,.35)}
+        .btn:hover{transform:translateY(-1px); filter:saturate(1.08); box-shadow:0 12px 34px rgba(0,0,0,.42), inset 0 0 0 1px color-mix(in srgb, var(--text-on-primary) 35%, transparent)}
+
+        /* Przełącznik motywu (Desktop i Mobile) */
+        .theme-toggle {
+            display: grid;
+            place-items: center;
+            width: 44px; height: 44px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: color-mix(in srgb, var(--fg) 6%, transparent);
+            color: var(--fg);
+            cursor: pointer;
+            padding: 0;
+            transition: background-color .2s ease, border-color .2s ease;
+        }
+        .theme-toggle:hover {
+            background: color-mix(in srgb, var(--fg) 10%, transparent);
+        }
+        .theme-toggle svg { width: 20px; height: 20px; }
+        .icon-sun { display: none; }
+        .icon-moon { display: block; }
+        html[data-theme="light"] .icon-sun { display: block; }
+        html[data-theme="light"] .icon-moon { display: none; }
 
         /* Mobile */
-        .burger{display:none; width:44px; height:44px; border-radius:12px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.06); place-items:center; color:#fff}
-        .burger svg{width:22px; height:22px}
+
+        /* MODYFIKACJA: Animowany Burger */
+        .burger{
+            display:none; /* Ukryty domyślnie, widoczny na mobile */
+            width:44px; height:44px; border-radius:12px;
+            border:1px solid var(--border);
+            background:color-mix(in srgb, var(--fg) 6%, transparent);
+            color:var(--fg); cursor:pointer;
+            padding: 10px; /* Wewnętrzny padding dla SVG */
+        }
+        .burger:hover {
+            background: color-mix(in srgb, var(--fg) 10%, transparent);
+        }
+        .burger-svg {
+            width: 100%; height: 100%;
+            overflow: visible;
+        }
+        .burger-line {
+            fill: none;
+            stroke: var(--fg);
+            stroke-width: 2.5;
+            stroke-linecap: round;
+            transition: transform 0.3s cubic-bezier(0.23, 1, 0.32, 1),
+            opacity 0.2s ease;
+            transform-origin: center center;
+        }
+        /* Stan "X" (otwarte menu) */
+        .burger.open .burger-line1 {
+            transform: translateY(7px) rotate(45deg);
+        }
+        .burger.open .burger-line2 {
+            opacity: 0;
+        }
+        .burger.open .burger-line3 {
+            transform: translateY(-7px) rotate(-45deg);
+        }
+
         @media (max-width:980px){
             .links{display:none}
-            .burger{display:grid}
-            /* WYMAGANE: przycisk Kontakt znika z top baru w mobile */
+            .burger{display:grid} /* Pokazuje burger na mobile */
+            /* MODYFIKACJA: Ukrywa tylko przycisk "Kontakt", zostawia przełącznik motywu */
             .nav-actions .btn{display:none}
         }
+
         .scrim{position:fixed; inset:var(--nav) 0 0 0; background:rgba(0,0,0,.55); backdrop-filter:blur(2px); opacity:0; pointer-events:none; transition:opacity .3s ease}
         .scrim.open{opacity:1; pointer-events:auto}
+
+        /* MODYFIKACJA: Animacja panelu mobilnego */
         .mobile-panel{
             position:fixed; top:var(--nav); left:0; right:0; z-index:999;
-            background:linear-gradient(180deg, rgba(10,17,36,.98), rgba(10,17,36,.92));
-            border-bottom:1px solid rgba(255,255,255,.16); box-shadow:0 30px 60px rgba(0,0,0,.45);
-            overflow:hidden; max-height:0; opacity:0; transform:translateY(-8px);
-            transition:max-height .45s cubic-bezier(.25,.8,.25,1), opacity .35s ease, transform .35s ease;
+            background:linear-gradient(180deg, var(--bg) 95%, var(--bg2));
+            border-bottom:1px solid var(--border);
+            box-shadow:0 30px 60px rgba(0,0,0,.45);
+
+            /* Animacja slide-down */
+            clip-path: inset(0 0 100% 0);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1),
+            opacity 0.3s ease,
+            clip-path 0.4s cubic-bezier(0.23, 1, 0.32, 1),
+            visibility 0.4s;
         }
-        .mobile-panel.open{max-height:420px; opacity:1; transform:translateY(0)}
+        .mobile-panel.open{
+            clip-path: inset(0 0 0 0);
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
         .mobile-links{display:grid; gap:10px; padding:18px 26px 22px}
         .mobile-links a{
-            padding:14px; border-radius:12px; background:rgba(255,255,255,.09);
-            border:1px solid rgba(255,255,255,.18); color:#f5f8ff; font-weight:600;
-            box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);
+            padding:14px; border-radius:12px; background:color-mix(in srgb, var(--fg) 9%, transparent);
+            border:1px solid var(--border); color:var(--fg); font-weight:600;
+            box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--fg) 6%, transparent);
         }
 
         /* HERO (2/3 ekranu) */
@@ -128,8 +245,8 @@
         .hero::before{
             content:""; position:absolute; inset:0; z-index:-2;
             background:
-                radial-gradient(90% 50% at 80% 10%, rgba(30,169,255,.20), transparent 60%),
-                linear-gradient(180deg, rgba(8,12,26,.86) 0%, rgba(8,12,26,.78) 60%, rgba(8,12,26,.90) 100%),
+                radial-gradient(90% 50% at 80% 10%, color-mix(in srgb, var(--primary) 20%, transparent) 60%),
+                linear-gradient(180deg, color-mix(in srgb, var(--bg) 86%, transparent) 0%, color-mix(in srgb, var(--bg) 78%, transparent) 60%, color-mix(in srgb, var(--bg) 90%, transparent) 100%),
                 url('{{ asset('assets/images/ns-bg.jpg') }}') center/cover no-repeat;
             filter:saturate(1.02) contrast(1.03);
         }
@@ -137,25 +254,25 @@
             max-width:980px; margin-inline:auto;
             display:flex; flex-direction:column; align-items:center; gap:22px; text-align:center;
         }
-        .kicker{color:#c8d6f9; font-weight:700; letter-spacing:.18em; text-transform:uppercase; opacity:.9}
+        .kicker{color:var(--primary); font-weight:700; letter-spacing:.18em; text-transform:uppercase; opacity:.9}
         h1{
             margin:6px 0 10px; font-weight:800; line-height:1.02; font-size:clamp(42px,6.2vw,74px);
-            background:linear-gradient(180deg,#f7fbff 0%, #cfe6ff 70%, #9fcbff 100%);
+            background:linear-gradient(180deg, var(--fg) 60%, color-mix(in srgb, var(--fg) 80%, var(--primary)) 100%);
             -webkit-background-clip:text; background-clip:text; color:transparent;
             text-shadow:0 2px 16px rgba(0,0,0,.35);
         }
-        .lead{color:#e5eeff; font-size:clamp(16px,2.1vw,20px); margin:0 0 12px; text-shadow:0 1px 10px rgba(0,0,0,.25)}
+        .lead{color:var(--fg-muted); font-size:clamp(16px,2.1vw,20px); margin:0 0 12px; text-shadow:0 1px 10px rgba(0,0,0,.25)}
         .cta{
             display:inline-flex; gap:10px; align-items:center; padding:14px 22px; border-radius:14px; font-weight:800;
-            background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); color:#061021;
-            box-shadow:0 14px 40px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.28);
+            background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); color:var(--text-on-primary);
+            box-shadow:0 14px 40px rgba(0,0,0,.35), inset 0 0 0 1px color-mix(in srgb, var(--text-on-primary) 28%, transparent);
             transition:transform .18s ease, box-shadow .2s ease, filter .2s ease;
         }
-        .cta:hover{transform:translateY(-2px); filter:saturate(1.05); box-shadow:0 18px 48px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.36)}
+        .cta:hover{transform:translateY(-2px); filter:saturate(1.05); box-shadow:0 18px 48px rgba(0,0,0,.45), inset 0 0 0 1px color-mix(in srgb, var(--text-on-primary) 36%, transparent)}
 
         .card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px}
 
-        /* SCREENSHOTS — 3 pierwsze, mobilnie wycentrowane + lightbox */
+        /* SCREENSHOTS */
         .shots{padding:28px 0 6px}
         .gridShots{
             display:grid;
@@ -166,16 +283,11 @@
         @media (max-width:1024px){
             .gridShots{grid-template-columns:repeat(2, 1fr)}
         }
-        /* === MODYFIKACJA 2: Poprawka responsywności === */
         @media (max-width:700px){
             .gridShots{
                 grid-template-columns:1fr;
-                justify-items:center; /* CENTRUM */
-                /* Usunięto 'padding-left' i 'padding-right' - były zbędne i addytywne do .container */
+                justify-items:center;
             }
-            /* Usunięto regułę '.shot-btn{max-width:92vw}'
-               Powodowała ona przepełnienie (horizontal overflow) na mobile.
-               Domyślna reguła 'width: 100%' jest poprawna i szanuje padding kontenera. */
         }
         .shot-btn{
             display:block; width:100%; background:var(--card); border:1px solid var(--border);
@@ -201,7 +313,7 @@
         }
         .lightbox-close{
             position:absolute; top:24px; right:24px; border:0; border-radius:12px; padding:10px 12px;
-            font-weight:800; cursor:pointer; color:#061021;
+            font-weight:800; cursor:pointer; color:var(--text-on-primary);
             background:linear-gradient(90deg,var(--ctaA),var(--ctaB));
             box-shadow:0 10px 30px rgba(0,0,0,.45);
         }
@@ -211,14 +323,14 @@
         .fgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px}
         .tile{padding:20px; border-radius:16px; background:var(--card); border:1px solid var(--border); transition:transform .18s ease, box-shadow .18s ease}
         .tile h3{margin:6px 0 6px; font-size:18px}
-        .tile p{margin:0; color:var(--muted)}
+        .tile p{margin:0; color:var(--fg-muted)}
         .tile:hover{transform:translateY(-2px); box-shadow:0 14px 40px rgba(0,0,0,.25)}
 
         .about{padding:38px 0}
         .about-grid{display:grid; grid-template-columns:1.25fr .75fr; gap:22px}
         @media (max-width:980px){ .about-grid{grid-template-columns:1fr} }
-        .badge{font-size:12px; font-weight:800; color:#061021; background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); display:inline-block; padding:6px 10px; border-radius:999px}
-        .pill{display:inline-flex; align-items:center; gap:8px; padding:10px 12px; border-radius:12px; background:var(--card); border:1px solid var(--border); font-weight:700}
+        .badge{font-size:12px; font-weight:800; color:var(--text-on-primary); background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); display:inline-block; padding:6px 10px; border-radius:999px}
+        .pill{display:inline-flex; align-items:center; gap:8px; padding:10px 12px; border-radius:12px; background:var(--bg); border:1px solid var(--border); font-weight:700}
         .stack{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
 
         .faq{padding:26px 0 40px}
@@ -235,20 +347,20 @@
         .row{display:grid; grid-template-columns:1fr 1fr; gap:12px}
         @media (max-width:720px){ .row{grid-template-columns:1fr} }
         .field{display:flex; flex-direction:column; gap:6px}
-        .label{font-size:14px; color:var(--muted)}
-        .input,.textarea{background:rgba(255,255,255,.08); border:1px solid var(--border); color:var(--fg); border-radius:12px; padding:12px 14px; outline:none}
-        .input:focus,.textarea:focus{border-color:var(--accent)}
+        .label{font-size:14px; color:var(--fg-muted)}
+        .input,.textarea{background:var(--bg); border:1px solid var(--border); color:var(--fg); border-radius:12px; padding:12px 14px; outline:none}
+        .input:focus,.textarea:focus{border-color:var(--primary)}
         .textarea{min-height:140px; resize:vertical}
         .form-actions{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap}
-        .hint{color:var(--muted); font-size:12px}
+        .hint{color:var(--fg-muted); font-size:12px}
 
-        .lead-black{color:#000!important}
+        .lead-themed{color:var(--fg) !important}
 
-        footer{border-top:1px solid var(--border); padding:28px 18px 44px; color:var(--muted); position:relative; text-align:center}
-        .top{position:absolute; right:18px; top:18px; width:42px; height:42px; display:grid; place-items:center; border-radius:999px; background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); color:#061021; font-weight:900; box-shadow:var(--shadow)}
+        footer{border-top:1px solid var(--border); padding:28px 18px 44px; color:var(--fg-muted); position:relative; text-align:center}
+        .top{position:absolute; right:18px; top:18px; width:42px; height:42px; display:grid; place-items:center; border-radius:999px; background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); color:var(--text-on-primary); font-weight:900; box-shadow:var(--shadow)}
         .top:hover{transform:translateY(-2px)}
 
-        /* ====== DODATKI DLA NOWYCH CTA + MODAL EXPO (RESPONSYWNE) ====== */
+        /* ====== DODATKI CTA + MODAL EXPO (RESPONSYWNE) ====== */
         .cta-stack{display:flex; flex-direction:column; gap:12px; width:100%; max-width:520px}
         .cta-icon{width:20px; height:20px; object-fit:contain}
         .cta-disabled{
@@ -259,18 +371,38 @@
         .cta-disabled:hover{transform:none; filter:none; box-shadow:0 10px 28px rgba(0,0,0,.28), inset 0 0 0 1px rgba(255,255,255,.20)}
         .padlock{width:18px; height:18px; opacity:.85}
 
+        /* Tooltip na desktop */
         .tooltip{position:relative}
         .tooltip[data-tip]::after{
             content:attr(data-tip);
             position:absolute; left:50%; transform:translateX(-50%) translateY(6px);
-            bottom:-6px; background:rgba(10,17,36,.96); color:#eaf2ff; font-weight:700; font-size:12px;
-            padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.12);
+            bottom:-6px; background:var(--bg3); color:var(--fg); font-weight:700; font-size:12px;
+            padding:8px 10px; border-radius:10px; border:1px solid var(--border);
             white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .18s ease, transform .18s ease;
             box-shadow:0 12px 30px rgba(0,0,0,.35);
         }
         .tooltip:hover::after{opacity:1; transform:translateX(-50%) translateY(0)}
 
-        /* Modal Expo GO — pełna responsywność + kroki */
+        /* Toast dla przycisku iOS na mobile */
+        .mobile-toast {
+            background: var(--bg3);
+            color: var(--fg);
+            padding: 10px 14px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 600;
+            margin-top: 10px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            animation: fadeIn .2s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Modal Expo GO */
         #expoModal{
             padding-top:max(16px, env(safe-area-inset-top));
             padding-right:max(16px, env(safe-area-inset-right));
@@ -280,9 +412,9 @@
         }
         .modal-card{
             position:relative; display:flex; flex-direction:column; align-items:center; gap:14px;
-            background:linear-gradient(180deg, rgba(6,12,28,.92), rgba(6,12,28,.98));
-            border:1px solid rgba(255,255,255,.10); border-radius:16px; padding:18px;
-            box-shadow:0 20px 60px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.05);
+            background:linear-gradient(180deg, var(--bg) 92%, var(--bg2) 98%);
+            border:1px solid var(--border); border-radius:16px; padding:18px;
+            box-shadow:0 20px 60px rgba(0,0,0,.55), inset 0 0 0 1px color-mix(in srgb, var(--fg) 5%, transparent);
             backdrop-filter:blur(8px) saturate(130%);
             transform:translateY(8px) scale(.98); opacity:0;
             transition:opacity .25s ease, transform .25s ease;
@@ -292,9 +424,9 @@
 
         .xbtn{
             position:absolute; top:10px; right:10px; width:40px; height:40px; border-radius:12px;
-            border:1px solid rgba(255,255,255,.18); display:grid; place-items:center; cursor:pointer;
-            background:linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06));
-            color:#eaf2ff; box-shadow:0 8px 22px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.06);
+            border:1px solid var(--border); display:grid; place-items:center; cursor:pointer;
+            background:linear-gradient(180deg, color-mix(in srgb, var(--fg) 12%, transparent), color-mix(in srgb, var(--fg) 6%, transparent));
+            color:var(--fg); box-shadow:0 8px 22px rgba(0,0,0,.35), inset 0 0 0 1px color-mix(in srgb, var(--fg) 6%, transparent);
             transition:transform .18s ease, box-shadow .18s ease, filter .18s ease;
         }
         .xbtn:hover{ transform:rotate(90deg); filter:saturate(1.05); box-shadow:0 12px 28px rgba(0,0,0,.45) }
@@ -306,24 +438,42 @@
         .step{
             display:flex; align-items:flex-start; gap:10px;
             padding:12px; border-radius:12px;
-            background:rgba(255,255,255,.06);
-            border:1px solid rgba(255,255,255,.14);
-            box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
+            background:color-mix(in srgb, var(--fg) 6%, transparent);
+            border:1px solid var(--border);
+            box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--fg) 4%, transparent);
             transition:transform .18s ease, box-shadow .18s ease, background .18s ease;
         }
         .step:hover{ transform:translateY(-1px); box-shadow:0 10px 28px rgba(0,0,0,.35) }
         .step-num{
             flex:0 0 auto; width:28px; height:28px; border-radius:999px;
-            display:grid; place-items:center; font-weight:900; color:#061021;
+            display:grid; place-items:center; font-weight:900; color:var(--text-on-primary);
             background:linear-gradient(90deg,var(--ctaA),var(--ctaB));
-            box-shadow:0 6px 16px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.22);
+            box-shadow:0 6px 16px rgba(0,0,0,.35), inset 0 0 0 1px color-mix(in srgb, var(--text-on-primary) 22%, transparent);
         }
-        .step-title{font-weight:800; margin:0; color:#eaf2ff}
-        .step-desc{margin:0; color:#c7d5f2; font-size:12px}
+        .step-title{font-weight:800; margin:0; color:var(--fg)}
+        .step-desc{margin:0; color:var(--fg-muted); font-size:12px}
 
         body.no-scroll{overflow:hidden}
         @supports(height:100dvh){ #expoModal{min-height:100dvh} }
     </style>
+
+    <script>
+        // Skrypt blokujący renderowanie, aby zapobiec FOUC (Flash of Unstyled Content)
+        (function() {
+            try {
+                var theme = localStorage.getItem('theme');
+                if (theme) {
+                    document.documentElement.setAttribute('data-theme', theme);
+                } else {
+                    // Jeśli brak zapisanego motywu, użyj preferencji systemowych
+                    var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+                }
+            } catch (e) {
+                // W razie błędu (np. localStorage niedostępny), zostaw domyślny 'dark'
+            }
+        })();
+    </script>
 </head>
 <body id="top" class="page-bg">
 
@@ -367,8 +517,20 @@
 
         <div class="nav-actions">
             <a class="btn" href="#contact" id="contactBtn">Kontakt</a>
+
+            {{-- Przycisk motywu - teraz widoczny także na mobile --}}
+            <button id="theme-toggle" class="theme-toggle" aria-label="Przełącz motyw">
+                <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            </button>
+
+            {{-- MODYFIKACJA: Nowy, animowany burger --}}
             <button id="burger" class="burger" aria-controls="mobilePanel" aria-expanded="false" aria-label="Menu">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                <svg class="burger-svg" viewBox="0 0 24 24">
+                    <path class="burger-line burger-line1" d="M 3,6 H 21" />
+                    <path class="burger-line burger-line2" d="M 3,12 H 21" />
+                    <path class="burger-line burger-line3" d="M 3,18 H 21" />
+                </svg>
             </button>
         </div>
     </div>
@@ -382,13 +544,15 @@
             <a href="#faq">FAQ</a>
             <a href="#download">Pobierz</a>
             <a href="#contact">Kontakt</a>
+
+            {{-- USUNIĘTO: Przycisk motywu został przeniesiony do .nav-actions --}}
         </div>
     </div>
 </div>
 
 <header class="hero" role="region" aria-label="Sekcja główna">
     <div class="container heroBox">
-        <div class="kicker">ANDROID • SYNC</div>
+        <div class="kicker">SYNC • FILES</div>
         <h1>Notuj. Porządkuj.<br/>Synchronizuj.</h1>
         <p class="lead">Szybka, lekka aplikacja do notatek z bezpieczną synchronizacją.</p>
 
@@ -411,6 +575,7 @@
                     <path d="M7 11V8a5 5 0 0 1 10 0v3" />
                 </svg>
             </a>
+            {{-- Kontener na dynamiczny toast mobilny pojawi się tutaj --}}
 
             <a id="expogoBtn" class="cta" href="#" rel="nofollow" aria-haspopup="dialog" aria-controls="expoModal">
                 <img class="cta-icon" src="{{ asset('assets/images/expogo.svg') }}" alt="" aria-hidden="true">
@@ -447,7 +612,7 @@
         <div class="card">
             <span class="badge">O nas</span>
             <h2 id="about-title" style="margin:10px 0 6px">Tworzymy NoteSync z myślą o szybkości i prostocie</h2>
-            <p style="color:var(--muted); margin:0 0 10px">
+            <p style="color:var(--fg-muted); margin:0 0 10px">
                 Mały zespół, duże doświadczenie mobilne i backendowe. Narzędzia, które nie przeszkadzają — przyspieszają.
             </p>
             <div class="stack">
@@ -486,7 +651,7 @@
             </div>
             <div class="faq-item" role="listitem">
                 <button class="faq-q" aria-expanded="false"><span>Czy wspieracie tryb ciemny?</span><span class="faq-icon">＋</span></button>
-                <div class="faq-a"><p>UI respektuje preferencje systemowe; czytelne kontrasty w jasnym i ciemnym motywie.</p></div>
+                <div class="faq-a"><p>UI respektuje preferencje systemowe oraz posiada manualny przełącznik; czytelne kontrasty w jasnym i ciemnym motywie.</p></div>
             </div>
         </div>
     </div>
@@ -496,7 +661,7 @@
     <div class="container">
         <div class="card">
             <h2 id="contact-title" style="margin:0 0 8px">Skontaktuj się z nami</h2>
-            <p class="lead lead-black" style="margin:0 0 16px">Masz pytanie? Napisz — odpowiemy szybko.</p>
+            <p class="lead lead-themed" style="margin:0 0 16px">Masz pytanie? Napisz — odpowiemy szybko.</p>
             <form class="form" action="#" method="post" novalidate>
                 @csrf
                 <div class="row">
@@ -514,7 +679,7 @@
                     <textarea class="textarea" id="message" name="message" placeholder="W czym możemy pomóc?" required></textarea>
                 </div>
                 <div class="form-actions">
-                    <label style="display:flex; align-items:center; gap:10px; color:var(--muted); font-size:14px;">
+                    <label style="display:flex; align-items:center; gap:10px; color:var(--fg-muted); font-size:14px;">
                         <input type="checkbox" required style="transform:translateY(1px)">
                         Zgadzam się na kontakt w sprawie mojego zapytania.
                     </label>
@@ -570,29 +735,34 @@
         });
     })();
 
-    /* Burger + scrim (Kontakt widoczny tylko po rozwinięciu menu w mobile) */
+    /* MODYFIKACJA: Burger + scrim (z animacją CSS) */
     (function(){
         var burger = document.getElementById('burger');
         var panel  = document.getElementById('mobilePanel');
         var scrim  = document.getElementById('navScrim');
         if(!burger || !panel || !scrim) return;
         var open = false;
+
         function setState(state){
             open = state;
+            // Przełączanie klas kontrolowanych przez CSS
             panel.classList.toggle('open', open);
             scrim.classList.toggle('open', open);
+            burger.classList.toggle('open', open); // Kontroluje animację ikony
             burger.setAttribute('aria-expanded', String(open));
-            burger.innerHTML = open
-                ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M6 18L18 6"/></svg>'
-                : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>';
         }
+
         burger.addEventListener('click', function(){ setState(!open); });
         scrim.addEventListener('click', function(){ setState(false); });
-        panel.querySelectorAll('a').forEach(function(a){ a.addEventListener('click', function(){ setState(false); }); });
+
+        // Kliknięcie linku (<a>) w menu zamyka panel.
+        panel.querySelectorAll('a').forEach(function(a){
+            a.addEventListener('click', function(){ setState(false); });
+        });
         document.addEventListener('keydown', function(e){ if(e.key==='Escape' && open) setState(false); });
     })();
 
-    /* LIGHTBOX – klik na zrzut -> podgląd z możliwością zamknięcia */
+    /* LIGHTBOX */
     (function(){
         var container = document.createElement('div');
         container.id = 'lightbox';
@@ -622,11 +792,65 @@
         document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && container.classList.contains('open')) close(); });
     })();
 
-    /* CTA: iOS (disabled + tooltip) oraz MODAL Expo GO (QR + 3 kroki) */
+    /* MODYFIKACJA: Przełącznik motywów (usunięto logikę dla mobileToggleBtn) */
+    (function() {
+        var toggleBtn = document.getElementById('theme-toggle');
+        // Usunięto mobileToggleBtn
+
+        function toggleTheme(e) {
+            var currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+            var newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            try {
+                localStorage.setItem('theme', newTheme);
+            } catch (err) {
+                console.warn('Nie można zapisać motywu w localStorage.');
+            }
+        }
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', toggleTheme);
+        }
+    })();
+
+    /* CTA iOS (disabled) + MODAL Expo GO */
     (function(){
         var iosBtn = document.getElementById('download-ios');
+        var clickCount = 0;
+        var existingToast = null;
+        var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
         if(iosBtn){
-            iosBtn.addEventListener('click', function(e){ e.preventDefault(); });
+            iosBtn.addEventListener('click', function(e){
+                e.preventDefault();
+
+                // Logika tylko dla urządzeń dotykowych
+                if (isTouch) {
+                    clickCount++;
+
+                    if (clickCount === 1) {
+                        // Pierwsze kliknięcie: pokaż toast
+                        if (existingToast) existingToast.remove(); // Usuń stary, jeśli istnieje
+
+                        var toast = document.createElement('div');
+                        toast.className = 'mobile-toast';
+                        toast.textContent = 'Wersja iOS jest tymczasowo niedostępna.';
+
+                        // Wstaw toast tuż po przycisku iOS
+                        iosBtn.parentNode.insertBefore(toast, iosBtn.nextSibling);
+                        existingToast = toast;
+
+                    } else if (clickCount === 2) {
+                        // Drugie kliknięcie: ukryj toast
+                        if (existingToast) {
+                            existingToast.remove();
+                            existingToast = null;
+                        }
+                        clickCount = 0; // Zresetuj licznik
+                    }
+                }
+                // Na desktopie (non-touch) nic się nie dzieje, polegamy na tooltipie CSS
+            });
         }
 
         // Modal Expo GO
@@ -646,8 +870,8 @@
             '<path d="M6 6l12 12M6 18L18 6"/>' +
             '</svg>' +
             '</button>' +
-            '<img src="'+ expoQr +'" alt="Kod QR Expo GO" style="max-width:min(86vw,460px);height:auto;border-radius:12px;background:#000"/>' +
-            '<div style="color:#eaf2ff;font-weight:700;text-align:center">Zeskanuj w aplikacji <strong>Expo Go</strong> na telefonie</div>' +
+            '<img src="'+ expoQr +'" alt="Kod QR Expo GO" style="max-width:min(86vw,460px);height:auto;border-radius:12px;background:#fff"/>' + /* Tło QR na białe dla czytelności */
+            '<div style="color:var(--fg);font-weight:700;text-align:center">Zeskanuj w aplikacji <strong>Expo Go</strong> na telefonie</div>' +
             '<div class="steps">' +
             '<div class="steps-grid">' +
             '<div class="step">' +
