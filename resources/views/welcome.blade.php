@@ -391,7 +391,16 @@
         .faq-q{width:100%; text-align:left; background:transparent; color:var(--fg); padding:16px 18px; font-weight:800; border:0; cursor:pointer; display:flex; justify-content:space-between; align-items:center}
         .faq-a{max-height:0; overflow:hidden; transition:max-height .45s cubic-bezier(.25,.8,.25,1), opacity .35s ease; opacity:0; padding:0 18px}
         .faq-item.open .faq-a{opacity:1; padding:0 18px 16px}
-        .faq-icon{transition:transform .35s ease}
+
+        /* POPRAWKA: Styl dla ikony SVG + animacja */
+        .faq-icon{
+            transition:transform .35s ease;
+            width: 20px;
+            height: 20px;
+            stroke: var(--fg);
+            flex-shrink: 0; /* Zapobiega kurczeniu się ikony */
+            margin-left: 12px;
+        }
         .faq-item.open .faq-icon{transform:rotate(45deg)}
 
         .contact{padding:40px 0 60px}
@@ -411,6 +420,12 @@
         footer{border-top:1px solid var(--border); padding:28px 18px 44px; color:var(--fg-muted); position:relative; text-align:center}
         .top{position:absolute; right:18px; top:18px; width:42px; height:42px; display:grid; place-items:center; border-radius:999px; background:linear-gradient(90deg,var(--ctaA),var(--ctaB)); color:var(--text-on-primary); font-weight:900; box-shadow:var(--shadow)}
         .top:hover{transform:translateY(-2px)}
+        /* NOWOŚĆ: Styl dla ikony SVG w przycisku .top */
+        .top svg {
+            width: 20px;
+            height: 20px;
+            stroke: var(--text-on-primary);
+        }
 
         /* ====== DODATKI CTA + MODAL EXPO (RESPONSYWNE) ====== */
         .cta-stack{display:flex; flex-direction:column; gap:12px; width:100%; max-width:520px}
@@ -507,6 +522,34 @@
 
         body.no-scroll{overflow:hidden}
         @supports(height:100dvh){ #expoModal{min-height:100dvh} }
+
+        /* ====== NOWOŚĆ: Style dla animacji na scroll ====== */
+        [data-reveal] {
+            opacity: 0;
+            transform: translateY(24px);
+            transition: opacity 0.6s cubic-bezier(0.23, 1, 0.32, 1),
+            transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+            will-change: opacity, transform; /* Wskazówka dla przeglądarki */
+        }
+        [data-reveal].is-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Opóźnienia dla siatek (efekt kaskadowy) */
+        .gridShots > [data-reveal]:nth-child(2) { transition-delay: 0.1s; }
+        .gridShots > [data-reveal]:nth-child(3) { transition-delay: 0.2s; }
+
+        .fgrid > [data-reveal]:nth-child(2) { transition-delay: 0.1s; }
+        .fgrid > [data-reveal]:nth-child(3) { transition-delay: 0.2s; }
+        .fgrid > [data-reveal]:nth-child(4) { transition-delay: 0.3s; }
+
+        /* Kaskada dla FAQ używa zmiennej --idx ustawionej w HTML */
+        .faq-list > [data-reveal] {
+            transition-duration: 0.5s;
+            transition-delay: calc(0.08s * var(--idx, 0));
+        }
+
     </style>
 
     <script>
@@ -613,10 +656,10 @@
 
 <header class="hero" role="region" aria-label="Sekcja główna">
     <div class="container heroBox">
-        <h1>{!! __('messages.hero.title') !!}</h1>
-        <p class="lead">{{ __('messages.hero.lead') }}</p>
+        <h1 data-reveal>{!! __('messages.hero.title') !!}</h1>
+        <p class="lead" data-reveal style="transition-delay: 0.1s;">{{ __('messages.hero.lead') }}</p>
 
-        <div class="cta-stack" aria-label="Opcje pobrania">
+        <div class="cta-stack" data-reveal style="transition-delay: 0.2s;" aria-label="Opcje pobrania">
             <a id="download" class="cta" href="#download" rel="nofollow">
                 <img class="cta-icon" src="{{ asset('assets/images/android.svg') }}" alt="" aria-hidden="true">
                 {{ __('messages.hero.cta_android') }}
@@ -650,7 +693,7 @@
         <div class="gridShots">
             @foreach($shots as $s)
                 @php $src = notesync_resolve_asset($s['file']); @endphp
-                <button class="shot-btn" data-full="{{ $src }}" aria-label="{{ __('messages.shots.aria_label_prefix') }} {{ $s['alt'] }}">
+                <button class="shot-btn" data-full="{{ $src }}" aria-label="{{ __('messages.shots.aria_label_prefix') }} {{ $s['alt'] }}" data-reveal>
                     <img class="shot" src="{{ $src }}" alt="{{ $s['alt'] }}" loading="lazy" decoding="async"/>
                 </button>
             @endforeach
@@ -660,16 +703,16 @@
 
 <section class="features" id="features">
     <div class="container fgrid">
-        <article class="tile"><h3>{{ __('messages.features.f1_title') }}</h3><p>{{ __('messages.features.f1_desc') }}</p></article>
-        <article class="tile"><h3>{{ __('messages.features.f2_title') }}</h3><p>{{ __('messages.features.f2_desc') }}</p></article>
-        <article class="tile"><h3>{{ __('messages.features.f3_title') }}</h3><p>{{ __('messages.features.f3_desc') }}</p></article>
-        <article class="tile"><h3>{{ __('messages.features.f4_title') }}</h3><p>{{ __('messages.features.f4_desc') }}</p></article>
+        <article class="tile" data-reveal><h3 >{{ __('messages.features.f1_title') }}</h3><p>{{ __('messages.features.f1_desc') }}</p></article>
+        <article class="tile" data-reveal><h3 >{{ __('messages.features.f2_title') }}</h3><p>{{ __('messages.features.f2_desc') }}</p></article>
+        <article class="tile" data-reveal><h3 >{{ __('messages.features.f3_title') }}</h3><p>{{ __('messages.features.f3_desc') }}</p></article>
+        <article class="tile" data-reveal><h3 >{{ __('messages.features.f4_title') }}</h3><p>{{ __('messages.features.f4_desc') }}</p></article>
     </div>
 </section>
 
 <section class="about" id="about" aria-labelledby="about-title">
     <div class="container about-grid">
-        <div class="card">
+        <div class="card" data-reveal>
             <span class="badge">{{ __('messages.about.badge') }}</span>
             <h2 id="about-title" style="margin:10px 0 6px">{{ __('messages.about.title') }}</h2>
             <p style="color:var(--fg-muted); margin:0 0 10px">
@@ -682,7 +725,7 @@
                 <span class="pill">{{ __('messages.about.stack4') }}</span>
             </div>
         </div>
-        <div class="card" aria-label="Zespół">
+        <div class="card" data-reveal style="transition-delay: 0.1s;">
             <h3 style="margin:0 0 8px">{{ __('messages.about.team_title') }}</h3>
             <ul style="list-style:none;margin:0;padding:0;display:grid;gap:10px">
                 <li>{!! __('messages.about.team_li1') !!}</li>
@@ -695,22 +738,38 @@
 
 <section class="faq" id="faq" aria-labelledby="faq-title">
     <div class="container">
-        <h2 id="faq-title" style="margin:0 0 10px">{{ __('messages.faq.title') }}</h2>
+        <h2 id="faq-title" style="margin:0 0 10px" data-reveal>{{ __('messages.faq.title') }}</h2>
         <div class="faq-list" role="list">
-            <div class="faq-item" role="listitem">
-                <button class="faq-q" aria-expanded="false"><span>{{ __('messages.faq.q1') }}</span><span class="faq-icon">＋</span></button>
+            <div class="faq-item" role="listitem" data-reveal style="--idx: 0">
+                <button class="faq-q" aria-expanded="false">
+                    <span>{{ __('messages.faq.q1') }}</span>
+                    {{-- NOWOŚĆ: Ikona SVG zamiast tekstu --}}
+                    <svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
                 <div class="faq-a"><p>{{ __('messages.faq.a1') }}</p></div>
             </div>
-            <div class="faq-item" role="listitem">
-                <button class="faq-q" aria-expanded="false"><span>{{ __('messages.faq.q2') }}</span><span class="faq-icon">＋</span></button>
+            <div class="faq-item" role="listitem" data-reveal style="--idx: 1">
+                <button class="faq-q" aria-expanded="false">
+                    <span>{{ __('messages.faq.q2') }}</span>
+                    {{-- NOWOŚĆ: Ikona SVG zamiast tekstu --}}
+                    <svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
                 <div class="faq-a"><p>{{ __('messages.faq.a2') }}</p></div>
             </div>
-            <div class="faq-item" role="listitem">
-                <button class="faq-q" aria-expanded="false"><span>{{ __('messages.faq.q3') }}</span><span class="faq-icon">＋</span></button>
+            <div class="faq-item" role="listitem" data-reveal style="--idx: 2">
+                <button class="faq-q" aria-expanded="false">
+                    <span>{{ __('messages.faq.q3') }}</span>
+                    {{-- NOWOŚĆ: Ikona SVG zamiast tekstu --}}
+                    <svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
                 <div class="faq-a"><p>{{ __('messages.faq.a3') }}</p></div>
             </div>
-            <div class="faq-item" role="listitem">
-                <button class="faq-q" aria-expanded="false"><span>{{ __('messages.faq.q4') }}</span><span class="faq-icon">＋</span></button>
+            <div class="faq-item" role="listitem" data-reveal style="--idx: 3">
+                <button class="faq-q" aria-expanded="false">
+                    <span>{{ __('messages.faq.q4') }}</span>
+                    {{-- NOWOŚĆ: Ikona SVG zamiast tekstu --}}
+                    <svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
                 <div class="faq-a"><p>{{ __('messages.faq.a4') }}</p></div>
             </div>
         </div>
@@ -719,7 +778,7 @@
 
 <section class="contact" id="contact" aria-labelledby="contact-title">
     <div class="container">
-        <div class="card">
+        <div class="card" data-reveal>
             <h2 id="contact-title" style="margin:0 0 8px">{{ __('messages.contact.title') }}</h2>
             <p class="lead lead-themed" style="margin:0 0 16px">{{ __('messages.contact.lead') }}</p>
             <form class="form" action="#" method="post" novalidate>
@@ -752,7 +811,12 @@
 </section>
 
 <footer>
-    <a class="top" href="#top" aria-label="{{ __('messages.footer.top_aria') }}">↑</a>
+    {{-- NOWOŚĆ: Ikona SVG zamiast tekstu --}}
+    <a class="top" href="#top" aria-label="{{ __('messages.footer.top_aria') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="18 15 12 9 6 15"></polyline>
+        </svg>
+    </a>
     © {{ now()->year }} NoteSync
 </footer>
 
@@ -984,6 +1048,36 @@
                 }, 0);
             });
         }
+    })();
+
+    /* ====== NOWOŚĆ: Animacje na scroll (Intersection Observer) ====== */
+    (function(){
+        // Sprawdź, czy użytkownik nie preferuje zredukowanego ruchu
+        var prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (prefersReducedMotion) {
+            // Jeśli tak, pokaż od razu wszystkie elementy
+            document.querySelectorAll('[data-reveal]').forEach(el => {
+                el.classList.add('is-visible');
+            });
+            return; // Zakończ skrypt
+        }
+
+        const observer = new IntersectionObserver((entries, obs) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('is-visible');
+                    obs.unobserve(entry.target); // Animuj tylko raz
+                }
+            });
+        }, {
+            threshold: 0.1, // Uruchom, gdy 10% elementu jest widoczne
+            rootMargin: "0px 0px -50px 0px" // Uruchom trochę później (50px od dolnej krawędzi)
+        });
+
+        // Znajdź wszystkie elementy do animowania
+        document.querySelectorAll('[data-reveal]').forEach(el => {
+            observer.observe(el);
+        });
     })();
 </script>
 </body>
