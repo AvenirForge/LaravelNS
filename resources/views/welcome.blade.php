@@ -1,11 +1,18 @@
-{{-- resources/views/welcome.blade.php --}}
-
+@php
+    // NAPRAWA: Ustawienie języka na podstawie parametru URL lub domyślnego 'pl'
+    // To zapewnia, że 'pl' jest domyślny, jeśli 'lang' nie jest ustawiony.
+    $locale = request()->query('lang', config('app.fallback_locale', 'pl'));
+    if (!in_array($locale, ['pl', 'en'])) {
+        $locale = 'pl';
+    }
+    App::setLocale($locale);
+@endphp
     <!doctype html
-    <html lang="pl" data-theme="dark"> {{-- Domyślnie ciemny, JS w <head> to skoryguje --}}
+    <html lang="{{ str_replace('_', '-', App::getLocale()) }}" data-theme="dark">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>NoteSync — Wspólne notatki to lepsza współpraca</title>
+    <title>{{ __('messages.title') }}</title>
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Pacifico&display=swap" rel="stylesheet" />
 
@@ -124,7 +131,7 @@
             opacity: 1;
             outline:none
         }
-        .nav-actions{justify-self:end; display:flex; align-items:center; gap:10px}
+        .nav-actions{justify-self:end; display:flex; align-items:center; gap: 8px;} /* Zmniejszony odstęp */
         .btn{
             display:inline-flex; gap:10px; align-items:center; padding:12px 18px; border-radius:12px;
             font-weight:800; letter-spacing:.2px;
@@ -157,9 +164,54 @@
         html[data-theme="light"] .icon-sun { display: block; }
         html[data-theme="light"] .icon-moon { display: none; }
 
+        /* NOWY: Przełącznik języka (Slider) */
+        .lang-slider {
+            position: relative;
+            display: flex;
+            height: 44px;
+            width: 90px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: var(--bg3);
+            padding: 3px;
+        }
+        .lang-slider-thumb {
+            position: absolute;
+            top: 3px;
+            bottom: 3px;
+            width: calc(50% - 4px); /* 4px to (padding*2 - margin) */
+            left: 3px;
+            background: var(--card);
+            border-radius: 9px; /* Dopasowany do 12px */
+            box-shadow: 0 2px 4px rgba(0,0,0,.2);
+            transition: transform 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+            transform: translateX(0); /* Domyślnie PL */
+        }
+        .lang-slider.lang-en .lang-slider-thumb {
+            transform: translateX(calc(100% + 2px)); /* Przesunięcie dla EN */
+        }
+        .lang-option {
+            position: relative;
+            z-index: 2;
+            display: grid;
+            place-items: center;
+            flex: 1; /* Każdy zajmuje 50% */
+            height: 100%;
+            font-size: 14px;
+            font-weight: 800;
+            color: var(--fg-muted);
+            transition: color 0.3s ease;
+            text-decoration: none;
+            text-transform: uppercase;
+        }
+        .lang-option.active {
+            color: var(--fg);
+        }
+
+
         /* Mobile */
 
-        /* MODYFIKACJA: Animowany Burger */
+        /* Animowany Burger */
         .burger{
             display:none; /* Ukryty domyślnie, widoczny na mobile */
             width:44px; height:44px; border-radius:12px;
@@ -198,14 +250,14 @@
         @media (max-width:980px){
             .links{display:none}
             .burger{display:grid} /* Pokazuje burger na mobile */
-            /* MODYFIKACJA: Ukrywa tylko przycisk "Kontakt", zostawia przełącznik motywu */
+            /* Ukrywa tylko przycisk "Kontakt", zostawia przełączniki */
             .nav-actions .btn{display:none}
         }
 
         .scrim{position:fixed; inset:var(--nav) 0 0 0; background:rgba(0,0,0,.55); backdrop-filter:blur(2px); opacity:0; pointer-events:none; transition:opacity .3s ease}
         .scrim.open{opacity:1; pointer-events:auto}
 
-        /* MODYFIKACJA: Animacja panelu mobilnego */
+        /* Animacja panelu mobilnego */
         .mobile-panel{
             position:fixed; top:var(--nav); left:0; right:0; z-index:999;
             background:linear-gradient(180deg, var(--bg) 95%, var(--bg2));
@@ -254,7 +306,7 @@
             max-width:980px; margin-inline:auto;
             display:flex; flex-direction:column; align-items:center; gap:22px; text-align:center;
         }
-        .kicker{color:var(--primary); font-weight:700; letter-spacing:.18em; text-transform:uppercase; opacity:.9}
+        /* Kicker usunięty zgodnie z dostarczonym plikiem */
         h1{
             margin:6px 0 10px; font-weight:800; line-height:1.02; font-size:clamp(42px,6.2vw,74px);
             background:linear-gradient(180deg, var(--fg) 60%, color-mix(in srgb, var(--fg) 80%, var(--primary)) 100%);
@@ -492,40 +544,51 @@
             return 'data:image/svg+xml;utf8,'.rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');
         }
     }
-    /* Zostawiamy 3 pierwsze obrazki */
+
+    // Logika przełącznika języka
+    $currentLocale = App::getLocale();
+    $isEn = $currentLocale == 'en';
+    $langSwitchUrlPl = url('?lang=pl');
+    $langSwitchUrlEn = url('?lang=en');
+
+    /* Tłumaczenia zrzutów */
     $shots = [
-        ['file'=>'app_light_1', 'alt'=>'Lista notatek'],
-        ['file'=>'app_light_2', 'alt'=>'Edycja notatki'],
-        ['file'=>'app_light_3', 'alt'=>'Zespoły'],
+        ['file'=>'app_light_1', 'alt'=> __('messages.shots.alt1')],
+        ['file'=>'app_light_2', 'alt'=> __('messages.shots.alt2')],
+        ['file'=>'app_light_3', 'alt'=> __('messages.shots.alt3')],
     ];
     $expoQrImg = notesync_resolve_asset('expogo-qr');
 @endphp
 
 <div class="nav" role="banner">
     <div class="container nav-inner">
-        <a class="brand" href="#top" aria-label="Strona główna">
+        <a class="brand" href="#top" aria-label="{{ __('messages.footer.home_aria') }}">
             <img src="/assets/images/logo-notesync.jpg" class="brand-logo" alt="" />
             <span>NoteSync</span>
         </a>
         <nav class="links" aria-label="Nawigacja główna">
-            <a class="link" href="#features">Funkcje</a>
-            <a class="link" href="#screens">Zrzuty</a>
-            <a class="link" href="#about">O nas</a>
-            <a class="link" href="#faq">FAQ</a>
-            <a class="link" href="#download">Pobierz</a>
+            <a class="link" href="#features">{{ __('messages.nav.features') }}</a>
+            <a class="link" href="#screens">{{ __('messages.nav.screens') }}</a>
+            <a class="link" href="#about">{{ __('messages.nav.about') }}</a>
+            <a class="link" href="#faq">{{ __('messages.nav.faq') }}</a>
+            <a class="link" href="#download">{{ __('messages.nav.download') }}</a>
         </nav>
 
         <div class="nav-actions">
-            <a class="btn" href="#contact" id="contactBtn">Kontakt</a>
+            <a class="btn" href="#contact" id="contactBtn">{{ __('messages.nav.contact') }}</a>
 
-            {{-- Przycisk motywu - teraz widoczny także na mobile --}}
-            <button id="theme-toggle" class="theme-toggle" aria-label="Przełącz motyw">
+            <div class="lang-slider @if($isEn) lang-en @endif">
+                <span class="lang-slider-thumb"></span>
+                <a href="{{ $langSwitchUrlPl }}" class="lang-option @if(!$isEn) active @endif" aria-label="{{ __('messages.lang_toggle_aria_pl') }}" lang="pl">PL</a>
+                <a href="{{ $langSwitchUrlEn }}" class="lang-option @if($isEn) active @endif" aria-label="{{ __('messages.lang_toggle_aria_en') }}" lang="en">EN</a>
+            </div>
+
+            <button id="theme-toggle" class="theme-toggle" aria-label="{{ __('messages.theme_toggle_aria') }}">
                 <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
                 <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
             </button>
 
-            {{-- MODYFIKACJA: Nowy, animowany burger --}}
-            <button id="burger" class="burger" aria-controls="mobilePanel" aria-expanded="false" aria-label="Menu">
+            <button id="burger" class="burger" aria-controls="mobilePanel" aria-expanded="false" aria-label="{{ __('messages.menu_aria') }}">
                 <svg class="burger-svg" viewBox="0 0 24 24">
                     <path class="burger-line burger-line1" d="M 3,6 H 21" />
                     <path class="burger-line burger-line2" d="M 3,12 H 21" />
@@ -538,38 +601,35 @@
     <div id="navScrim" class="scrim" aria-hidden="true"></div>
     <div id="mobilePanel" class="mobile-panel" role="region" aria-label="Menu mobilne">
         <div class="mobile-links">
-            <a href="#features">Funkcje</a>
-            <a href="#screens">Zrzuty</a>
-            <a href="#about">O nas</a>
-            <a href="#faq">FAQ</a>
-            <a href="#download">Pobierz</a>
-            <a href="#contact">Kontakt</a>
-
-            {{-- USUNIĘTO: Przycisk motywu został przeniesiony do .nav-actions --}}
+            <a href="#features">{{ __('messages.nav.features') }}</a>
+            <a href="#screens">{{ __('messages.nav.screens') }}</a>
+            <a href="#about">{{ __('messages.nav.about') }}</a>
+            <a href="#faq">{{ __('messages.nav.faq') }}</a>
+            <a href="#download">{{ __('messages.nav.download') }}</a>
+            <a href="#contact">{{ __('messages.nav.contact') }}</a>
         </div>
     </div>
 </div>
 
 <header class="hero" role="region" aria-label="Sekcja główna">
     <div class="container heroBox">
-{{--        <div class="kicker">SYNC • FILES</div>--}}
-        <h1>Notuj. Porządkuj.<br/>Synchronizuj.</h1>
-        <p class="lead">Szybka, lekka aplikacja do notatek z bezpieczną synchronizacją.</p>
+        <h1>{!! __('messages.hero.title') !!}</h1>
+        <p class="lead">{{ __('messages.hero.lead') }}</p>
 
         <div class="cta-stack" aria-label="Opcje pobrania">
             <a id="download" class="cta" href="#download" rel="nofollow">
                 <img class="cta-icon" src="{{ asset('assets/images/android.svg') }}" alt="" aria-hidden="true">
-                Pobierz na Androida
+                {{ __('messages.hero.cta_android') }}
             </a>
 
             <a id="download-ios"
                class="cta cta-disabled tooltip"
                href="#"
                aria-disabled="true"
-               data-tip="Wersja iOS tymczasowo niedostępna. Pracujemy nad wydaniem w App Store."
-               title="Wersja iOS tymczasowo niedostępna. Pracujemy nad wydaniem w App Store.">
+               data-tip="{{ __('messages.hero.cta_ios_tooltip') }}"
+               title="{{ __('messages.hero.cta_ios_tooltip') }}">
                 <img class="cta-icon" src="{{ asset('assets/images/ios.svg') }}" alt="" aria-hidden="true">
-                Pobierz na iOS
+                {{ __('messages.hero.cta_ios') }}
                 <svg class="padlock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <rect x="3.5" y="11" width="17" height="9" rx="2" ry="2" />
                     <path d="M7 11V8a5 5 0 0 1 10 0v3" />
@@ -579,7 +639,7 @@
 
             <a id="expogoBtn" class="cta" href="#" rel="nofollow" aria-haspopup="dialog" aria-controls="expoModal">
                 <img class="cta-icon" src="{{ asset('assets/images/expogo.svg') }}" alt="" aria-hidden="true">
-                Wyświetl w Expo GO
+                {{ __('messages.hero.cta_expo') }}
             </a>
         </div>
     </div>
@@ -590,7 +650,7 @@
         <div class="gridShots">
             @foreach($shots as $s)
                 @php $src = notesync_resolve_asset($s['file']); @endphp
-                <button class="shot-btn" data-full="{{ $src }}" aria-label="Powiększ zrzut: {{ $s['alt'] }}">
+                <button class="shot-btn" data-full="{{ $src }}" aria-label="{{ __('messages.shots.aria_label_prefix') }} {{ $s['alt'] }}">
                     <img class="shot" src="{{ $src }}" alt="{{ $s['alt'] }}" loading="lazy" decoding="async"/>
                 </button>
             @endforeach
@@ -600,34 +660,34 @@
 
 <section class="features" id="features">
     <div class="container fgrid">
-        <article class="tile"><h3>Chmura</h3><p>Notatki zawsze pod ręką.</p></article>
-        <article class="tile"><h3>Zespoły</h3><p>Współpraca w czasie rzeczywistym.</p></article>
-        <article class="tile"><h3>Wiedza</h3><p>Quizy ABCD do utrwalania.</p></article>
-        <article class="tile"><h3>Bezpieczeństwo</h3><p>Nowoczesne standardy ochrony.</p></article>
+        <article class="tile"><h3>{{ __('messages.features.f1_title') }}</h3><p>{{ __('messages.features.f1_desc') }}</p></article>
+        <article class="tile"><h3>{{ __('messages.features.f2_title') }}</h3><p>{{ __('messages.features.f2_desc') }}</p></article>
+        <article class="tile"><h3>{{ __('messages.features.f3_title') }}</h3><p>{{ __('messages.features.f3_desc') }}</p></article>
+        <article class="tile"><h3>{{ __('messages.features.f4_title') }}</h3><p>{{ __('messages.features.f4_desc') }}</p></article>
     </div>
 </section>
 
 <section class="about" id="about" aria-labelledby="about-title">
     <div class="container about-grid">
         <div class="card">
-            <span class="badge">O nas</span>
-            <h2 id="about-title" style="margin:10px 0 6px">Tworzymy NoteSync z myślą o szybkości i prostocie</h2>
+            <span class="badge">{{ __('messages.about.badge') }}</span>
+            <h2 id="about-title" style="margin:10px 0 6px">{{ __('messages.about.title') }}</h2>
             <p style="color:var(--fg-muted); margin:0 0 10px">
-                Mały zespół, duże doświadczenie mobilne i backendowe. Narzędzia, które nie przeszkadzają — przyspieszają.
+                {{ __('messages.about.desc') }}
             </p>
             <div class="stack">
-                <span class="pill">Frontend: React Native</span>
-                <span class="pill">Backend: Laravel API</span>
-                <span class="pill">Sync: REST + Webhooks</span>
-                <span class="pill">Bezpieczeństwo: JWT + szyfrowanie</span>
+                <span class="pill">{{ __('messages.about.stack1') }}</span>
+                <span class="pill">{{ __('messages.about.stack2') }}</span>
+                <span class="pill">{{ __('messages.about.stack3') }}</span>
+                <span class="pill">{{ __('messages.about.stack4') }}</span>
             </div>
         </div>
         <div class="card" aria-label="Zespół">
-            <h3 style="margin:0 0 8px">Zespół</h3>
+            <h3 style="margin:0 0 8px">{{ __('messages.about.team_title') }}</h3>
             <ul style="list-style:none;margin:0;padding:0;display:grid;gap:10px">
-                <li><strong>Frontend (React Native):</strong> UI/UX, animacje, dostępność.</li>
-                <li><strong>Backend (Laravel API):</strong> architektura, bezpieczeństwo, synchronizacja.</li>
-                <li><strong>DevOps:</strong> CI/CD, monitoring, stabilność aktualizacji.</li>
+                <li>{!! __('messages.about.team_li1') !!}</li>
+                <li>{!! __('messages.about.team_li2') !!}</li>
+                <li>{!! __('messages.about.team_li3') !!}</li>
             </ul>
         </div>
     </div>
@@ -635,23 +695,23 @@
 
 <section class="faq" id="faq" aria-labelledby="faq-title">
     <div class="container">
-        <h2 id="faq-title" style="margin:0 0 10px">FAQ — najczęstsze pytania</h2>
+        <h2 id="faq-title" style="margin:0 0 10px">{{ __('messages.faq.title') }}</h2>
         <div class="faq-list" role="list">
             <div class="faq-item" role="listitem">
-                <button class="faq-q" aria-expanded="false"><span>Jak wygląda synchronizacja między urządzeniami?</span><span class="faq-icon">＋</span></button>
-                <div class="faq-a"><p>Laravel REST API + wersjonowanie zmian; aplikacja mobilna scala je bezkolizyjnie.</p></div>
+                <button class="faq-q" aria-expanded="false"><span>{{ __('messages.faq.q1') }}</span><span class="faq-icon">＋</span></button>
+                <div class="faq-a"><p>{{ __('messages.faq.a1') }}</p></div>
             </div>
             <div class="faq-item" role="listitem">
-                <button class="faq-q" aria-expanded="false"><span>Czy moje dane są bezpieczne?</span><span class="faq-icon">＋</span></button>
-                <div class="faq-a"><p>JWT, szyfrowanie w tranzycie i spoczynku, dobre praktyki OWASP i zasada minimalnych uprawnień.</p></div>
+                <button class="faq-q" aria-expanded="false"><span>{{ __('messages.faq.q2') }}</span><span class="faq-icon">＋</span></button>
+                <div class="faq-a"><p>{{ __('messages.faq.a2') }}</p></div>
             </div>
             <div class="faq-item" role="listitem">
-                <button class="faq-q" aria-expanded="false"><span>Czy mogę współdzielić notatki z zespołem?</span><span class="faq-icon">＋</span></button>
-                <div class="faq-a"><p>Tak — zapraszaj członków zespołu i ustawiaj uprawnienia na folderach lub pojedynczych notatkach.</p></div>
+                <button class="faq-q" aria-expanded="false"><span>{{ __('messages.faq.q3') }}</span><span class="faq-icon">＋</span></button>
+                <div class="faq-a"><p>{{ __('messages.faq.a3') }}</p></div>
             </div>
             <div class="faq-item" role="listitem">
-                <button class="faq-q" aria-expanded="false"><span>Czy wspieracie tryb ciemny?</span><span class="faq-icon">＋</span></button>
-                <div class="faq-a"><p>UI respektuje preferencje systemowe oraz posiada manualny przełącznik; czytelne kontrasty w jasnym i ciemnym motywie.</p></div>
+                <button class="faq-q" aria-expanded="false"><span>{{ __('messages.faq.q4') }}</span><span class="faq-icon">＋</span></button>
+                <div class="faq-a"><p>{{ __('messages.faq.a4') }}</p></div>
             </div>
         </div>
     </div>
@@ -660,39 +720,39 @@
 <section class="contact" id="contact" aria-labelledby="contact-title">
     <div class="container">
         <div class="card">
-            <h2 id="contact-title" style="margin:0 0 8px">Skontaktuj się z nami</h2>
-            <p class="lead lead-themed" style="margin:0 0 16px">Masz pytanie? Napisz — odpowiemy szybko.</p>
+            <h2 id="contact-title" style="margin:0 0 8px">{{ __('messages.contact.title') }}</h2>
+            <p class="lead lead-themed" style="margin:0 0 16px">{{ __('messages.contact.lead') }}</p>
             <form class="form" action="#" method="post" novalidate>
                 @csrf
                 <div class="row">
                     <div class="field">
-                        <label class="label" for="name">Imię i nazwisko</label>
-                        <input class="input" type="text" id="name" name="name" placeholder="Jan Kowalski" autocomplete="name" required>
+                        <label class="label" for="name">{{ __('messages.contact.label_name') }}</label>
+                        <input class="input" type="text" id="name" name="name" placeholder="{{ __('messages.contact.placeholder_name') }}" autocomplete="name" required>
                     </div>
                     <div class="field">
-                        <label class="label" for="email">E-mail</label>
-                        <input class="input" type="email" id="email" name="email" placeholder="jan@example.com" autocomplete="email" required>
+                        <label class="label" for="email">{{ __('messages.contact.label_email') }}</label>
+                        <input class="input" type="email" id="email" name="email" placeholder="{{ __('messages.contact.placeholder_email') }}" autocomplete="email" required>
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label" for="message">Wiadomość</label>
-                    <textarea class="textarea" id="message" name="message" placeholder="W czym możemy pomóc?" required></textarea>
+                    <label class="label" for="message">{{ __('messages.contact.label_message') }}</label>
+                    <textarea class="textarea" id="message" name="message" placeholder="{{ __('messages.contact.placeholder_message') }}" required></textarea>
                 </div>
                 <div class="form-actions">
                     <label style="display:flex; align-items:center; gap:10px; color:var(--fg-muted); font-size:14px;">
                         <input type="checkbox" required style="transform:translateY(1px)">
-                        Zgadzam się na kontakt w sprawie mojego zapytania.
+                        {{ __('messages.contact.label_consent') }}
                     </label>
-                    <button class="btn" type="submit">Wyślij</button>
+                    <button class="btn" type="submit">{{ __('messages.contact.btn_submit') }}</button>
                 </div>
-                <div class="hint">Chronimy Twoją prywatność. Nie udostępniamy danych osobom trzecim.</div>
+                <div class="hint">{{ __('messages.contact.hint') }}</div>
             </form>
         </div>
     </div>
 </section>
 
 <footer>
-    <a class="top" href="#top" aria-label="Do góry">↑</a>
+    <a class="top" href="#top" aria-label="{{ __('messages.footer.top_aria') }}">↑</a>
     © {{ now()->year }} NoteSync
 </footer>
 
@@ -706,12 +766,30 @@
       'offers' => ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => 'PLN'],
       'url' => config('app.url', 'https://notesync.pl'),
       'image' => notesync_resolve_asset('app_light_1'),
-      'description' => 'Lekka aplikacja do notatek z bezpieczną synchronizacją.',
+      'description' => __('messages.hero.lead'), // Użycie tłumaczenia
     ];
 @endphp
 <script type="application/ld+json">{!! json_encode($ld, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) !!}</script>
 
 <script>
+    // Przekazanie tłumaczeń z PHP do JS
+    const translations = {
+        lightboxClose: "{{ __('messages.lightbox.close_text') }}",
+        lightboxCloseAria: "{{ __('messages.lightbox.close_aria') }}",
+        lightboxAlt: "{{ __('messages.lightbox.image_alt') }}",
+        iosToast: "{{ __('messages.ios_toast.message') }}",
+        expoModalAria: "{{ __('messages.expo.modal_aria') }}",
+        expoCloseAria: "{{ __('messages.expo.close_aria') }}",
+        expoQrAlt: "{{ __('messages.expo.qr_alt') }}",
+        expoScanText: "{!! __('messages.expo.scan_text') !!}",
+        expoStep1Title: "{{ __('messages.expo.step1_title') }}",
+        expoStep1Desc: "{{ __('messages.expo.step1_desc') }}",
+        expoStep2Title: "{{ __('messages.expo.step2_title') }}",
+        expoStep2Desc: "{{ __('messages.expo.step2_desc') }}",
+        expoStep3Title: "{{ __('messages.expo.step3_title') }}",
+        expoStep3Desc: "{{ __('messages.expo.step3_desc') }}",
+    };
+
     /* FAQ – akordeon */
     (function(){
         var items = document.querySelectorAll('.faq-item');
@@ -735,7 +813,7 @@
         });
     })();
 
-    /* MODYFIKACJA: Burger + scrim (z animacją CSS) */
+    /* Burger + scrim (z animacją CSS) */
     (function(){
         var burger = document.getElementById('burger');
         var panel  = document.getElementById('mobilePanel');
@@ -767,7 +845,9 @@
         var container = document.createElement('div');
         container.id = 'lightbox';
         container.className = 'lightbox';
-        container.innerHTML = '<button class="lightbox-close" aria-label="Zamkij">Zamknij</button><img id="lightboxImg" alt="Podgląd zrzutu"/>';
+        // Użycie tłumaczeń JS
+        container.innerHTML = '<button class="lightbox-close" aria-label="' + translations.lightboxCloseAria + '">' + translations.lightboxClose + '</button>' +
+            '<img id="lightboxImg" alt="' + translations.lightboxAlt + '"/>';
         document.body.appendChild(container);
 
         var imgEl = container.querySelector('#lightboxImg');
@@ -792,10 +872,9 @@
         document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && container.classList.contains('open')) close(); });
     })();
 
-    /* MODYFIKACJA: Przełącznik motywów (usunięto logikę dla mobileToggleBtn) */
+    /* Przełącznik motywów */
     (function() {
         var toggleBtn = document.getElementById('theme-toggle');
-        // Usunięto mobileToggleBtn
 
         function toggleTheme(e) {
             var currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -824,32 +903,23 @@
             iosBtn.addEventListener('click', function(e){
                 e.preventDefault();
 
-                // Logika tylko dla urządzeń dotykowych
                 if (isTouch) {
                     clickCount++;
-
                     if (clickCount === 1) {
-                        // Pierwsze kliknięcie: pokaż toast
-                        if (existingToast) existingToast.remove(); // Usuń stary, jeśli istnieje
-
+                        if (existingToast) existingToast.remove();
                         var toast = document.createElement('div');
                         toast.className = 'mobile-toast';
-                        toast.textContent = 'Wersja iOS jest tymczasowo niedostępna.';
-
-                        // Wstaw toast tuż po przycisku iOS
+                        toast.textContent = translations.iosToast; // Użycie tłumaczenia JS
                         iosBtn.parentNode.insertBefore(toast, iosBtn.nextSibling);
                         existingToast = toast;
-
                     } else if (clickCount === 2) {
-                        // Drugie kliknięcie: ukryj toast
                         if (existingToast) {
                             existingToast.remove();
                             existingToast = null;
                         }
-                        clickCount = 0; // Zresetuj licznik
+                        clickCount = 0;
                     }
                 }
-                // Na desktopie (non-touch) nic się nie dzieje, polegamy na tooltipie CSS
             });
         }
 
@@ -859,32 +929,32 @@
         expoModal.className = 'lightbox';
         expoModal.setAttribute('role','dialog');
         expoModal.setAttribute('aria-modal','true');
-        expoModal.setAttribute('aria-label','Kod QR do aplikacji Expo GO');
+        expoModal.setAttribute('aria-label', translations.expoModalAria); // Użycie tłumaczenia JS
 
         var expoQr = @json($expoQrImg);
 
         expoModal.innerHTML =
             '<div class="modal-card" id="expoCard">' +
-            '<button class="xbtn" id="expoX" aria-label="Zamknij modal">' +
+            '<button class="xbtn" id="expoX" aria-label="' + translations.expoCloseAria + '">' + // Użycie tłumaczenia JS
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
             '<path d="M6 6l12 12M6 18L18 6"/>' +
             '</svg>' +
             '</button>' +
-            '<img src="'+ expoQr +'" alt="Kod QR Expo GO" style="max-width:min(86vw,460px);height:auto;border-radius:12px;background:#fff"/>' + /* Tło QR na białe dla czytelności */
-            '<div style="color:var(--fg);font-weight:700;text-align:center">Zeskanuj w aplikacji <strong>Expo Go</strong> na telefonie</div>' +
+            '<img src="'+ expoQr +'" alt="' + translations.expoQrAlt + '" style="max-width:min(86vw,460px);height:auto;border-radius:12px;background:#fff"/>' + // Użycie tłumaczenia JS
+            '<div style="color:var(--fg);font-weight:700;text-align:center">' + translations.expoScanText + '</div>' + // Użycie tłumaczenia JS
             '<div class="steps">' +
             '<div class="steps-grid">' +
             '<div class="step">' +
             '<div class="step-num">1</div>' +
-            '<div><p class="step-title">Pobierz Expo Go</p><p class="step-desc">Zainstaluj z Google Play lub App Store.</p></div>' +
+            '<div><p class="step-title">' + translations.expoStep1Title + '</p><p class="step-desc">' + translations.expoStep1Desc + '</p></div>' + // Użycie tłumaczenia JS
             '</div>' +
             '<div class="step">' +
             '<div class="step-num">2</div>' +
-            '<div><p class="step-title">Zeskanuj kod QR</p><p class="step-desc">Użyj aparatu lub skanera w Expo Go.</p></div>' +
+            '<div><p class="step-title">' + translations.expoStep2Title + '</p><p class="step-desc">' + translations.expoStep2Desc + '</p></div>' + // Użycie tłumaczenia JS
             '</div>' +
             '<div class="step">' +
             '<div class="step-num">3</div>' +
-            '<div><p class="step-title">Otwórz NoteSync</p><p class="step-desc">Projekt uruchomi się automatycznie.</p></div>' +
+            '<div><p class="step-title">' + translations.expoStep3Title + '</p><p class="step-desc">' + translations.expoStep3Desc + '</p></div>' + // Użycie tłumaczenia JS
             '</div>' +
             '</div>' +
             '</div>' +
