@@ -5,7 +5,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>NoteSync — notatki pod ręką</title>
+    <title>NoteSync — Wspólne notatki to lepsza współpraca.</title>
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Pacifico&display=swap" rel="stylesheet" />
 
@@ -552,7 +552,7 @@
 
 <header class="hero" role="region" aria-label="Sekcja główna">
     <div class="container heroBox">
-        <div class="kicker">SYNC • FILES</div>
+{{--        <div class="kicker">SYNC • FILES</div>--}}
         <h1>Notuj. Porządkuj.<br/>Synchronizuj.</h1>
         <p class="lead">Szybka, lekka aplikacja do notatek z bezpieczną synchronizacją.</p>
 
