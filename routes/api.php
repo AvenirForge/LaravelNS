@@ -57,11 +57,13 @@ Route::middleware('auth:api')->group(function () {
         Route::put('/tests/{testId}/questions/{questionId}/answers/{answerId}', [TestController::class, 'updateAnswer']);
         Route::delete('/tests/{testId}/questions/{questionId}/answers/{answerId}', [TestController::class, 'destroyAnswer']);
         Route::post('/tests/{testId}/share',                   [TestController::class, 'shareTestWithCourse']);
+        Route::delete('/tests/{testId}/share',                   [TestController::class, 'unShareTestWithCourse']);
+
     });
 
     // COURSES – akcje poza /me (wszędzie auth:api)
     Route::post('/courses/{courseId}/invite-user', [InvitationController::class, 'inviteUser']);
-
+    Route::delete('/courses/{courseId}/leave', [CourseController::class, 'leaveCourse']);
     Route::post('/courses/{courseId}/remove-user',               [CourseController::class, 'removeUser']);
     Route::delete('/courses/{courseId}/users/{userId}/notes',    [CourseController::class, 'purgeUserNotesInCourse']);
     Route::delete('/courses/{courseId}/users/{userId}/tests',    [CourseController::class, 'purgeUserTestsInCourse']);

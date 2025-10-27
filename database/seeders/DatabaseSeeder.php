@@ -12,8 +12,8 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // Kolejność ma znaczenie – najpierw użytkownicy, potem notatki
-        $this->call([
-            UserSeeder::class,
-            ]);
+//        $this->call([
+//            UserSeeder::class,
+//            ]);
     }
 }

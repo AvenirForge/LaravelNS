@@ -17,7 +17,6 @@ class Course extends Model
     protected $table = 'courses';
     protected $fillable = ['title', 'description', 'type', 'user_id', 'avatar'];
 
-    // ===== Relacje =====
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'courses_users')
@@ -25,17 +24,16 @@ class Course extends Model
             ->withTimestamps();
     }
 
-    public function notes(): HasMany       { return $this->hasMany(Note::class); }
+    public function notes(): BelongsToMany { return $this->belongsToMany(Note::class, 'course_note'); }
     public function invitations(): HasMany { return $this->hasMany(Invitation::class); }
+    public function tests(): BelongsToMany { return $this->belongsToMany(Test::class, 'course_test'); }
 
-    // ===== Atrybuty =====
     public function getAvatarUrlAttribute(): ?string
     {
         $rel = $this->avatar ?: self::DEFAULT_AVATAR_RELATIVE;
         return Storage::disk('public')->exists($rel) ? Storage::url($rel) : null;
     }
 
-    // ===== Avatar =====
     public function changeAvatar($file): void
     {
         $disk = Storage::disk('public');
