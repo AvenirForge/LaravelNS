@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response as Http;
 // --- CORRECT IMPORT ---
@@ -80,8 +81,12 @@ class InvitationController extends Controller
     }
 
     // GET /api/me/invitations-received
-    public function invitationsReceived() {
-        $me = $this->me(); if (!$me) return response()->json(['error' => 'Unauthorized'], Http::HTTP_UNAUTHORIZED);
+    public function invitationsReceived(): \Illuminate\Http\JsonResponse
+    {
+        $me = $this->me();
+        if (!$me) {
+            return response()->json(['error' => 'Unauthorized'], Http::HTTP_UNAUTHORIZED);
+        }
         $meNorm = $this->canonicalEmail($me->email);
         $list = Invitation::with(['course:id,title,type,user_id,avatar', 'inviter:id,name,email,avatar'])
             // --- CORRECT TYPE HINT ---
@@ -89,7 +94,47 @@ class InvitationController extends Controller
                 // --- END CORRECTION ---
                 $query->whereRaw('LOWER(TRIM(invited_email)) = ?', [$meNorm])->orWhere('user_id', $me->id);
             })->latest('created_at')->get();
-        return response()->json(['invitations' => $list->map(function (Invitation $i) { /* Mapping unchanged */ $cA = $i->course?->avatar_url ?? null; $iA = $i->inviter?->avatar_url ?? null; return [ 'id'=>$i->id, 'course_id'=>$i->course_id, 'token'=>$i->token, 'status'=>$i->status, 'role'=>$i->role, 'invited_email'=>$i->invited_email, 'expires_at'=>$i->expires_at?->toIso8601String(), 'responded_at'=>$i->responded_at?->toIso8601String(), 'created_at'=>$i->created_at?->toIso8601String(), 'updated_at'=>$i->updated_at?->toIso8601String(), 'is_expired'=>$i->hasExpired(), 'course'=>$i->course ? ['id'=>$i->course->id, 'title'=>$i->course->title, 'type'=>$i->course->type, 'user_id'=>$i->course->user_id, 'avatar_url'=>$cA] : null, 'inviter'=>$i->inviter ? ['id'=>$i->inviter->id, 'name'=>$i->inviter->name ?? null, 'email'=>$i->inviter->email, 'avatar_url'=>$iA] : null ]; })->values()]);
+
+        return response()->json(['invitations' => $list->map(function (Invitation $i) {
+
+            // --- ZMODYFIKOWANA LOGIKA URL ---
+            // Zakładamy, że $i->course->avatar przechowuje ścieżkę pliku, np. 'courses_avatars/plik.jpg'
+            // Jeśli $i->course->avatar jest nullem, Storage::url(null) zwróci null.
+            $courseAvatarPath = $i->course?->avatar;
+            $cA = $courseAvatarPath ? Storage::disk('public')->url($courseAvatarPath) : null;
+
+            // Podobnie dla avatara zapraszającego (Inviter/User)
+            $inviterAvatarPath = $i->inviter?->avatar;
+            $iA = $inviterAvatarPath ? Storage::disk('public')->url($inviterAvatarPath) : null;
+            // --- KONIEC MODYFIKACJI ---
+
+            return [
+                'id' => $i->id,
+                'course_id' => $i->course_id,
+                'token' => $i->token,
+                'status' => $i->status,
+                'role' => $i->role,
+                'invited_email' => $i->invited_email,
+                'expires_at' => $i->expires_at?->toIso8601String(),
+                'responded_at' => $i->responded_at?->toIso8601String(),
+                'created_at' => $i->created_at?->toIso8601String(),
+                'updated_at' => $i->updated_at?->toIso8601String(),
+                'is_expired' => $i->hasExpired(),
+                'course' => $i->course ? [
+                    'id' => $i->course->id,
+                    'title' => $i->course->title,
+                    'type' => $i->course->type,
+                    'user_id' => $i->course->user_id,
+                    'avatar_url' => $cA // Użycie wygenerowanego URL
+                ] : null,
+                'inviter' => $i->inviter ? [
+                    'id' => $i->inviter->id,
+                    'name' => $i->inviter->name ?? null,
+                    'email' => $i->inviter->email,
+                    'avatar_url' => $iA // Użycie wygenerowanego URL
+                ] : null
+            ];
+        })->values()]);
     }
 
     // GET /api/me/invitations-sent (Unchanged)

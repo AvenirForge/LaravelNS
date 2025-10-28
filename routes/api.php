@@ -32,15 +32,28 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/courses/{id}',         [CourseController::class, 'destroy']);
 
         // NOTES
-        Route::get('/notes',                   [NoteController::class, 'index']);
-        Route::post('/notes',                  [NoteController::class, 'store']);
-        Route::get('/notes/{id}',              [NoteController::class, 'show']);
-        Route::patch('/notes/{id}',            [NoteController::class, 'edit']);
-        Route::delete('/notes/{id}',           [NoteController::class, 'destroy']);
-        Route::post('/notes/{id}/patch',       [NoteController::class, 'patchFile']);
-        Route::get('/notes/{id}/download',     [NoteController::class, 'download']);
-        Route::post('/notes/{noteId}/share/{courseId}',   [NoteController::class, 'shareNoteWithCourse']);
-        Route::delete('/notes/{noteId}/share/{courseId}', [NoteController::class, 'unshareNoteFromCourse']);
+        Route::get('/notes',                    [NoteController::class, 'index']); // Zwraca notatki z tablicą 'files'
+        Route::post('/notes',                   [NoteController::class, 'store']); // Oczekuje 'files[]' zamiast 'file'
+        Route::get('/notes/{id}',               [NoteController::class, 'show'])->where('id', '[0-9]+'); // Zwraca notatkę z tablicą 'files'
+        Route::match(['put', 'patch'], '/notes/{id}', [NoteController::class, 'edit'])->where('id', '[0-9]+'); // Aktualizuje tylko metadane (title, desc, is_private)
+        Route::delete('/notes/{id}',            [NoteController::class, 'destroy'])->where('id', '[0-9]+'); // Usuwa notatkę i powiązane pliki (przez model event)
+
+        Route::post('/notes/{noteId}/files', [NoteController::class, 'addFileToNote'])
+            ->where('noteId', '[0-9]+')
+            ->name('notes.files.add'); // Dodawanie nowego pliku do istniejącej notatki
+
+        Route::delete('/notes/{noteId}/files/{fileId}', [NoteController::class, 'deleteFileFromNote'])
+            ->where(['noteId' => '[0-9]+', 'fileId' => '[0-9]+'])
+            ->name('notes.files.delete'); // Usuwanie konkretnego pliku z notatki
+
+        Route::get('/notes/{noteId}/files/{fileId}/download', [NoteController::class, 'downloadNoteFile'])
+            ->where(['noteId' => '[0-9]+', 'fileId' => '[0-9]+'])
+            ->name('notes.files.download'); // Pobieranie konkretnego pliku
+
+        Route::post('/notes/{noteId}/share/{courseId}',   [NoteController::class, 'shareNoteWithCourse'])
+            ->where(['noteId' => '[0-9]+', 'courseId' => '[0-9]+']);
+        Route::delete('/notes/{noteId}/share/{courseId}', [NoteController::class, 'unshareNoteFromCourse'])
+            ->where(['noteId' => '[0-9]+', 'courseId' => '[0-9]+']);
 
         // TESTS (per user)
         Route::get('/tests',                                   [TestController::class, 'indexForUser']);

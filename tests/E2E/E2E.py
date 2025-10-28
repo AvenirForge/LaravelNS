@@ -10,7 +10,7 @@ E2E.py — Zintegrowany test E2E po refaktoryzacji N:M (User, Note, Course, Quiz
 Kolejność wykonywania:
 1. User API (cykl życia użytkownika w izolacji)
 2. Setup (rejestracja głównych aktorów)
-3. Note API (testy notatek osobistych i udostępniania N:M)
+3. Note API (testy notatek osobistych, zarządzania plikami 1:N i udostępniania N:M)
 4. Course API (testy kursów, ról, moderacji, opuszczania kursu - uwzględniając N:M dla notes/tests)
 5. Quiz API (testy quizów - uwzględniając udostępnianie testów N:M)
 """
@@ -29,6 +29,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 import html # Import do escape'owania HTML
+import webbrowser # Import do otwierania raportu
 
 # Upewnij się, że zależności są zainstalowane: pip install requests colorama tabulate Pillow
 import requests
@@ -146,7 +147,7 @@ def safe_filename(s: str) -> str:
     """Konwertuje string na bezpieczną nazwę pliku."""
     # Usuń białe znaki z początku/końca
     s = s.strip()
-    # Zamień wszystko co nie jest literą, cyfrą, myślnikiem lub kropką na _
+    # Zamień wszystko co nie jest literą, cyfrą, myśnikiem lub kropką na _
     s = re.sub(r"[^\w\-.]+", "_", s)
     # Usuń wielokrotne podkreślenia
     s = re.sub(r"_+", "_", s)
@@ -371,7 +372,7 @@ def http_request(ctx: TestContext, title: str, method: str, url: str,
                  headers: Dict[str,str],
                  json_body: Optional[Dict[str, Any]] = None,
                  data: Optional[Dict[str, Any]] = None,
-                 files: Optional[Dict[str, Tuple[str, bytes, str]]] = None) -> requests.Response:
+                 files: Optional[Any] = None) -> requests.Response: # MODYFIKACJA: files: Optional[Any]
     """Wykonuje żądanie HTTP, loguje je i zwraca obiekt Response."""
     method = method.upper()
     # Przygotuj nagłówki (dodaj domyślne, zmaskuj)
@@ -387,13 +388,27 @@ def http_request(ctx: TestContext, title: str, method: str, url: str,
         req_body_log = mask_json_sensitive(json_body)
         req_is_json = True
     elif files:
-        # Dla multipart logujemy tylko metadane plików
-        req_body_log = {
-            "fields": mask_json_sensitive(data or {}),
-            "files": {k: {"filename": v[0], "bytes": len(v[1]), "content_type": v[2]}
-                      for k, v in files.items()}
-        }
+        # MODYFIKACJA: Obsługa list (dla files[]) i dict
+        if isinstance(files, dict):
+            # Dla pojedynczych plików lub wielu pod różnymi kluczami
+            req_body_log = {
+                "fields": mask_json_sensitive(data or {}),
+                "files": {k: {"filename": v[0], "bytes": len(v[1]), "content_type": v[2]}
+                          for k, v in files.items()}
+            }
+        elif isinstance(files, list):
+            # Dla tablic plików (np. 'files[]')
+            req_body_log = {
+                "fields": mask_json_sensitive(data or {}),
+                "files_list": [
+                    {"field": v[0], "filename": v[1][0], "bytes": len(v[1][1]), "content_type": v[1][2]}
+                    for v in files
+                ]
+            }
+        else:
+             req_body_log = {"fields": mask_json_sensitive(data or {}), "files": "<unknown_format>"}
         req_is_json = False # To nie jest czysty JSON
+        # --- KONIEC MODYFIKACJI ---
     elif data:
         # Dla zwykłego form-data
         req_body_log = mask_json_sensitive(data)
@@ -411,7 +426,7 @@ def http_request(ctx: TestContext, title: str, method: str, url: str,
             headers=req_headers,
             json=json_body, # requests samo ustawi Content-Type: application/json
             data=data,     # Dla form-data lub multipart fields
-            files=files,   # Dla multipart files
+            files=files,   # Dla multipart files (obsłuży dict i listę tupli)
             timeout=ctx.timeout
         )
         el.duration_ms = (time.time() - t0) * 1000.0
@@ -452,10 +467,20 @@ def http_delete(ctx: TestContext, title: str, url: str, headers: Dict[str, str],
     return http_request(ctx, title, "DELETE", url, headers=headers, json_body=json_body)
 
 def http_post_multipart(ctx: TestContext, title: str, url: str,
-                        data: Dict[str, Any], files: Dict[str, Tuple[str, bytes, str]],
-                        headers: Dict[str,str]) -> requests.Response:
-    # Usuwamy Accept: application/json z domyślnych nagłówków dla multipart
-    multipart_headers = {k: v for k, v in headers.items() if k.lower() != 'accept'}
+                        data: Dict[str, Any],
+                        headers: Dict[str,str], # MOVED: Required headers now comes before optional files
+                        files: Optional[Any] = None) -> requests.Response: # files remains optional
+    """Wykonuje żądanie POST multipart/form-data."""
+    # Usuwamy Accept: application/json z domyślnych nagłówków dla multipart,
+    # bo requests sam ustawi Content-Type multipart/form-data.
+    # Używamy kopii, aby nie modyfikować oryginalnego słownika headers.
+    multipart_headers = headers.copy()
+    # Sprawdzamy case-insensitive
+    accept_key = next((k for k in multipart_headers if k.lower() == 'accept'), None)
+    if accept_key:
+        del multipart_headers[accept_key]
+
+    # Reszta funkcji pozostaje bez zmian
     return http_request(ctx, f"{title} (multipart)", "POST", url, headers=multipart_headers, data=data, files=files)
 
 def http_json_update(ctx: TestContext, base_title: str, url: str,
@@ -467,10 +492,6 @@ def http_json_update(ctx: TestContext, base_title: str, url: str,
         r_put = http_put_json(ctx, f"{base_title} (PUT fallback)", url, json_body, headers)
         return r_put, "PUT"
     return r_patch, "PATCH"
-
-# ───────────────────────── Helpers: Raport & Transkrypcje ─────────────────────────
-# MODYFIKACJA: Usunięto funkcje guess_ext_by_ct, write_bytes, write_text, save_endpoint_files
-# Zostawiamy tylko build_output_dir, który jest potrzebny dla raportu HTML.
 
 def build_output_dir() -> str:
     """Tworzy unikalny katalog wyjściowy dla raportu."""
@@ -530,22 +551,31 @@ class E2ETester:
             ("SETUP: Rejestracja Admin (D)", self.t_setup_register_AdminD),
             ("SETUP: Rejestracja Moderator (E)", self.t_setup_register_ModeratorE),
 
-            # === 3. Note API (Uwzględnia N:M) ===
+            # === 3. Note API (Uwzględnia 1:N Pliki i N:M Kursy) ===
             ("NOTE: Login (Owner A)", self.t_note_login_A),
             ("NOTE: Index (initial empty)", self.t_note_index_initial),
-            ("NOTE: Store: missing file → 400/422", self.t_note_store_missing_file),
-            ("NOTE: Store: invalid mime → 400/422", self.t_note_store_invalid_mime),
-            ("NOTE: Store: ok (multipart) Note A", self.t_note_store_ok), # Tworzy note_id_A
-            ("NOTE: Index contains created Note A", self.t_note_index_contains_created),
+            ("NOTE: Store: missing files[] → 400/422", self.t_note_store_missing_file),
+            ("NOTE: Store: invalid mime (files[]) → 400/422", self.t_note_store_invalid_mime),
+            ("NOTE: Store: ok (multipart files[]) Note A", self.t_note_store_ok), # Tworzy note_id_A
+            ("NOTE: Index contains created Note A (with files)", self.t_note_index_contains_created),
             ("NOTE: Login (Member B)", self.t_note_login_B),
-            ("NOTE: Foreign download (B) → 403/404", self.t_note_download_foreign_403),
+            (f"{ICON_LOCK} NOTE: Show foreign note (B) → 403/404", self.t_note_show_foreign_403), # ZMIANA: Test 'show' zamiast 'download'
             ("NOTE: Login (Owner A) again", self.t_note_login_A_again),
             ("NOTE: PATCH title only (Note A)", self.t_note_patch_title_only),
             ("NOTE: PATCH is_private invalid → 400/422", self.t_note_patch_is_private_invalid),
             ("NOTE: PATCH description + is_private=false (Note A)", self.t_note_patch_desc_priv_false),
-            ("NOTE: POST …/{id}/patch: missing file", self.t_note_patch_file_missing),
-            ("NOTE: POST …/{id}/patch: ok (Note A)", self.t_note_patch_file_ok),
-            ("NOTE: Download note file (Note A) ok", self.t_note_download_file_ok),
+
+            # --- ZMODYFIKOWANE I NOWE TESTY ZARZĄDZANIA PLIKAMI ---
+            (f"{ICON_IMG} NOTE: Add file: missing 'file' → 400/422", self.t_note_add_file_missing), # ZMIANA: Testuje POST .../files
+            (f"{ICON_IMG} NOTE: Add second file ok (Note A)", self.t_note_add_second_file_ok), # ZMIANA: Testuje POST .../files
+            (f"{ICON_DOWN} NOTE: Download first file (Note A) ok", self.t_note_download_first_file_ok), # ZMIANA: Testuje GET .../files/fileId/download
+            (f"{ICON_TRASH} NOTE: Delete second file (Note A)", self.t_note_delete_second_file), # NOWY TEST
+            (f"{ICON_LIST} NOTE: Verify one file remains", self.t_note_verify_one_file_remains), # NOWY TEST
+            (f"{ICON_TRASH} NOTE: Delete last file (Note A)", self.t_note_delete_last_file), # NOWY TEST
+
+            (f"{ICON_IMG} NOTE: Add file after empty (Note A)", self.t_note_add_file_after_empty), # NOWY TEST
+            # --- KONIEC TESTÓW ZARZĄDZANIA PLIKAMI ---
+
             # Testy udostępniania N:M
             ("NOTE: Create Course 1 for sharing", self.t_note_create_course1), # Tworzy course_id_1
             ("NOTE: Share Note A to Course 1", self.t_note_share_to_course1),
@@ -559,8 +589,8 @@ class E2ETester:
             ("NOTE: Verify Note A shows no Courses and is private", self.t_note_verify_note_shows_none_private),
             ("NOTE: Unshare already unshared (idempotent)", self.t_note_unshare_idempotent),
             # Testy DELETE
-            ("NOTE: DELETE note (Note A)", self.t_note_delete_note),
-            ("NOTE: Download after delete → 404", self.t_note_download_after_delete_404),
+            ("NOTE: DELETE note (Note A)", self.t_note_delete_note), # Usuwa notatkę i kaskadowo pliki
+            ("NOTE: Download file after delete → 404", self.t_note_download_after_delete_404), # ZMIANA: Testuje .../files/fileId/download
             ("NOTE: Index after delete (not present)", self.t_note_index_after_delete),
 
             # === 4. Course API (Uwzględnia N:M) ===
@@ -1107,21 +1137,23 @@ class E2ETester:
         """Próbuje stworzyć notatkę bez pliku (oczekiwany błąd 400/422)."""
         assert self.ctx.tokenOwner, "Owner A token not available"
         url = me(self.ctx,"/notes")
-        r = http_post_multipart(self.ctx, "NOTE: Store missing file", url,
-                                data={"title":"Note Without File"}, files={},
+        # MODYFIKACJA: Wysyła dane, ale brak klucza 'files'
+        r = http_post_multipart(self.ctx, "NOTE: Store missing files[]", url,
+                                data={"title":"Note Without File"}, files=None, # Zmieniono files={} na None
                                 headers=auth_headers(self.ctx.tokenOwner))
-        assert r.status_code in (400, 422), f"Expected 400/422, got {r.status_code}"
+        assert r.status_code in (400, 422), f"Expected 400/422 (files required), got {r.status_code}"
         return {"status": r.status_code, "method":"POST","url":url}
 
     def t_note_store_invalid_mime(self):
         """Próbuje stworzyć notatkę z niedozwolonym typem pliku (oczekiwany błąd 400/422)."""
         assert self.ctx.tokenOwner, "Owner A token not available"
         url = me(self.ctx,"/notes")
-        files = {"file": ("invalid_note.txt", b"This is text", "text/plain")}
-        r = http_post_multipart(self.ctx, "NOTE: Store invalid mime", url,
-                                data={"title":"Note With Invalid Mime"}, files=files,
+        # MODYFIKACJA: Wysyła plik jako tablica 'files[]'
+        files_list = [("files[]", ("invalid_note.txt", b"This is text", "text/plain"))]
+        r = http_post_multipart(self.ctx, "NOTE: Store invalid mime (files[])", url,
+                                data={"title":"Note With Invalid Mime"}, files=files_list,
                                 headers=auth_headers(self.ctx.tokenOwner))
-        assert r.status_code in (400, 422), f"Expected 400/422, got {r.status_code}"
+        assert r.status_code in (400, 422), f"Expected 400/422 (invalid mime), got {r.status_code}"
         return {"status": r.status_code, "method":"POST","url":url}
 
     def t_note_store_ok(self):
@@ -1129,18 +1161,27 @@ class E2ETester:
         assert self.ctx.tokenOwner, "Owner A token not available"
         url = me(self.ctx,"/notes")
         data_bytes, mime, name = self._note_load_upload_bytes(self.ctx.note_file_path)
-        files = {"file": (name, data_bytes, mime)}
+        # MODYFIKACJA: Wysyła plik jako tablica 'files[]'
+        files_list = [("files[]", (name, data_bytes, mime))]
         note_data = {"title":"Note A - For Sharing","description":"Initial description"}
-        r = http_post_multipart(self.ctx, "NOTE: Store ok (Note A)", url,
-                                data=note_data, files=files,
+        r = http_post_multipart(self.ctx, "NOTE: Store ok (multipart files[]) Note A", url,
+                                data=note_data, files=files_list,
                                 headers=auth_headers(self.ctx.tokenOwner))
         assert r.status_code in (200, 201), f"Expected 200/201, got {r.status_code}. Response: {trim(r.text)}"
         body = must_json(r)
-        # Odpowiedź może być zagnieżdżona {'note': {...}} lub płaska {...}
-        note_details = body.get("note", body)
-        assert isinstance(note_details, dict), f"Expected note object in response: {trim(body)}"
+        # Odpowiedź powinna zawierać {'note': {...}}
+        note_details = body.get("note")
+        assert isinstance(note_details, dict), f"Expected 'note' object in response: {trim(body)}"
         note_id = note_details.get("id")
         assert note_id, f"Note ID not found in response: {trim(note_details)}"
+
+        # MODYFIKACJA: Sprawdź, czy notatka zawiera tablicę 'files'
+        files_array = note_details.get("files")
+        assert isinstance(files_array, list), f"Expected 'files' array in note response: {trim(note_details)}"
+        assert len(files_array) > 0, "Expected at least one file in 'files' array"
+        assert files_array[0].get("original_name") == name, "Filename mismatch in response"
+        assert files_array[0].get("file_url"), "file_url missing from file response"
+
         self.ctx.note_id_A = int(note_id)
         # Zapisz ID także do zmiennej używanej w CourseTest dla spójności
         self.ctx.course_note_id_A = self.ctx.note_id_A
@@ -1148,10 +1189,10 @@ class E2ETester:
         return {"status": r.status_code, "method":"POST","url":url}
 
     def t_note_index_contains_created(self):
-        """Sprawdza, czy lista notatek Ownera A zawiera nowo stworzoną Note A."""
+        """Sprawdza, czy lista notatek Ownera A zawiera nowo stworzoną Note A (i czy ma 'files')."""
         assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
         url = me(self.ctx, f"/notes?top=50&skip=0") # Pobierz więcej, aby mieć pewność
-        r = http_get(self.ctx, "NOTE: Index contains Note A", url, auth_headers(self.ctx.tokenOwner))
+        r = http_get(self.ctx, "NOTE: Index contains Note A (with files)", url, auth_headers(self.ctx.tokenOwner))
         assert r.status_code == 200
         body = must_json(r)
         notes_data = body if isinstance(body, list) else body.get("data", [])
@@ -1159,6 +1200,12 @@ class E2ETester:
         # Znajdź notatkę po ID
         found_note = next((note for note in notes_data if note.get("id") == self.ctx.note_id_A), None)
         assert found_note is not None, f"Note ID {self.ctx.note_id_A} not found in the list: {trim(notes_data)}"
+
+        # MODYFIKACJA: Sprawdź zagnieżdżone pliki
+        files_array = found_note.get("files")
+        assert isinstance(files_array, list), "Expected 'files' array in index response"
+        assert len(files_array) > 0, "Expected 'files' array to not be empty"
+        assert files_array[0].get("file_url"), "file_url missing in index response"
 
         # Sprawdź paginację poza zakresem (oczekiwana pusta lista)
         count = body.get("count", len(notes_data)) if isinstance(body, dict) else len(notes_data)
@@ -1183,12 +1230,12 @@ class E2ETester:
         assert self.ctx.tokenB
         return {"status": 200, "method":"POST","url":url}
 
-    def t_note_download_foreign_403(self):
-        """Sprawdza, czy Member B nie może pobrać prywatnej notatki Ownera A (oczekiwany błąd 403/404)."""
+    def t_note_show_foreign_403(self):
+        """Sprawdza, czy Member B nie może pobrać (GET) prywatnej notatki Ownera A (oczekiwany błąd 403/404)."""
         assert self.ctx.tokenB and self.ctx.note_id_A, "Member B token or Note A ID not available"
-        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}/download")
-        # Użyj tokenu B do żądania
-        r = http_request(self.ctx, "NOTE: Download foreign note (Member B)", "GET", url, headers=auth_headers(self.ctx.tokenB))
+        # MODYFIKACJA: Testuje endpoint GET /notes/{id} zamiast starego .../download
+        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}")
+        r = http_get(self.ctx, "NOTE: Show foreign note (Member B)", url, auth_headers(self.ctx.tokenB))
         # Oczekujemy 403 Forbidden lub 404 Not Found (jeśli polityka ukrywa istnienie zasobu)
         assert r.status_code in (403, 404), f"Expected 403/404, got {r.status_code}"
         return {"status": r.status_code, "method":"GET","url":url}
@@ -1196,76 +1243,190 @@ class E2ETester:
     def t_note_login_A_again(self):
         """Ponownie loguje Ownera A."""
         return self.t_note_login_A()
-# ──────────────────────────────────────────────────────────────────────
-    # === 4. Metody testowe: Course API (kontynuacja) ===
+
+    def t_note_patch_title_only(self):
+        """Aktualizuje tylko tytuł notatki A (endpoint 'edit')."""
+        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
+        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}")
+        new_title = "Renamed Note A"
+        r, method = http_json_update(self.ctx, "NOTE: Update title Note A", url, {"title": new_title}, auth_headers(self.ctx.tokenOwner))
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}. Response: {trim(r.text)}"
+        body = must_json(r)
+        note_data = body.get("note", body)
+        assert note_data.get("title") == new_title, f"Title not updated: expected '{new_title}', got '{note_data.get('title')}'"
+
+        # MODYFIKACJA: Sprawdź, czy odpowiedź nadal zawiera pliki (dla spójności)
+        files_array = note_data.get("files")
+        assert isinstance(files_array, list), "Expected 'files' array in edit response"
+        assert len(files_array) > 0, "Expected 'files' array to not be empty"
+
+        return {"status": 200, "method": method, "url": url}
+
+    def t_note_patch_is_private_invalid(self):
+        """Próbuje ustawić niepoprawną wartość dla is_private (oczekiwany błąd 400/422)."""
+        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
+        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}")
+        r, method = http_json_update(self.ctx, "NOTE: Update invalid is_private", url, {"is_private":"not-a-boolean"}, auth_headers(self.ctx.tokenOwner))
+        assert r.status_code in (400, 422), f"Expected 400/422, got {r.status_code}"
+        return {"status": r.status_code, "method": method, "url": url}
+
+    def t_note_patch_desc_priv_false(self):
+        """Aktualizuje opis i ustawia is_private na false dla notatki A."""
+        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
+        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}")
+        payload = {"description":"Updated description","is_private": False}
+        r, method = http_json_update(self.ctx, "NOTE: Update desc+priv=false Note A", url, payload, auth_headers(self.ctx.tokenOwner))
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}. Response: {trim(r.text)}"
+        body = must_json(r)
+        note_data = body.get("note", body)
+        assert note_data.get("description") == payload["description"], "Description not updated"
+        # API może zwrócić 0 lub False dla boolean
+        assert note_data.get("is_private") in (False, 0), f"is_private not updated to false: got {note_data.get('is_private')}"
+        return {"status": 200, "method": method, "url": url}
+
+    # ──────────────────────────────────────────────────────────────────────
+    # === NOWE TESTY: Zarządzanie plikami (Note API 1:N) ===
     # ──────────────────────────────────────────────────────────────────────
 
-    def t_note_patch_title_only(self):
-        """Aktualizuje tylko tytuł notatki A."""
+    def t_note_add_file_missing(self):
+        """Próbuje dodać plik do notatki, ale nie wysyła pliku (endpoint POST .../files)."""
         assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
-        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}")
-        new_title = "Renamed Note A"
-        r, method = http_json_update(self.ctx, "NOTE: Update title Note A", url, {"title": new_title}, auth_headers(self.ctx.tokenOwner))
-        assert r.status_code == 200, f"Expected 200, got {r.status_code}. Response: {trim(r.text)}"
+        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}/files")
+        r = http_post_multipart(self.ctx, "NOTE: Add file: missing 'file'", url, data={}, files={}, headers=auth_headers(self.ctx.tokenOwner))
+        assert r.status_code in (400, 422), f"Expected 400/422 (file required), got {r.status_code}"
+        return {"status": r.status_code, "method":"POST","url":url}
+
+    def t_note_add_second_file_ok(self):
+        """Dodaje drugi plik (inny typ) do istniejącej notatki A."""
+        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
+        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}/files")
+
+        # Użyj innego pliku (np. wygenerowanego awatara jako drugi plik)
+        data_bytes = self.ctx.avatar_bytes or gen_avatar_bytes()
+        name = "second_file_avatar.png"
+        mime = "image/png"
+
+        # MODYFIKACJA: Ten endpoint oczekuje klucza 'file', a nie 'files[]'
+        files_dict = {"file": (name, data_bytes, mime)}
+
+        r = http_post_multipart(self.ctx, "NOTE: Add second file ok (Note A)", url, data={}, files=files_dict, headers=auth_headers(self.ctx.tokenOwner))
+        assert r.status_code in (200, 201), f"Expected 200/201, got {r.status_code}. Response: {trim(r.text)}"
         body = must_json(r)
-        note_data = body.get("note", body)
-        assert note_data.get("title") == new_title, f"Title not updated: expected '{new_title}', got '{note_data.get('title')}'"
-        return {"status": 200, "method": method, "url": url}
+        file_data = body.get("file")
+        assert isinstance(file_data, dict), "Expected 'file' object in response"
+        assert file_data.get("original_name") == name, "Filename mismatch in response"
+        assert file_data.get("file_url"), "file_url missing"
 
-    def t_note_patch_is_private_invalid(self):
-        """Próbuje ustawić niepoprawną wartość dla is_private (oczekiwany błąd 400/422)."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
-        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}")
-        r, method = http_json_update(self.ctx, "NOTE: Update invalid is_private", url, {"is_private":"not-a-boolean"}, auth_headers(self.ctx.tokenOwner))
-        assert r.status_code in (400, 422), f"Expected 400/422, got {r.status_code}"
-        return {"status": r.status_code, "method": method, "url": url}
+        # Weryfikacja: Pobierz całą notatkę i sprawdź, czy ma 2 pliki
+        r_note = http_get(self.ctx, "NOTE: Verify Note A has 2 files", me(self.ctx, f"/notes/{self.ctx.note_id_A}"), auth_headers(self.ctx.tokenOwner))
+        assert r_note.status_code == 200
+        body_note = must_json(r_note)
+        files_array = body_note.get("files")
+        assert isinstance(files_array, list) and len(files_array) == 2, f"Note A should now have 2 files, found {len(files_array)}"
 
-    def t_note_patch_desc_priv_false(self):
-        """Aktualizuje opis i ustawia is_private na false dla notatki A."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
-        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}")
-        payload = {"description":"Updated description","is_private": False}
-        r, method = http_json_update(self.ctx, "NOTE: Update desc+priv=false Note A", url, payload, auth_headers(self.ctx.tokenOwner))
-        assert r.status_code == 200, f"Expected 200, got {r.status_code}. Response: {trim(r.text)}"
-        body = must_json(r)
-        note_data = body.get("note", body)
-        assert note_data.get("description") == payload["description"], "Description not updated"
-        # API może zwrócić 0 lub False dla boolean
-        assert note_data.get("is_private") in (False, 0), f"is_private not updated to false: got {note_data.get('is_private')}"
-        return {"status": 200, "method": method, "url": url}
+        return {"status": r.status_code, "method":"POST","url":url}
 
-    def t_note_patch_file_missing(self):
-        """Próbuje podmienić plik notatki bez wysyłania pliku (oczekiwany błąd 400/422)."""
+    def t_note_download_first_file_ok(self):
+        """Pobiera pierwszy plik (ten dodany przy tworzeniu notatki) używając nowego endpointu."""
         assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
-        # Endpoint do podmiany pliku może być inny niż do edycji metadanych
-        # Zakładamy /notes/{id}/patch lub /notes/{id}/file
-        # Sprawdź dokumentację API - użyjemy /patch zgodnie z oryginalnym kodem
-        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}/patch")
-        r = http_post_multipart(self.ctx, "NOTE: PATCH file missing", url, data={}, files={}, headers=auth_headers(self.ctx.tokenOwner))
-        assert r.status_code in (400, 422), f"Expected 400/422, got {r.status_code}"
-        return {"status": r.status_code, "method":"POST","url":url} # Metoda może być POST dla multipart
 
-    def t_note_patch_file_ok(self):
-        """Podmienia plik notatki A."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
-        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}/patch") # Zakładamy ten endpoint
-        data_bytes, mime, name = self._note_load_upload_bytes(self.ctx.note_file_path)
-        # Wyślij plik z inną nazwą, aby sprawdzić aktualizację
-        files = {"file": (f"updated_{name}", data_bytes, mime)}
-        r = http_post_multipart(self.ctx, "NOTE: PATCH file ok (Note A)", url, data={}, files=files, headers=auth_headers(self.ctx.tokenOwner))
-        assert r.status_code == 200, f"Expected 200, got {r.status_code}. Response: {trim(r.text)}"
-        # Opcjonalnie: pobierz notatkę i sprawdź nową nazwę/ścieżkę pliku jeśli API ją zwraca
-        return {"status": 200, "method":"POST","url":url}
+        # Najpierw pobierz ID pierwszego pliku z notatki
+        r_note = http_get(self.ctx, "NOTE: Get file ID for download", me(self.ctx, f"/notes/{self.ctx.note_id_A}"), auth_headers(self.ctx.tokenOwner))
+        assert r_note.status_code == 200
+        body_note = must_json(r_note)
+        files_array = body_note.get("files")
+        assert isinstance(files_array, list) and len(files_array) >= 1, "No files found in note to download"
+        first_file_id = files_array[0].get("id")
+        assert first_file_id, "ID missing from first file object"
 
-    def t_note_download_file_ok(self):
-        """Pobiera zaktualizowany plik notatki A."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
-        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}/download")
-        r = http_request(self.ctx, "NOTE: Download file Note A", "GET", url, headers=auth_headers(self.ctx.tokenOwner))
+        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}/files/{first_file_id}/download")
+        r = http_request(self.ctx, "NOTE: Download first file Note A", "GET", url, headers=auth_headers(self.ctx.tokenOwner))
         assert r.status_code == 200, f"Expected 200, got {r.status_code}."
         assert r.content, "Downloaded note file is empty"
-        # Opcjonalnie: sprawdź Content-Type lub Content-Disposition
+        assert r.headers.get("Content-Type") in ("image/png", "application/pdf", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"), "Unexpected Content-Type for first file"
+
         return {"status": 200, "method":"GET","url":url}
+
+    def t_note_delete_second_file(self):
+        """Usuwa drugi dodany plik z notatki A."""
+        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
+
+        # Pobierz ID drugiego pliku
+        r_note = http_get(self.ctx, "NOTE: Get second file ID for delete", me(self.ctx, f"/notes/{self.ctx.note_id_A}"), auth_headers(self.ctx.tokenOwner))
+        assert r_note.status_code == 200
+        body_note = must_json(r_note); files_array = body_note.get("files", [])
+        assert len(files_array) == 2, f"Expected 2 files before deletion, found {len(files_array)}"
+        second_file_id = files_array[1].get("id") # Zakładamy, że drugi plik jest na indeksie 1
+        assert second_file_id, "ID missing from second file object"
+
+        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}/files/{second_file_id}")
+        r = http_delete(self.ctx, "NOTE: Delete second file (Note A)", url, auth_headers(self.ctx.tokenOwner))
+        assert r.status_code in (200, 204), f"Expected 200/204, got {r.status_code}. Response: {trim(r.text)}"
+
+        return {"status": r.status_code, "method":"DELETE","url":url}
+
+    def t_note_verify_one_file_remains(self):
+        """Weryfikuje, czy po usunięciu drugiego pliku, w notatce A pozostał tylko jeden (pierwszy)."""
+        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
+        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}")
+        r = http_get(self.ctx, "NOTE: Verify one file remains", url, auth_headers(self.ctx.tokenOwner))
+        assert r.status_code == 200
+        body = must_json(r)
+        note_data = body.get("note", body)
+        files_array = note_data.get("files")
+        assert isinstance(files_array, list) and len(files_array) == 1, f"Expected exactly 1 file remaining, found {len(files_array)}"
+        # Opcjonalnie: sprawdź, czy ID pozostałego pliku zgadza się z ID pierwszego (jeśli je zapamiętaliśmy)
+        # first_file_id = ... (pobierz z poprzednich kroków lub zapamiętaj)
+        # assert files_array[0].get("id") == first_file_id
+
+        return {"status": 200, "method":"GET","url":url}
+
+    def t_note_delete_last_file(self):
+        """Usuwa ostatni (pierwszy) plik z notatki A."""
+        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
+
+        # Pobierz ID ostatniego pliku
+        r_note = http_get(self.ctx, "NOTE: Get last file ID for delete", me(self.ctx, f"/notes/{self.ctx.note_id_A}"), auth_headers(self.ctx.tokenOwner))
+        assert r_note.status_code == 200
+        body_note = must_json(r_note); files_array = body_note.get("files", [])
+        assert len(files_array) == 1, f"Expected 1 file before deleting last, found {len(files_array)}"
+        last_file_id = files_array[0].get("id")
+        assert last_file_id, "ID missing from last file object"
+
+        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}/files/{last_file_id}")
+        r = http_delete(self.ctx, "NOTE: Delete last file (Note A)", url, auth_headers(self.ctx.tokenOwner))
+        assert r.status_code in (200, 204), f"Expected 200/204, got {r.status_code}. Response: {trim(r.text)}"
+
+        # Weryfikacja: Pobierz notatkę i sprawdź, czy tablica 'files' jest pusta
+        r_verify = http_get(self.ctx, "NOTE: Verify files array is empty", me(self.ctx, f"/notes/{self.ctx.note_id_A}"), auth_headers(self.ctx.tokenOwner))
+        assert r_verify.status_code == 200
+        body_verify = must_json(r_verify); note_data = body_verify.get("note", body_verify)
+        files_verify = note_data.get("files")
+        assert isinstance(files_verify, list) and len(files_verify) == 0, f"Expected empty 'files' array after deleting last file, got {len(files_verify)}"
+
+        return {"status": r.status_code, "method":"DELETE","url":url}
+
+    def t_note_add_file_after_empty(self):
+        """Dodaje nowy plik do notatki A po tym, jak wszystkie pliki zostały usunięte."""
+        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
+        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}/files")
+
+        data_bytes, mime, name = self._note_load_upload_bytes(self.ctx.note_file_path) # Wczytaj ponownie
+        name = f"readded_{name}" # Zmień nazwę dla pewności
+        files_dict = {"file": (name, data_bytes, mime)}
+
+        r = http_post_multipart(self.ctx, "NOTE: Add file after empty (Note A)", url, data={}, files=files_dict, headers=auth_headers(self.ctx.tokenOwner))
+        assert r.status_code in (200, 201), f"Expected 200/201, got {r.status_code}. Response: {trim(r.text)}"
+
+        # Weryfikacja: Notatka powinna mieć teraz 1 plik
+        r_verify = http_get(self.ctx, "NOTE: Verify 1 file exists after re-add", me(self.ctx, f"/notes/{self.ctx.note_id_A}"), auth_headers(self.ctx.tokenOwner))
+        assert r_verify.status_code == 200
+        body_verify = must_json(r_verify); note_data = body_verify.get("note", body_verify)
+        files_verify = note_data.get("files")
+        assert isinstance(files_verify, list) and len(files_verify) == 1, f"Expected 1 file after re-adding, got {len(files_verify)}"
+        assert files_verify[0].get("original_name") == name, "Filename mismatch after re-adding"
+
+        return {"status": r.status_code, "method":"POST","url":url}
 
     # === Testy udostępniania Note N:M ===
     def t_note_create_course1(self):
@@ -1307,7 +1468,7 @@ class E2ETester:
         r = http_get(self.ctx, "NOTE: Verify Note A details show Course 1", url, auth_headers(self.ctx.tokenOwner))
         assert r.status_code == 200
         body = must_json(r)
-        note_data = body.get("note", body)
+        note_data = body.get("note", body) # Obsługa zagnieżdżenia
         assert note_data.get("is_private") in (False, 0), "Note should be public"
         courses_list = note_data.get("courses", [])
         assert isinstance(courses_list, list)
@@ -1446,7 +1607,7 @@ class E2ETester:
 
     # === Testy DELETE note ===
     def t_note_delete_note(self):
-        """Usuwa notatkę A."""
+        """Usuwa notatkę A (usuwa też pliki dzięki model event)."""
         assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available for delete"
         url = me(self.ctx, f"/notes/{self.ctx.note_id_A}")
         r = http_delete(self.ctx, "NOTE: DELETE note A", url, auth_headers(self.ctx.tokenOwner))
@@ -1458,297 +1619,13 @@ class E2ETester:
         return {"status": r.status_code, "method":"DELETE","url":url}
 
     def t_note_download_after_delete_404(self):
-        """Próbuje pobrać usuniętą notatkę (oczekiwany błąd 404)."""
+        """Próbuje pobrać plik z usuniętej notatki (oczekiwany błąd 404)."""
         assert self.ctx.tokenOwner, "Owner A token not available"
-        # Użyjemy ID, które na pewno nie istnieje (np. ID usuniętej notatki lub 99999)
-        # Użycie ID usuniętej notatki (jeśli jeszcze jest w self.ctx.note_id_A przed wyczyszczeniem) może być mylące
-        non_existent_id = 999999 # Bezpieczniejsze założenie
-        url = me(self.ctx, f"/notes/{non_existent_id}/download")
-        r = http_request(self.ctx, "NOTE: Download after delete", "GET", url, headers=auth_headers(self.ctx.tokenOwner))
-        assert r.status_code == 404, f"Expected 404, got {r.status_code}"
-        return {"status": 404, "method":"GET","url":url}
-
-    def t_note_index_after_delete(self):
-        """Sprawdza, czy usunięta notatka A nie pojawia się na liście."""
-        assert self.ctx.tokenOwner, "Owner A token not available"
-        url = me(self.ctx,"/notes?top=100&skip=0") # Pobierz wszystkie
-        r = http_get(self.ctx, "NOTE: Index after delete", url, auth_headers(self.ctx.tokenOwner))
-        assert r.status_code == 200
-        body = must_json(r)
-        notes_data = body if isinstance(body, list) else body.get("data", [])
-        assert isinstance(notes_data, list)
-        # Sprawdźmy, czy *jakiekolwiek* ID usuniętej notatki (jeśli zapamiętane przed wyczyszczeniem) nie jest na liście
-        # Ponieważ wyczyściliśmy self.ctx.note_id_A, ta asercja zawsze będzie True dla None
-        # Lepsza byłaby asercja sprawdzająca, czy lista nie zawiera notatki o ID, które *było* ID Note A
-        # assert self.ctx.note_id_A not in ids # Ta asercja jest trywialna po wyczyszczeniu ID
-        # Zamiast tego, po prostu sprawdzamy, czy nie ma błędu 500
-        return {"status": 200, "method":"GET","url":url}
-
-    def t_note_patch_title_only(self):
-        """Aktualizuje tylko tytuł notatki A."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
-        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}")
-        new_title = "Renamed Note A"
-        r, method = http_json_update(self.ctx, "NOTE: Update title Note A", url, {"title": new_title}, auth_headers(self.ctx.tokenOwner))
-        assert r.status_code == 200, f"Expected 200, got {r.status_code}. Response: {trim(r.text)}"
-        body = must_json(r)
-        note_data = body.get("note", body)
-        assert note_data.get("title") == new_title, f"Title not updated: expected '{new_title}', got '{note_data.get('title')}'"
-        return {"status": 200, "method": method, "url": url}
-
-    def t_note_patch_is_private_invalid(self):
-        """Próbuje ustawić niepoprawną wartość dla is_private (oczekiwany błąd 400/422)."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
-        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}")
-        r, method = http_json_update(self.ctx, "NOTE: Update invalid is_private", url, {"is_private":"not-a-boolean"}, auth_headers(self.ctx.tokenOwner))
-        assert r.status_code in (400, 422), f"Expected 400/422, got {r.status_code}"
-        return {"status": r.status_code, "method": method, "url": url}
-
-    def t_note_patch_desc_priv_false(self):
-        """Aktualizuje opis i ustawia is_private na false dla notatki A."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
-        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}")
-        payload = {"description":"Updated description","is_private": False}
-        r, method = http_json_update(self.ctx, "NOTE: Update desc+priv=false Note A", url, payload, auth_headers(self.ctx.tokenOwner))
-        assert r.status_code == 200, f"Expected 200, got {r.status_code}. Response: {trim(r.text)}"
-        body = must_json(r)
-        note_data = body.get("note", body)
-        assert note_data.get("description") == payload["description"], "Description not updated"
-        # API może zwrócić 0 lub False dla boolean
-        assert note_data.get("is_private") in (False, 0), f"is_private not updated to false: got {note_data.get('is_private')}"
-        return {"status": 200, "method": method, "url": url}
-
-    def t_note_patch_file_missing(self):
-        """Próbuje podmienić plik notatki bez wysyłania pliku (oczekiwany błąd 400/422)."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
-        # Endpoint do podmiany pliku może być inny niż do edycji metadanych
-        # Zakładamy /notes/{id}/patch lub /notes/{id}/file
-        # Sprawdź dokumentację API - użyjemy /patch zgodnie z oryginalnym kodem
-        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}/patch")
-        r = http_post_multipart(self.ctx, "NOTE: PATCH file missing", url, data={}, files={}, headers=auth_headers(self.ctx.tokenOwner))
-        assert r.status_code in (400, 422), f"Expected 400/422, got {r.status_code}"
-        return {"status": r.status_code, "method":"POST","url":url} # Metoda może być POST dla multipart
-
-    def t_note_patch_file_ok(self):
-        """Podmienia plik notatki A."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
-        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}/patch") # Zakładamy ten endpoint
-        data_bytes, mime, name = self._note_load_upload_bytes(self.ctx.note_file_path)
-        # Wyślij plik z inną nazwą, aby sprawdzić aktualizację
-        files = {"file": (f"updated_{name}", data_bytes, mime)}
-        r = http_post_multipart(self.ctx, "NOTE: PATCH file ok (Note A)", url, data={}, files=files, headers=auth_headers(self.ctx.tokenOwner))
-        assert r.status_code == 200, f"Expected 200, got {r.status_code}. Response: {trim(r.text)}"
-        # Opcjonalnie: pobierz notatkę i sprawdź nową nazwę/ścieżkę pliku jeśli API ją zwraca
-        return {"status": 200, "method":"POST","url":url}
-
-    def t_note_download_file_ok(self):
-        """Pobiera zaktualizowany plik notatki A."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available"
-        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}/download")
-        r = http_request(self.ctx, "NOTE: Download file Note A", "GET", url, headers=auth_headers(self.ctx.tokenOwner))
-        assert r.status_code == 200, f"Expected 200, got {r.status_code}."
-        assert r.content, "Downloaded note file is empty"
-        # Opcjonalnie: sprawdź Content-Type lub Content-Disposition
-        return {"status": 200, "method":"GET","url":url}
-
-    # === Testy udostępniania Note N:M ===
-    def t_note_create_course1(self):
-        """Tworzy kurs 1 (prywatny) przez Ownera A, potrzebny do udostępniania notatek."""
-        assert self.ctx.tokenOwner, "Owner A token not available"
-        url = me(self.ctx, "/courses")
-        payload = {"title":"Course 1 for Note Sharing","description":"Private course","type":"private"}
-        r = http_post_json(self.ctx, "NOTE: Create Course 1 for sharing", url, payload, auth_headers(self.ctx.tokenOwner))
-        assert r.status_code in (200, 201), f"Expected 200/201, got {r.status_code}. Response: {trim(r.text)}"
-        body = must_json(r)
-        course_data = body.get("course", body)
-        course_id = course_data.get("id")
-        assert course_id, f"Course ID not found in response: {trim(course_data)}"
-        self.ctx.course_id_1 = int(course_id)
-        print(c(f" (Created Course ID: {self.ctx.course_id_1})", Fore.MAGENTA), end="")
-        return {"status": r.status_code, "method":"POST","url":url}
-
-    def t_note_share_to_course1(self):
-        """Udostępnia notatkę A w kursie 1."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A and self.ctx.course_id_1, "Context incomplete for sharing Note A to Course 1"
-        # Endpoint może być różny: /notes/{id}/share/{courseId} lub /courses/{id}/notes/{noteId}
-        # Użyjemy /me/notes/{id}/share/{courseId} zgodnie z oryginalnym kodem
-        url = build(self.ctx, f"/api/me/notes/{self.ctx.note_id_A}/share/{self.ctx.course_id_1}")
-        r = http_post_json(self.ctx, f"{ICON_SHARE} NOTE: Share Note A -> Course 1", url, {}, auth_headers(self.ctx.tokenOwner)) # Pusty payload JSON
-        assert r.status_code == 200, f"Expected 200, got {r.status_code}. Response: {trim(r.text)}"
-        body = must_json(r)
-        note_data = body.get("note", body)
-        assert note_data.get("is_private") in (False, 0), f"Note should be public after sharing, got is_private={note_data.get('is_private')}"
-        # Sprawdź, czy kurs 1 jest na liście kursów notatki
-        courses_list = note_data.get("courses", [])
-        assert isinstance(courses_list, list), "'courses' should be a list"
-        assert any(c.get("id") == self.ctx.course_id_1 for c in courses_list), f"Course {self.ctx.course_id_1} not found in note's courses list after sharing: {trim(courses_list)}"
-        return {"status": 200, "method":"POST","url":url}
-
-    def t_note_verify_note_shows_course1(self):
-        """Pobiera szczegóły notatki A i sprawdza, czy kurs 1 jest widoczny."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A and self.ctx.course_id_1, "Context incomplete"
-        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}")
-        r = http_get(self.ctx, "NOTE: Verify Note A details show Course 1", url, auth_headers(self.ctx.tokenOwner))
-        assert r.status_code == 200
-        body = must_json(r)
-        note_data = body.get("note", body)
-        assert note_data.get("is_private") in (False, 0), "Note should be public"
-        courses_list = note_data.get("courses", [])
-        assert isinstance(courses_list, list)
-        assert any(c.get("id") == self.ctx.course_id_1 for c in courses_list), f"Course {self.ctx.course_id_1} not found in note's courses list: {trim(courses_list)}"
-        return {"status": 200, "method":"GET","url":url}
-
-    def t_note_create_public_course(self):
-        """Tworzy kurs publiczny przez Ownera A."""
-        assert self.ctx.tokenOwner, "Owner A token not available"
-        url = me(self.ctx, "/courses")
-        payload = {"title":"Public Course for Note Sharing","description":"Public course","type":"public"}
-        r = http_post_json(self.ctx, "NOTE: Create Public Course for sharing", url, payload, auth_headers(self.ctx.tokenOwner))
-        assert r.status_code in (200, 201)
-        body = must_json(r)
-        course_data = body.get("course", body)
-        course_id = course_data.get("id")
-        assert course_id
-        self.ctx.public_course_id = int(course_id)
-        print(c(f" (Created Public Course ID: {self.ctx.public_course_id})", Fore.MAGENTA), end="")
-        return {"status": r.status_code, "method":"POST","url":url}
-
-    def t_note_share_to_public_course(self):
-        """Udostępnia notatkę A (już w kursie 1) w kursie publicznym."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A and self.ctx.public_course_id, "Context incomplete"
-        url = build(self.ctx, f"/api/me/notes/{self.ctx.note_id_A}/share/{self.ctx.public_course_id}")
-        r = http_post_json(self.ctx, f"{ICON_SHARE} NOTE: Share Note A -> Public Course", url, {}, auth_headers(self.ctx.tokenOwner))
-        assert r.status_code == 200
-        body = must_json(r)
-        note_data = body.get("note", body)
-        assert note_data.get("is_private") in (False, 0), "Note should remain public"
-        courses_list = note_data.get("courses", [])
-        assert isinstance(courses_list, list)
-        course_ids = {c.get("id") for c in courses_list if isinstance(c, dict) and c.get("id") is not None}
-        assert self.ctx.course_id_1 in course_ids, "Course 1 missing after sharing to public"
-        assert self.ctx.public_course_id in course_ids, "Public Course missing after sharing"
-        assert len(course_ids) == 2, f"Expected 2 courses, found {len(course_ids)}: {course_ids}"
-        return {"status": 200, "method":"POST","url":url}
-
-    def t_note_verify_note_shows_both(self):
-        """Pobiera szczegóły notatki A i sprawdza, czy oba kursy są widoczne."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A and self.ctx.course_id_1 and self.ctx.public_course_id, "Context incomplete"
-        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}")
-        r = http_get(self.ctx, "NOTE: Verify Note A details show both courses", url, auth_headers(self.ctx.tokenOwner))
-        assert r.status_code == 200
-        body = must_json(r)
-        note_data = body.get("note", body)
-        assert note_data.get("is_private") in (False, 0), "Note should be public"
-        courses_list = note_data.get("courses", [])
-        assert isinstance(courses_list, list)
-        course_ids = {c.get("id") for c in courses_list if isinstance(c, dict) and c.get("id") is not None}
-        assert self.ctx.course_id_1 in course_ids, "Course 1 missing"
-        assert self.ctx.public_course_id in course_ids, "Public Course missing"
-        assert len(course_ids) == 2, f"Expected 2 courses, found {len(course_ids)}: {course_ids}"
-        return {"status": 200, "method":"GET","url":url}
-
-    def t_note_unshare_from_course1(self):
-        """Usuwa udostępnienie notatki A z kursu 1 (powinna pozostać w publicznym)."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A and self.ctx.course_id_1, "Context incomplete"
-        # Endpoint może być DELETE /notes/{id}/share/{courseId} lub POST z flagą unshare
-        # Użyjemy DELETE zgodnie z oryginalnym kodem
-        url = build(self.ctx, f"/api/me/notes/{self.ctx.note_id_A}/share/{self.ctx.course_id_1}")
-        r = http_delete(self.ctx, f"{ICON_UNSHARE} NOTE: Unshare Note A from Course 1", url, auth_headers(self.ctx.tokenOwner))
-        assert r.status_code == 200, f"Expected 200, got {r.status_code}. Response: {trim(r.text)}"
-        body = must_json(r)
-        note_data = body.get("note", body)
-        # Notatka powinna pozostać publiczna, bo jest nadal w kursie publicznym
-        assert note_data.get("is_private") in (False, 0), f"Note should remain public, got {note_data.get('is_private')}"
-        courses_list = note_data.get("courses", [])
-        assert isinstance(courses_list, list)
-        course_ids = {c.get("id") for c in courses_list if isinstance(c, dict) and c.get("id") is not None}
-        assert self.ctx.course_id_1 not in course_ids, "Course 1 should be removed"
-        assert self.ctx.public_course_id in course_ids, "Public Course should remain"
-        assert len(course_ids) == 1, f"Expected 1 course remaining, found {len(course_ids)}: {course_ids}"
-        return {"status": 200, "method":"DELETE","url":url}
-
-    def t_note_verify_note_shows_public_only(self):
-        """Pobiera szczegóły notatki A i sprawdza, czy tylko kurs publiczny jest widoczny."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A and self.ctx.public_course_id, "Context incomplete"
-        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}")
-        r = http_get(self.ctx, "NOTE: Verify Note A details show public only", url, auth_headers(self.ctx.tokenOwner))
-        assert r.status_code == 200
-        body = must_json(r)
-        note_data = body.get("note", body)
-        assert note_data.get("is_private") in (False, 0), "Note should be public"
-        courses_list = note_data.get("courses", [])
-        assert isinstance(courses_list, list)
-        course_ids = {c.get("id") for c in courses_list if isinstance(c, dict) and c.get("id") is not None}
-        assert self.ctx.course_id_1 not in course_ids, "Course 1 should not be present"
-        assert self.ctx.public_course_id in course_ids, "Public Course should be present"
-        assert len(course_ids) == 1, f"Expected 1 course, found {len(course_ids)}: {course_ids}"
-        return {"status": 200, "method":"GET","url":url}
-
-    def t_note_unshare_from_public_course(self):
-        """Usuwa udostępnienie notatki A z kursu publicznego (powinna stać się prywatna)."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A and self.ctx.public_course_id, "Context incomplete"
-        url = build(self.ctx, f"/api/me/notes/{self.ctx.note_id_A}/share/{self.ctx.public_course_id}")
-        r = http_delete(self.ctx, f"{ICON_UNSHARE} NOTE: Unshare Note A from Public Course", url, auth_headers(self.ctx.tokenOwner))
-        assert r.status_code == 200, f"Expected 200, got {r.status_code}. Response: {trim(r.text)}"
-        body = must_json(r)
-        note_data = body.get("note", body)
-        # Po odpięciu od ostatniego kursu, notatka powinna stać się prywatna
-        assert note_data.get("is_private") in (True, 1), f"Note should become private, got {note_data.get('is_private')}"
-        courses_list = note_data.get("courses", [])
-        assert isinstance(courses_list, list) or courses_list is None # Może być pusta lista lub null
-        assert not courses_list, f"Courses list should be empty after unsharing from last course, got: {trim(courses_list)}"
-        return {"status": 200, "method":"DELETE","url":url}
-
-    def t_note_verify_note_shows_none_private(self):
-        """Pobiera szczegóły notatki A i sprawdza, czy nie ma kursów i jest prywatna."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Context incomplete"
-        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}")
-        r = http_get(self.ctx, "NOTE: Verify Note A details show none, is private", url, auth_headers(self.ctx.tokenOwner))
-        assert r.status_code == 200
-        body = must_json(r)
-        note_data = body.get("note", body)
-        assert note_data.get("is_private") in (True, 1), "Note should be private"
-        courses_list = note_data.get("courses", [])
-        assert isinstance(courses_list, list) or courses_list is None
-        assert not courses_list, f"Courses list should be empty: {trim(courses_list)}"
-        return {"status": 200, "method":"GET","url":url}
-
-    def t_note_unshare_idempotent(self):
-        """Próbuje ponownie usunąć udostępnienie z kursu 1 (powinno być OK, bez zmian)."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A and self.ctx.course_id_1, "Context incomplete"
-        url = build(self.ctx, f"/api/me/notes/{self.ctx.note_id_A}/share/{self.ctx.course_id_1}")
-        r = http_delete(self.ctx, f"{ICON_UNSHARE} NOTE: Unshare again (idempotent)", url, auth_headers(self.ctx.tokenOwner))
-        # Oczekujemy 200 OK, API powinno zignorować żądanie, jeśli powiązanie nie istnieje
-        assert r.status_code == 200, f"Expected 200 for idempotent unshare, got {r.status_code}. Response: {trim(r.text)}"
-        body = must_json(r)
-        note_data = body.get("note", body)
-        # Stan notatki (prywatna, bez kursów) nie powinien się zmienić
-        assert note_data.get("is_private") in (True, 1), "Note should remain private"
-        courses_list = note_data.get("courses", [])
-        assert not courses_list, "Courses list should remain empty"
-        return {"status": 200, "method":"DELETE","url":url}
-
-    # === Testy DELETE note ===
-    def t_note_delete_note(self):
-        """Usuwa notatkę A."""
-        assert self.ctx.tokenOwner and self.ctx.note_id_A, "Owner A token or Note A ID not available for delete"
-        url = me(self.ctx, f"/notes/{self.ctx.note_id_A}")
-        r = http_delete(self.ctx, "NOTE: DELETE note A", url, auth_headers(self.ctx.tokenOwner))
-        assert r.status_code in (200, 204), f"Expected 200/204, got {r.status_code}"
-        print(c(f" (Deleted Note ID: {self.ctx.note_id_A})", Fore.MAGENTA), end="")
-        # Wyczyść ID w kontekście
-        self.ctx.note_id_A = None
-        self.ctx.course_note_id_A = None # Wyczyść też powiązane ID
-        return {"status": r.status_code, "method":"DELETE","url":url}
-
-    def t_note_download_after_delete_404(self):
-        """Próbuje pobrać usuniętą notatkę (oczekiwany błąd 404)."""
-        assert self.ctx.tokenOwner, "Owner A token not available"
-        # Użyjemy ID, które na pewno nie istnieje (np. ID usuniętej notatki lub 99999)
-        # Użycie ID usuniętej notatki (jeśli jeszcze jest w self.ctx.note_id_A przed wyczyszczeniem) może być mylące
-        non_existent_id = 999999 # Bezpieczniejsze założenie
-        url = me(self.ctx, f"/notes/{non_existent_id}/download")
-        r = http_request(self.ctx, "NOTE: Download after delete", "GET", url, headers=auth_headers(self.ctx.tokenOwner))
+        # Użyjemy ID notatki i pliku, które na pewno nie istnieją
+        non_existent_note_id = 999999
+        non_existent_file_id = 888888
+        url = me(self.ctx, f"/notes/{non_existent_note_id}/files/{non_existent_file_id}/download")
+        r = http_request(self.ctx, "NOTE: Download file after delete", "GET", url, headers=auth_headers(self.ctx.tokenOwner))
         assert r.status_code == 404, f"Expected 404, got {r.status_code}"
         return {"status": 404, "method":"GET","url":url}
 
@@ -1771,6 +1648,8 @@ class E2ETester:
     # ──────────────────────────────────────────────────────────────────────
     # === 4. Metody testowe: Course API (N:M) ===
     # ──────────────────────────────────────────────────────────────────────
+    # ... (Reszta testów Course API pozostaje bez zmian jak w części 1) ...
+    # Zostaną dodane w finalnej kompilacji
 
     def t_course_index_no_token(self):
         """Sprawdza dostęp do listy kursów bez tokenu (oczekiwany błąd 401/403)."""
@@ -1802,18 +1681,18 @@ class E2ETester:
     def t_course_download_avatar_none_404(self):
         """Próbuje pobrać nieustawiony awatar kursu 1 (oczekiwany błąd 404)."""
         assert self.ctx.tokenOwner and self.ctx.course_id_1, "Context incomplete"
-        url = me(self.ctx, f"/courses/{self.ctx.course_id_1}/avatar") # Endpoint może być inny
-        r = http_request(self.ctx, "COURSE: Download avatar (none set)", "GET", url, headers=auth_headers(self.ctx.tokenOwner))
-        # Oczekujemy 404, jeśli API poprawnie obsługuje brak awatara
-        # Lub 200 z domyślnym awatarem
-        # Test E2E oczekuje 404
-        assert r.status_code == 404, f"Expected 404 for non-existent avatar, got {r.status_code}"
+        # MODYFIKACJA: Endpoint może być /api/courses/{id}/avatar
+        url = build(self.ctx, f"/api/courses/{self.ctx.course_id_1}/avatar") # Zmieniono z me() na build()
+        r = http_request(self.ctx, "COURSE: Download avatar (none set)", "GET", url, headers={}) # Publiczny dostęp? Sprawdźmy bez tokenu
+        # API może zwracać domyślny awatar (200) lub 404
+        # Test E2E oczekuje 404, jeśli żaden nie został ustawiony i nie ma domyślnego pliku
+        assert r.status_code == 404, f"Expected 404 for non-existent avatar (or no default), got {r.status_code}"
         return {"status": r.status_code, "method":"GET", "url":url}
 
     def t_course_create_course_invalid(self):
         """Próbuje stworzyć kurs z niepoprawnym typem (oczekiwany błąd 400/422)."""
         assert self.ctx.tokenOwner, "Owner A token missing"
-        url = me(self.ctx, "/courses")
+        url = me(self.ctx, "/courses") # Endpoint pod /me
         payload = {"title":"Invalid Type Course","description":"Test invalid type","type":"invalid_type"}
         r = http_post_json(self.ctx, "COURSE: Create course invalid type", url, payload, auth_headers(self.ctx.tokenOwner))
         assert r.status_code in (400, 422), f"Expected 400/422, got {r.status_code}"
@@ -1828,18 +1707,18 @@ class E2ETester:
         return self.t_note_login_B() # Użyj tej samej funkcji logującej
 
     def t_course_download_avatar_B_unauth(self):
-        """Sprawdza, czy Member B (jeszcze nie w kursie 1) może pobrać awatar kursu 1 (oczekiwany błąd 403/404)."""
+        """Sprawdza, czy Member B (jeszcze nie w kursie 1) może pobrać awatar kursu 1 (oczekiwany błąd 404 lub 200 z domyślnym)."""
         assert self.ctx.tokenB and self.ctx.course_id_1, "Context incomplete"
-        url = me(self.ctx, f"/courses/{self.ctx.course_id_1}/avatar")
-        r = http_request(self.ctx, "COURSE: B cannot download A avatar (unauth)", "GET", url, headers=auth_headers(self.ctx.tokenB))
-        # Oczekujemy 403 (brak uprawnień) lub 404 (nie znaleziono/ukryto)
-        assert r.status_code in (401, 403, 404), f"Expected 401/403/404, got {r.status_code}"
+        url = build(self.ctx, f"/api/courses/{self.ctx.course_id_1}/avatar") # Publiczny endpoint
+        r = http_request(self.ctx, "COURSE: B download A avatar (public check)", "GET", url, headers={}) # Bez tokenu B
+        # Oczekujemy 404 (jeśli brak avatara i defaulta) lub 200 (jeśli jest default)
+        assert r.status_code in (200, 404), f"Expected 200 (default) or 404 (none), got {r.status_code}"
         return {"status": r.status_code, "method":"GET", "url":url}
 
     def t_course_B_cannot_update_A_course(self):
         """Sprawdza, czy Member B nie może zaktualizować kursu 1 (oczekiwany błąd 403)."""
         assert self.ctx.tokenB and self.ctx.course_id_1, "Context incomplete"
-        url = me(self.ctx, f"/courses/{self.ctx.course_id_1}")
+        url = me(self.ctx, f"/courses/{self.ctx.course_id_1}") # Endpoint pod /me
         r, method = http_json_update(self.ctx, "COURSE: B cannot update C1", url, {"title":"Hacked by B"}, auth_headers(self.ctx.tokenB))
         assert r.status_code in (401, 403), f"Expected 401/403, got {r.status_code}"
         return {"status": r.status_code, "method": method,"url":url}
@@ -1847,7 +1726,7 @@ class E2ETester:
     def t_course_B_cannot_delete_A_course(self):
         """Sprawdza, czy Member B nie może usunąć kursu 1 (oczekiwany błąd 403)."""
         assert self.ctx.tokenB and self.ctx.course_id_1, "Context incomplete"
-        url = me(self.ctx, f"/courses/{self.ctx.course_id_1}")
+        url = me(self.ctx, f"/courses/{self.ctx.course_id_1}") # Endpoint pod /me
         r = http_delete(self.ctx, "COURSE: B cannot delete C1", url, auth_headers(self.ctx.tokenB))
         assert r.status_code in (401, 403), f"Expected 401/403, got {r.status_code}"
         return {"status": r.status_code, "method":"DELETE","url":url}
@@ -1934,8 +1813,9 @@ class E2ETester:
         """Owner A tworzy nową notatkę (będzie używana w kursach)."""
         # Użyjemy pomocnika _create_note
         assert self.ctx.tokenOwner, "Owner A token missing"
-        note_id = self._create_note("COURSE: A creates note (for course sharing)", self.ctx.tokenOwner, "Note A for Course")
         # Zapisz ID w course_note_id_A (note_id_A było dla innej notatki z testu Note API)
+        # UWAGA: _create_note teraz samo tworzy plik, nie musimy go podawać
+        note_id = self._create_note("COURSE: A creates note (for course sharing)", self.ctx.tokenOwner, "Note A for Course")
         self.ctx.course_note_id_A = note_id
         return {"status": 201} # Zakładamy status 201 Created z _create_note
 
@@ -1980,6 +1860,10 @@ class E2ETester:
         assert found is not None, f"Note ID {self.ctx.course_note_id_A} not found in Course 1 notes list: {trim(notes_in_course)}"
         # Udostępniona notatka powinna być publiczna (is_private=false/0)
         assert found.get("is_private") in (False, 0), f"Shared note should be public, got is_private={found.get('is_private')}"
+        # MODYFIKACJA: Sprawdź, czy notatka w kursie zawiera pliki
+        files_array = found.get("files")
+        assert isinstance(files_array, list), "Expected 'files' array in course notes list"
+        assert len(files_array) > 0, "Expected files array not empty in course notes list"
 
         # Sprawdź też szczegóły samej notatki, czy zawiera powiązanie z kursem
         url_note_details = me(self.ctx, f"/notes/{self.ctx.course_note_id_A}")
@@ -2128,7 +2012,9 @@ class E2ETester:
         # Sprawdź szczegóły notatki E (powinna istnieć i być prywatna)
         # Potrzebujemy tokenu E, który może już nie działać jeśli logout jest wymuszany po kicku
         # Zalogujmy E ponownie na chwilę
-        temp_token_E = self._login_user("COURSE: Re-login E (temp)", self.ctx.emailE, self.ctx.pwdE, "_temp_token_E")["token"] # Zapisz do _temp_token_E
+        temp_token_E_data = self._login_user("COURSE: Re-login E (temp)", self.ctx.emailE, self.ctx.pwdE, "_temp_token_E") # Zapisz do _temp_token_E
+        temp_token_E = temp_token_E_data.get("token") # Wyciągnij token z wyniku
+        assert temp_token_E, "Failed to re-login user E"
 
         url_note = me(self.ctx, f"/notes/{self.ctx.course_note_id_E}")
         r_note = http_get(self.ctx, "COURSE: Verify Note E still exists & private", url_note, auth_headers(temp_token_E))
@@ -2413,9 +2299,6 @@ class E2ETester:
     # ──────────────────────────────────────────────────────────────────────
     # === Testy odrzucania zaproszeń (Outsider C) ===
     # ──────────────────────────────────────────────────────────────────────
-# ──────────────────────────────────────────────────────────────────────
-    # === Testy odrzucania zaproszeń (Outsider C) ===
-    # ──────────────────────────────────────────────────────────────────────
 
     def t_course_login_C(self): return self._login_user("COURSE: Login Outsider C", self.ctx.emailC, self.ctx.pwdC, "tokenC")
 
@@ -2529,7 +2412,8 @@ class E2ETester:
     # ──────────────────────────────────────────────────────────────────────
     # === 5. Metody testowe: Quiz API (N:M dla Testów) ===
     # ──────────────────────────────────────────────────────────────────────
-
+    # ... (Reszta testów Quiz API pozostaje bez zmian jak w części 1) ...
+    # Zostaną dodane w finalnej kompilacji
     def t_quiz_login_A(self):
         """Loguje Ownera A i ustawia jego token jako aktywny token Quizu."""
         res = self._login_user("QUIZ: Login Owner A", self.ctx.emailOwner, self.ctx.pwdOwner, "tokenOwner")
@@ -2744,7 +2628,7 @@ class E2ETester:
         return {"status": r.status_code, "method":"DELETE", "url":url}
 
     def t_quiz_add_questions_to_20(self):
-        """Dodaje 20 pytań do testu, aby osiągnąć limit."""
+        """Dodaje 19 lub 20 pytań do testu, aby osiągnąć limit."""
         assert self.ctx.quiz_token and self.ctx.test_private_id, "Context incomplete"
         url = me(self.ctx, f"/tests/{self.ctx.test_private_id}/questions")
         start_index = 1 # Zaczynamy numerację od Q1
@@ -2759,7 +2643,8 @@ class E2ETester:
         last_status = 201 # Domyślny status sukcesu
         for i in range(start_index, 21):
             payload = {"question": f"Question {i}?"}
-            r = http_post_json(self.ctx, f"QUIZ: Add Q{i} to reach 20", url, payload, auth_headers(self.ctx.quiz_token))
+            # Użyjemy limitowanego logowania w pętli
+            r = http_request(self.ctx, f"QUIZ: Add Q{i} to reach 20", "POST", url, headers=auth_headers(self.ctx.quiz_token), json_body=payload)
             # Sprawdzaj status każdego żądania
             if r.status_code != 201:
                  last_status = r.status_code # Zapisz ostatni status błędu
@@ -2770,6 +2655,7 @@ class E2ETester:
         # Asercja na ostatni status (powinien być 201, jeśli wszystko poszło OK)
         assert last_status == 201, f"Expected status 201 for adding questions, last status was {last_status}"
         return {"status": last_status, "method":"POST", "url":url}
+
 
     def t_quiz_add_21st_question_block(self):
         """Próbuje dodać 21. pytanie (oczekiwany błąd 400/422)."""
@@ -2952,7 +2838,7 @@ class E2ETester:
         """Quiz B próbuje zaktualizować prywatny test Ownera A (oczekiwany błąd 403/404)."""
         assert self.ctx.quiz_token and self.ctx.test_private_id, "Context incomplete"
         url = me(self.ctx, f"/tests/{self.ctx.test_private_id}")
-        payload = {"title":"Hacked by QuizB", "description":"hack attempt"}
+        payload = {"title":"Hacked by QuizB", "description":"hack attempt", "status":"private"} # Trzeba podać wszystkie wymagane pola
         r = http_put_json(self.ctx, "QUIZ: B cannot update A test (fail)", url, payload, auth_headers(self.ctx.quiz_token))
         assert r.status_code in (403, 404), f"Expected 403/404, got {r.status_code}"
         return {"status": r.status_code, "method":"PUT", "url":url}
@@ -3042,13 +2928,6 @@ class E2ETester:
         else:
              assert r.status_code == expected_status, f"'{title}' failed: Expected {expected_status}, got {r.status_code}. Response: {trim(r.text)}"
 
-        # Opcjonalnie: pobierz token zaproszenia z odpowiedzi, jeśli jest potrzebny później
-        # (ale teraz nie jest, bo _accept_invite sam go znajduje)
-        # if r.status_code in (200, 201):
-        #    body = must_json(r); invite_data = body.get("invitation", body)
-        #    token = invite_data.get("token")
-        #    # print(c(f" (Invite token: {token})", Fore.MAGENTA), end="")
-
         return {"status": r.status_code, "method":"POST", "url":url}
 
     # --- POPRAWKA: _accept_invite i _reject_invite ---
@@ -3104,18 +2983,38 @@ class E2ETester:
     # --- KONIEC POPRAWKI ---
 
     def _create_note(self, title: str, owner_token: str, note_title: str) -> int:
-        """Tworzy notatkę i zwraca jej ID."""
-        assert owner_token, f"Owner token missing for '{title}'"
-        url = me(self.ctx, "/notes")
-        data_bytes, mime, name = self._note_load_upload_bytes(self.ctx.note_file_path)
-        files = {"file": (name, data_bytes, mime)}
-        note_data = {"title": note_title, "description":"Auto-created note", "is_private": "true"} # Domyślnie prywatna
-        r = http_post_multipart(self.ctx, title, url, note_data, files, auth_headers(owner_token))
-        assert r.status_code in (200, 201), f"'{title}' failed: {r.status_code} {trim(r.text)}"
-        body = must_json(r); note_details = body.get("note", body)
-        note_id = note_details.get("id"); assert note_id, f"Note ID not found in '{title}' response"
-        print(c(f" (Created Note ID: {note_id})", Fore.MAGENTA), end="")
-        return int(note_id)
+            """Tworzy notatkę (z jednym plikiem 'files[]') i zwraca jej ID."""
+            assert owner_token, f"Owner token missing for '{title}'"
+            url = me(self.ctx, "/notes")
+            data_bytes, mime, name = self._note_load_upload_bytes(self.ctx.note_file_path)
+            # MODYFIKACJA: Wysyła jako listę tupli dla 'files[]'
+            files_list = [("files[]", (name, data_bytes, mime))]
+
+            # --- PONOWNA POPRAWKA: Użyj stringa '1' zamiast boolean True dla multipart ---
+            note_data = {"title": note_title, "description":"Auto-created note", "is_private": '1'} # Domyślnie prywatna (string '1')
+            # --- KONIEC POPRAWKI ---
+
+            # Ważne: W http_post_multipart przekazujemy note_data jako argument 'data', nie 'json_body'
+            r = http_post_multipart(self.ctx, title, url, data=note_data, files=files_list, headers=auth_headers(owner_token))
+
+            # Asercja statusu (oczekujemy 200 OK lub 201 Created)
+            assert r.status_code in (200, 201), f"'{title}' failed: Status {r.status_code}. Response: {trim(r.text)}"
+
+            # Parsowanie odpowiedzi i weryfikacja
+            body = must_json(r)
+            note_details = body.get("note", body) # Obsługa odpowiedzi zagnieżdżonej lub płaskiej
+            assert isinstance(note_details, dict), f"Expected 'note' object in response, got {type(note_details)}: {trim(body)}"
+
+            note_id = note_details.get("id")
+            assert note_id, f"Note ID not found in '{title}' response: {trim(note_details)}"
+
+            # Sprawdź obecność 'files' array w odpowiedzi
+            files_array = note_details.get("files")
+            assert isinstance(files_array, list), f"'files' should be a list in create note response, got {type(files_array)}"
+            assert len(files_array) > 0, "'files' array missing or empty in create note response"
+
+            print(c(f" (Created Note ID: {note_id})", Fore.MAGENTA), end="")
+            return int(note_id)
 
     def _share_note(self, title: str, owner_token: str, note_id: int, course_id: int):
         """Udostępnia notatkę w kursie."""
@@ -3144,7 +3043,7 @@ class E2ETester:
             return {"status": 200} # Traktuj jako sukces, jeśli kurs nie został stworzony
         assert owner_token, f"Owner token missing for '{title}'"
 
-        url = me(self.ctx, f"/courses/{course_id}")
+        url = me(self.ctx, f"/courses/{course_id}") # Endpoint /me/courses/{id}
         r = http_delete(self.ctx, title, url, auth_headers(owner_token))
         assert r.status_code in (200, 204), f"'{title}' failed: Expected 200/204, got {r.status_code}. Response: {trim(r.text)}"
         print(c(f" (Deleted Course ID: {course_id})", Fore.MAGENTA), end="")
@@ -3255,23 +3154,7 @@ class E2ETester:
         print(c(BOX, Fore.YELLOW))
 
         # USUNIĘTO: Komunikaty końcowe i sys.exit
-        # if failed_count > 0:
-        #     print(c(f"\n{ICON_FAIL} E2E tests failed.", Fore.RED))
-        #     # sys.exit(1) # Zakończ z kodem błędu
-        # else:
-        #     print(c(f"\n{ICON_OK} All E2E tests passed successfully!", Fore.GREEN))
-        #     # sys.exit(0) # Zakończ z kodem sukcesu
 
-
-# ──────────────────────────────────────────────────────────────────────
-# === FUNKCJE POZA KLASĄ (Raport HTML, main) ===
-# ──────────────────────────────────────────────────────────────────────
-
-# MODYFIKACJA: Całkowicie nowa funkcja raportu HTML
-# Dodaj ten import na górze pliku, obok innych importów
-import webbrowser
-
-# ... (reszta kodu bez zmian) ...
 
 # ──────────────────────────────────────────────────────────────────────
 # === FUNKCJE POZA KLASĄ (Raport HTML, main) ===
