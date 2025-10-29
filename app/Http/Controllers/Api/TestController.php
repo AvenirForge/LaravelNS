@@ -315,28 +315,49 @@ class TestController extends Controller
 
     public function showForCourse($courseId, $testId): JsonResponse
     {
-        $course = Course::find($courseId);
-        if (!$course) return response()->json(['error' => 'Course not found'], Http::HTTP_NOT_FOUND);
-
+        // 1. Walidacja: Użytkownik i Autoryzacja
         $user = Auth::user();
-        if (!$user) return response()->json(['error' => 'Unauthorized'], Http::HTTP_UNAUTHORIZED);
+        // Poprawka: Zapewnienie, że Auth::user() nie jest null.
+        if (!$user) {
+            return response()->json(['error' => 'Unauthorized'], Http::HTTP_UNAUTHORIZED); // Użycie stałej HTTP
+        }
 
+        // 2. Wyszukanie kursu
+        $course = Course::find($courseId);
+        if (!$course) {
+            return response()->json(['error' => 'Course not found'], Http::HTTP_NOT_FOUND);
+        }
+
+        // 3. Sprawdzenie uprawnień
         $isOwner = ((int) $course->user_id === (int) $user->id);
-        $isMember = DB::table('courses_users')->where('course_id', $course->id)->where('user_id', $user->id)->where('status', 'accepted')->exists();
-        if (!$isOwner && !$isMember) return response()->json(['error' => 'Forbidden'], Http::HTTP_FORBIDDEN);
+        $isMember = DB::table('courses_users')
+            ->where('course_id', $course->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'accepted')
+            ->exists();
 
+        if (!$isOwner && !$isMember) {
+            return response()->json(['error' => 'Forbidden - Not an owner or accepted member'], Http::HTTP_FORBIDDEN);
+        }
+
+        // 4. Pobranie testu z relacjami
+        // Używamy course->tests() dla upewnienia się, że test należy do kursu
         $test = $course->tests()
-            ->with(['user:id,name,email', 'questions.answers', 'courses:id,title']) // Załaduj też kursy
-            ->find($testId); // Użyj find zamiast findOrFail
+            // Eager loading: Użytkownik testu, pytania testu i ich odpowiedzi, oraz kursy, do których test należy
+            ->with([
+                'user:id,name,email', // Dane twórcy testu
+                'questions.answers',  // Pytania i zagnieżdżone odpowiedzi (wszystkie dane)
+                'courses:id,title'    // Kursy, do których test jest przypisany
+            ])
+            ->find($testId);
 
         if (!$test) {
             return response()->json(['error' => 'Test not found within this course'], Http::HTTP_NOT_FOUND);
         }
 
-        // --- POPRAWKA: Zwracamy zagnieżdżony obiekt dla spójności ---
+        // 5. Zwrócenie pełnych danych testu
         return response()->json(['test' => $test]);
     }
-
     public function updateForCourse(Request $request, $courseId, $testId): JsonResponse
     {
         $course = Course::find($courseId);
