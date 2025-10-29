@@ -47,7 +47,7 @@ Route::middleware('auth:api')->group(function () {
             ->name('notes.files.delete'); // Usuwanie konkretnego pliku z notatki
 
         Route::get('/notes/{noteId}/files/{fileId}/download', [NoteController::class, 'downloadNoteFile'])
-            ->where(['noteId' => '[0-9]+', 'fileId' => '[0-9]+'])
+            ->where(['noteId3' => '[0-9]+', 'fileId' => '[0-9]+'])
             ->name('notes.files.download'); // Pobieranie konkretnego pliku
 
         Route::post('/notes/{noteId}/share/{courseId}',   [NoteController::class, 'shareNoteWithCourse'])

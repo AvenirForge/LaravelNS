@@ -212,36 +212,38 @@ class UserController extends Controller
     public function refresh(): JsonResponse
     {
         try {
-            // KROK 1: Pobierz dane użytkownika na podstawie STAREGO tokenu.
-            // Musi to być zrobione PRZED odświeżeniem, ponieważ refresh() unieważnia stary token.
-            /** @var User $user */
-            $user = auth('api')->user();
-
-            // Jeśli z jakiegoś powodu użytkownik nie istnieje (np. token już wygasł poza refresh_ttl)
-            // refresh() poniżej i tak rzuci wyjątkiem, ale możemy też sprawdzić to jawnie.
-            if (!$user) {
-                return response()->json(['error' => 'User not found or token invalid'], 404);
-            }
-
-            // KROK 2: Dopiero teraz odśwież token.
-            // To automatycznie unieważni stary token (doda do blacklisty)
-            // i zwróci nowy, ważny token.
+            // KROK 1: Odśwież token. To automatycznie unieważnia stary i generuje nowy.
+            // Jeśli stary token jest niepoprawny lub minął refresh_ttl, rzuci JWTException.
             $newToken = auth('api')->refresh();
 
+            // KROK 2: Pobierz ID użytkownika z payloadu NOWEGO tokena.
+            // Używamy setToken($newToken) aby upewnić się, że ładujemy dane w kontekście nowego tokena.
+            $userId = auth('api')->setToken($newToken)->getPayload()->get('sub');
+
+            // KROK 3: Ręcznie załaduj użytkownika na podstawie ID.
+            /** @var User $user */
+            $user = User::find($userId);
+
+            // Zabezpieczenie na wypadek usunięcia użytkownika z bazy w międzyczasie.
+            if (!$user) {
+                // Opcjonalnie: Unieważnij (dodaj do blacklisty) nowo wygenerowany token,
+                // skoro użytkownik jest nieprawidłowy.
+                auth('api')->setToken($newToken)->invalidate();
+                return response()->json(['error' => 'User found in token, but not in database (ID: ' . $userId . ')'], 404);
+            }
+
         } catch (JWTException $e) {
-            // Błąd odświeżania (np. stary token wygasł i minął refresh_ttl,
-            // jest na czarnej liście lub niepoprawny podpis)
+            // Obsługa błędu odświeżania (np. token minął refresh_ttl, nieprawidłowy format, na czarnej liście)
             return response()->json(['error' => 'Could not refresh token: ' . $e->getMessage()], 401);
         }
 
-        // KROK 3: Zwróć odpowiedź.
-        // Zmienna $user jest już poprawnie zainicjowana danymi użytkownika.
+        // KROK 4: Zwróć pomyślną odpowiedź.
         return response()->json([
             'message'     => 'Token refreshed successfully',
             'userId'      => $user->id,
             'token'       => $newToken,
             'token_type'  => 'Bearer',
-            'expires_in'  => auth('api')->factory()->getTTL() * 60, // sekundy
+            'expires_in'  => auth('api')->factory()->getTTL() * 60, // Czas ważności w sekundach
             'user'        => $user->only(['id', 'name', 'email']) + ['avatar_url' => $user->avatar_url],
         ]);
     }
