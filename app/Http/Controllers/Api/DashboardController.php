@@ -21,44 +21,68 @@ class DashboardController extends Controller
     {
         $user = Auth::user();
 
-        // 1. Pobierz quizy stworzone przez użytkownika
-        //    Ładujemy relację 'user' (autora)
-        $quizzes = Test::with('user')
-            ->where('user_id', $user->id)
-            ->latest('updated_at') // Sortuj wg daty aktualizacji (najnowsze pierwsze)
-            ->get();
+        // 1. Walidacja i pobranie filtrów z requestu
+        //    Domyślnym typem jest 'test'
+        $type = $request->input('type', 'test');
 
-        // 2. Pobierz notatki stworzone przez użytkownika
-        //    Używamy Eager Loading dla relacji 'user' (autora)
-        //    oraz 'files' (powiązane pliki z NoteFile)
-        $notes = Note::with(['user', 'files'])
-            ->where('user_id', $user->id)
-            ->latest('updated_at') // Sortuj wg daty aktualizacji
-            ->get();
+        // Bezpieczne sortowanie - dopuszczamy tylko kolumny wspólne lub logiczne
+        $allowedSorts = ['title', 'updated_at', 'created_at'];
+        $sortBy = $request->input('sort_by', 'updated_at');
+        $sortBy = in_array($sortBy, $allowedSorts) ? $sortBy : 'updated_at';
 
-        // 3. Dodaj pole 'type' do każdej kolekcji, aby rozróżnić je w frontendzie
-        $quizzes->transform(function ($item) {
-            $item->type = 'quiz';
-            return $item;
-        });
+        $sortDir = strtolower($request->input('sort_dir', 'desc')) === 'asc' ? 'asc' : 'desc';
 
-        $notes->transform(function ($item) {
-            $item->type = 'note';
-            return $item;
-        });
+        $perPage = $request->input('per_page', 15);
+        $searchTerm = $request->input('search', '');
 
-        // 4. Połącz obie kolekcje w jedną
-        $combinedItems = $quizzes->concat($notes);
+        // 2. Budowanie bazowego zapytania (Query Builder) w zależności od typu
+        $query = null;
 
-        // 5. Posortuj połączoną kolekcję według daty ostatniej aktualizacji (malejąco)
-        //    To gwarantuje, że najnowsze edytowane elementy (niezależnie od typu) są na górze.
-        $sortedItems = $combinedItems->sortByDesc('updated_at');
+        if ($type === 'note') {
+            // Budujemy zapytanie dla Notatek
+            // Ładujemy autora (user) i powiązane pliki (files)
+            $query = Note::with(['user', 'files'])
+                ->where('user_id', $user->id);
+        } else {
+            // Domyślnie (i dla 'test') budujemy zapytanie dla Testów
+            $type = 'test'; // Upewnij się, że 'type' jest poprawny dla widoku
+            // Ładujemy autora (user)
+            $query = Test::with('user')
+                ->where('user_id', $user->id);
+        }
 
-        // 6. Przekaż posortowane dane do widoku Inertia 'Dashboard'
-        //    Używamy ->values() aby zresetować klucze tablicy po sortowaniu,
-        //    co zapewnia, że frontend otrzyma czystą tablicę JS.
+        // 3. Dynamiczne dodawanie filtrów (wyszukiwanie)
+        // Oba modele (Test i Note) mają 'title' i 'description'
+        if (!empty($searchTerm)) {
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('title', 'like', "%{$searchTerm}%")
+                    ->orWhere('description', 'like', "%{$searchTerm}%");
+            });
+        }
+
+        // 4. Dodawanie sortowania
+        $query->orderBy($sortBy, $sortDir);
+
+        // 5. Wykonanie zapytania i paginacja
+        //    ->paginate() zwraca obiekt LengthAwarePaginator
+        //    ->withQueryString() automatycznie dodaje wszystkie parametry (filtry, sortowanie)
+        //      do linków paginacji.
+        $items = $query->paginate($perPage)->withQueryString();
+
+        // 6. Przekazanie danych do widoku Inertia
         return Inertia::render('Dashboard', [
-            'items' => $sortedItems->values(),
+            // 'items' zawiera teraz obiekt paginacji (data, links, total, etc.)
+            'items' => $items,
+
+            // Przekazujemy filtry z powrotem do frontendu,
+            // aby mógł on utrzymać stan pól formularzy (np. pola search)
+            'filters' => [
+                'type' => $type,
+                'search' => $searchTerm,
+                'sort_by' => $sortBy,
+                'sort_dir' => $sortDir,
+                'per_page' => (int)$perPage,
+            ],
         ]);
     }
 }
