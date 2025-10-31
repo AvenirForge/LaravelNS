@@ -22,7 +22,7 @@ class DashboardController extends Controller
 
         // 1. Pobierz quizy stworzone przez użytkownika
         //    Ładujemy relację 'user' (autora)
-        $quizzes = Quiz::with('user')
+        $quizzes = Test::with('user')
             ->where('user_id', $user->id)
             ->latest('updated_at') // Sortuj wg daty aktualizacji (najnowsze pierwsze)
             ->get();
