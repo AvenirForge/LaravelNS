@@ -17,7 +17,7 @@ Route::middleware('auth:api')->group(function () {
 
     Route::prefix('me')->group(function () {
 
-        Route::get('/dashboard', [DashboardController::class, 'dashboard']);
+        Route::get('/dashboard', [DashboardController::class, 'getDashboard']);
         // Profile
         Route::get('/profile', [UserController::class, 'show']);
         Route::get('/profile/avatar', [UserController::class, 'downloadAvatar']);
