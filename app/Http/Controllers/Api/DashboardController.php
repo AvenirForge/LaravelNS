@@ -178,7 +178,7 @@ class DashboardController extends Controller
                 ->when($coursesQuery, fn($q) => $q->where('courses.title', 'like', "%{$coursesQuery}%"))
                 ->orderBy("courses.$coursesSortColumn", $coursesOrder) // Musimy wskazać tabelę
                 ->limit($limit)
-                // --- ZMIANA: Dodano 'courses.user_id' do pobrania właściciela ---
+                // --- ZMIANA (jak poprzednio): Dodano 'courses.user_id' do pobrania właściciela ---
                 ->select('courses.id', 'courses.title', 'courses.avatar', 'courses.type', 'courses.updated_at', 'courses_users.role', 'courses.user_id')
                 ->get();
 
@@ -199,7 +199,7 @@ class DashboardController extends Controller
                 // Użyj helpera do formatowania kursu
                 $formattedCourse = $this->formatCourse($course, $course->pivot->role);
 
-                // --- ZMIANA: Dołącz dane właściciela (z akcesorem avatar_url) ---
+                // --- ZMIANA (jak poprzednio): Dołącz dane właściciela (z akcesorem avatar_url) ---
                 $formattedCourse['owner'] = $owner ? [
                     'id' => $owner->id,
                     'name' => $owner->name,
@@ -222,23 +222,44 @@ class DashboardController extends Controller
                     $sub->where('title', 'like', "%{$notesQuery}%")
                         ->orWhere('description', 'like', "%{$notesQuery}%");
                 }))
-                ->withCount('files') // Dodaj liczbę plików
-                // --- ZMIANA: Załaduj relację 'user' (autora) ---
-                ->with('user:id,name,avatar')
-                // --- ZMIANA: Dodaj 'user_id' do select, aby 'with' działało poprawnie ---
+                // --- ZMIANA: Załaduj relacje 'user', 'files' i 'courses' (tylko ID) ---
+                ->withCount('files') // Zachowaj licznik dla szybkiego podglądu
+                ->with([
+                    'user:id,name,avatar', // Autor notatki (czyli zalogowany user)
+                    'files',               // Pełna lista plików notatki (zamiast tylko licznika)
+                    'courses:id'           // Relacje do kursów (tylko ID dla normalizacji)
+                ])
+                // --- KONIEC ZMIANY ---
                 ->select('id', 'title', 'is_private', 'updated_at', 'created_at', 'user_id')
                 ->orderBy($notesSortColumn, $notesOrder)
                 ->limit($limit)
                 ->get()
-                // --- ZMIANA: Zmapuj, aby dodać 'avatar_url' autora ---
+                // --- ZMIANA: Zmapuj, aby dodać 'avatar_url' i znormalizować 'course_ids' ---
                 ->map(function (Note $note) {
-                    // toArray() serializuje model ORAZ załadowane relacje
+                    // toArray() serializuje model ORAZ załadowane relacje ('user', 'files', 'courses')
                     $data = $note->toArray();
 
                     // Ręcznie wywołaj akcesor avatar_url i dodaj go do serializowanej tablicy
                     if (isset($data['user']) && $note->user) {
                         $data['user']['avatar_url'] = $note->user->avatar_url;
                     }
+
+                    // --- NOWA ZMIANA: Normalizacja ID kursów ---
+                    // Przekształć załadowaną relację 'courses' w prostą tablicę ID
+                    if (isset($data['courses'])) {
+                        // $note->courses to kolekcja modeli Course, pluck('id') wyciąga tylko ID
+                        $data['course_ids'] = $note->courses->pluck('id');
+                        // Usuń pełną tablicę 'courses', aby uniknąć duplikacji danych
+                        unset($data['courses']);
+                    } else {
+                        // Upewnij się, że klucz istnieje, nawet jeśli jest pusty
+                        $data['course_ids'] = [];
+                    }
+                    // --- KONIEC NOWEJ ZMIANY ---
+
+                    // Klucze 'files' (z with('files')) i 'files_count' (z withCount)
+                    // są już automatycznie obecne w $data dzięki toArray()
+
                     return $data;
                 });
         }
@@ -255,23 +276,38 @@ class DashboardController extends Controller
                     $sub->where('title', 'like', "%{$testsQuery}%")
                         ->orWhere('description', 'like', "%{$testsQuery}%");
                 }))
-                ->withCount('questions') // Dodaj liczbę pytań
-                // --- ZMIANA: Załaduj relację 'user' (autora) ---
-                ->with('user:id,name,avatar')
-                // --- ZMIANA: Dodaj 'user_id' do select, aby 'with' działało poprawnie ---
+                ->withCount('questions') // Licznik pytań
+                // --- ZMIANA: Załaduj relacje 'user' i 'courses' (tylko ID) ---
+                ->with([
+                    'user:id,name,avatar', // Autor testu
+                    'courses:id'           // Relacje do kursów (tylko ID dla normalizacji)
+                ])
+                // --- KONIEC ZMIANY ---
                 ->select('id', 'title', 'status', 'updated_at', 'created_at', 'user_id')
                 ->orderBy($testsSortColumn, $testsOrder)
                 ->limit($limit)
                 ->get()
-                // --- ZMIANA: Zmapuj, aby dodać 'avatar_url' autora ---
+                // --- ZMIANA: Zmapuj, aby dodać 'avatar_url' i znormalizować 'course_ids' ---
                 ->map(function (Test $test) {
                     // toArray() serializuje model ORAZ załadowane relacje
                     $data = $test->toArray();
 
-                    // Ręcznie wywołaj akcesor avatar_url i dodaj go do serializowanej tablicy
+                    // Ręcznie wywołaj akcesor avatar_url
                     if (isset($data['user']) && $test->user) {
                         $data['user']['avatar_url'] = $test->user->avatar_url;
                     }
+
+                    // --- NOWA ZMIANA: Normalizacja ID kursów ---
+                    if (isset($data['courses'])) {
+                        $data['course_ids'] = $test->courses->pluck('id');
+                        unset($data['courses']);
+                    } else {
+                        $data['course_ids'] = [];
+                    }
+                    // --- KONIEC NOWEJ ZMIANY ---
+
+                    // Klucz 'questions_count' jest już obecny
+
                     return $data;
                 });
         }
