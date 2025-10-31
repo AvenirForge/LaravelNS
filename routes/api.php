@@ -95,7 +95,7 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/invitations/{token}/accept', [InvitationController::class, 'acceptInvitation']);
     Route::post('/invitations/{token}/reject', [InvitationController::class, 'rejectInvitation']);
 
-    // TESTS in courses
+    // TESTS in  ubuntu@
     Route::get('/courses/{courseId}/tests',                 [TestController::class, 'indexForCourse']);
     Route::post('/courses/{courseId}/tests',                [TestController::class, 'storeForCourse']);
     Route::get('/courses/{courseId}/tests/{testId}',        [TestController::class, 'showForCourse']);
