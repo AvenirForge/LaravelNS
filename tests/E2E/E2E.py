@@ -64,11 +64,7 @@ ICON_LIST  = "📋"
 ICON_SHARE = "🔗"
 ICON_UNSHARE = "💔"
 ICON_LEAVE = "🚶‍♂️" # Nowa ikona dla opuszczania kursu
-
-BOX = "─" * 92
-MAX_BODY_LOG = 12000
-SAVE_BODY_LIMIT = 10 * 1024 * 1024 # 10 MB limit zapisu surowej odpowiedzi
-
+ICON_DASH  = "📊" # NOWA IKONA: Dla Dashboardu
 # ───────────────────────── Helpers: UI & Masking ─────────────────────────
 
 def c(txt: str, color: str) -> str:
@@ -284,6 +280,16 @@ class TestContext:
     question_id: Optional[int] = None # ID ostatnio dodanego pytania
     answer_ids: List[int] = field(default_factory=list) # ID ostatnio dodanych odpowiedzi
 
+    # --- NOWA SEKCJA: DashboardTest State ---
+    dash_user_token: Optional[str] = None # Dedykowany token dla użytkownika testującego Dashboard (Owner A)
+    dash_member_token: Optional[str] = None # Dedykowany token dla Member B (używany do testów 'memberCourses')
+    dash_member_email: str = ""      # Email Member B
+    dash_resource_ids: Dict[str, List[int]] = field(default_factory=lambda: {
+        "courses_owned": [],
+        "courses_member": [],
+        "notes": [],
+        "tests": []
+    }) # Przechowuje ID zasobów stworzonych do testu pulpitu
 # ───────────────────────── Helpers: HTTP Requests ─────────────────────────
 
 def build(ctx: TestContext, path: str) -> str:
@@ -520,228 +526,239 @@ class E2ETester:
         self.steps: List[Tuple[str, Callable[[], Dict[str, Any]]]] = [] # Zostanie wypełnione w run()
 
     def run(self):
-        """Definiuje i wykonuje wszystkie kroki testowe."""
-        # MODYFIKACJA: Usunięto ustawienie transcripts_dir
-        # self.ctx.transcripts_dir = os.path.join(self.ctx.output_dir, "transcripts")
+            """Definiuje i wykonuje wszystkie kroki testowe."""
+            # MODYFIKACJA: Usunięto ustawienie transcripts_dir
+            # self.ctx.transcripts_dir = os.path.join(self.ctx.output_dir, "transcripts")
 
-        # --- Pełna lista kroków testowych ---
-        self.steps = [
-            # === 1. User API ===
-            ("USER: Rejestracja (A)", self.t_user_register_A),
-            ("USER: Login (A)", self.t_user_login_A),
-            ("USER: Profil bez autoryzacji", self.t_user_profile_unauth),
-            ("USER: Profil z autoryzacją", self.t_user_profile_auth),
-            ("USER: Rejestracja (B) do konfliktu", self.t_user_register_B),
-            ("USER: PATCH name (JSON)", self.t_user_patch_name_json),
-            ("USER: PATCH email — konflikt (JSON)", self.t_user_patch_email_conflict_json),
-            ("USER: PATCH email — poprawny (JSON)", self.t_user_patch_email_ok_json),
-            ("USER: PATCH password (JSON) + weryfikacja", self.t_user_patch_password_json),
-            ("USER: Avatar — brak pliku", self.t_user_avatar_missing),
-            ("USER: Avatar — upload", self.t_user_avatar_upload),
-            ("USER: Avatar — download", self.t_user_avatar_download),
-            ("USER: Logout", self.t_user_logout),
-            ("USER: Re-login (A) przed DELETE", self.t_user_relogin_A),
-            ("USER: DELETE profile (A)", self.t_user_delete_profile),
-            ("USER: Login po DELETE (A) -> fail", self.t_user_login_after_delete_should_fail),
+            # --- Pełna lista kroków testowych ---
+            self.steps = [
+                # === 1. User API ===
+                ("USER: Rejestracja (A)", self.t_user_register_A),
+                ("USER: Login (A)", self.t_user_login_A),
+                ("USER: Profil bez autoryzacji", self.t_user_profile_unauth),
+                ("USER: Profil z autoryzacją", self.t_user_profile_auth),
+                ("USER: Rejestracja (B) do konfliktu", self.t_user_register_B),
+                ("USER: PATCH name (JSON)", self.t_user_patch_name_json),
+                ("USER: PATCH email — konflikt (JSON)", self.t_user_patch_email_conflict_json),
+                ("USER: PATCH email — poprawny (JSON)", self.t_user_patch_email_ok_json),
+                ("USER: PATCH password (JSON) + weryfikacja", self.t_user_patch_password_json),
+                ("USER: Avatar — brak pliku", self.t_user_avatar_missing),
+                ("USER: Avatar — upload", self.t_user_avatar_upload),
+                ("USER: Avatar — download", self.t_user_avatar_download),
+                ("USER: Logout", self.t_user_logout),
+                ("USER: Re-login (A) przed DELETE", self.t_user_relogin_A),
+                ("USER: DELETE profile (A)", self.t_user_delete_profile),
+                ("USER: Login po DELETE (A) -> fail", self.t_user_login_after_delete_should_fail),
 
-            # === 2. Setup Głównych Aktorów ===
-            ("SETUP: Rejestracja Owner (A)", self.t_setup_register_OwnerA),
-            ("SETUP: Rejestracja Member (B)", self.t_setup_register_MemberB),
-            ("SETUP: Rejestracja Outsider (C)", self.t_setup_register_OutsiderC),
-            ("SETUP: Rejestracja Admin (D)", self.t_setup_register_AdminD),
-            ("SETUP: Rejestracja Moderator (E)", self.t_setup_register_ModeratorE),
+                # === 2. Setup Głównych Aktorów ===
+                ("SETUP: Rejestracja Owner (A)", self.t_setup_register_OwnerA),
+                ("SETUP: Rejestracja Member (B)", self.t_setup_register_MemberB),
+                ("SETUP: Rejestracja Outsider (C)", self.t_setup_register_OutsiderC),
+                ("SETUP: Rejestracja Admin (D)", self.t_setup_register_AdminD),
+                ("SETUP: Rejestracja Moderator (E)", self.t_setup_register_ModeratorE),
 
-            # === 3. Note API (Uwzględnia 1:N Pliki i N:M Kursy) ===
-            ("NOTE: Login (Owner A)", self.t_note_login_A),
-            ("NOTE: Index (initial empty)", self.t_note_index_initial),
-            ("NOTE: Store: missing files[] → 400/422", self.t_note_store_missing_file),
-            ("NOTE: Store: invalid mime (files[]) → 400/422", self.t_note_store_invalid_mime),
-            ("NOTE: Store: ok (multipart files[]) Note A", self.t_note_store_ok), # Tworzy note_id_A
-            ("NOTE: Index contains created Note A (with files)", self.t_note_index_contains_created),
-            ("NOTE: Login (Member B)", self.t_note_login_B),
-            (f"{ICON_LOCK} NOTE: Show foreign note (B) → 403/404", self.t_note_show_foreign_403), # ZMIANA: Test 'show' zamiast 'download'
-            ("NOTE: Login (Owner A) again", self.t_note_login_A_again),
-            ("NOTE: PATCH title only (Note A)", self.t_note_patch_title_only),
-            ("NOTE: PATCH is_private invalid → 400/422", self.t_note_patch_is_private_invalid),
-            ("NOTE: PATCH description + is_private=false (Note A)", self.t_note_patch_desc_priv_false),
+                # === 3. Note API (Uwzględnia 1:N Pliki i N:M Kursy) ===
+                ("NOTE: Login (Owner A)", self.t_note_login_A),
+                ("NOTE: Index (initial empty)", self.t_note_index_initial),
+                ("NOTE: Store: missing files[] → 400/422", self.t_note_store_missing_file),
+                ("NOTE: Store: invalid mime (files[]) → 400/422", self.t_note_store_invalid_mime),
+                ("NOTE: Store: ok (multipart files[]) Note A", self.t_note_store_ok), # Tworzy note_id_A
+                ("NOTE: Index contains created Note A (with files)", self.t_note_index_contains_created),
+                ("NOTE: Login (Member B)", self.t_note_login_B),
+                (f"{ICON_LOCK} NOTE: Show foreign note (B) → 403/404", self.t_note_show_foreign_403), # ZMIANA: Test 'show' zamiast 'download'
+                ("NOTE: Login (Owner A) again", self.t_note_login_A_again),
+                ("NOTE: PATCH title only (Note A)", self.t_note_patch_title_only),
+                ("NOTE: PATCH is_private invalid → 400/422", self.t_note_patch_is_private_invalid),
+                ("NOTE: PATCH description + is_private=false (Note A)", self.t_note_patch_desc_priv_false),
 
-            # --- ZMODYFIKOWANE I NOWE TESTY ZARZĄDZANIA PLIKAMI ---
-            (f"{ICON_IMG} NOTE: Add file: missing 'file' → 400/422", self.t_note_add_file_missing), # ZMIANA: Testuje POST .../files
-            (f"{ICON_IMG} NOTE: Add second file ok (Note A)", self.t_note_add_second_file_ok), # ZMIANA: Testuje POST .../files
-            (f"{ICON_DOWN} NOTE: Download first file (Note A) ok", self.t_note_download_first_file_ok), # ZMIANA: Testuje GET .../files/fileId/download
-            (f"{ICON_TRASH} NOTE: Delete second file (Note A)", self.t_note_delete_second_file), # NOWY TEST
-            (f"{ICON_LIST} NOTE: Verify one file remains", self.t_note_verify_one_file_remains), # NOWY TEST
-            (f"{ICON_TRASH} NOTE: Delete last file (Note A)", self.t_note_delete_last_file), # NOWY TEST
+                # --- ZMODYFIKOWANE I NOWE TESTY ZARZĄDZANIA PLIKAMI ---
+                (f"{ICON_IMG} NOTE: Add file: missing 'file' → 400/422", self.t_note_add_file_missing), # ZMIANA: Testuje POST .../files
+                (f"{ICON_IMG} NOTE: Add second file ok (Note A)", self.t_note_add_second_file_ok), # ZMIANA: Testuje POST .../files
+                (f"{ICON_DOWN} NOTE: Download first file (Note A) ok", self.t_note_download_first_file_ok), # ZMIANA: Testuje GET .../files/fileId/download
+                (f"{ICON_TRASH} NOTE: Delete second file (Note A)", self.t_note_delete_second_file), # NOWY TEST
+                (f"{ICON_LIST} NOTE: Verify one file remains", self.t_note_verify_one_file_remains), # NOWY TEST
+                (f"{ICON_TRASH} NOTE: Delete last file (Note A)", self.t_note_delete_last_file), # NOWY TEST
 
-            (f"{ICON_IMG} NOTE: Add file after empty (Note A)", self.t_note_add_file_after_empty), # NOWY TEST
-            # --- KONIEC TESTÓW ZARZĄDZANIA PLIKAMI ---
+                (f"{ICON_IMG} NOTE: Add file after empty (Note A)", self.t_note_add_file_after_empty), # NOWY TEST
+                # --- KONIEC TESTÓW ZARZĄDZANIA PLIKAMI ---
 
-            # Testy udostępniania N:M
-            ("NOTE: Create Course 1 for sharing", self.t_note_create_course1), # Tworzy course_id_1
-            ("NOTE: Share Note A to Course 1", self.t_note_share_to_course1),
-            ("NOTE: Verify Note A shows Course 1", self.t_note_verify_note_shows_course1),
-            ("NOTE: Create Public Course", self.t_note_create_public_course), # Tworzy public_course_id
-            ("NOTE: Share Note A to Public Course", self.t_note_share_to_public_course),
-            ("NOTE: Verify Note A shows both Courses", self.t_note_verify_note_shows_both),
-            ("NOTE: Unshare Note A from Course 1 (User)", self.t_note_unshare_from_course1),
-            ("NOTE: Verify Note A shows only Public Course", self.t_note_verify_note_shows_public_only),
-            ("NOTE: Unshare Note A from Public Course (User)", self.t_note_unshare_from_public_course),
-            ("NOTE: Verify Note A shows no Courses and is private", self.t_note_verify_note_shows_none_private),
-            ("NOTE: Unshare already unshared (idempotent)", self.t_note_unshare_idempotent),
-            # Testy DELETE
-            ("NOTE: DELETE note (Note A)", self.t_note_delete_note), # Usuwa notatkę i kaskadowo pliki
-            ("NOTE: Download file after delete → 404", self.t_note_download_after_delete_404), # ZMIANA: Testuje .../files/fileId/download
-            ("NOTE: Index after delete (not present)", self.t_note_index_after_delete),
+                # Testy udostępniania N:M
+                ("NOTE: Create Course 1 for sharing", self.t_note_create_course1), # Tworzy course_id_1
+                ("NOTE: Share Note A to Course 1", self.t_note_share_to_course1),
+                ("NOTE: Verify Note A shows Course 1", self.t_note_verify_note_shows_course1),
+                ("NOTE: Create Public Course", self.t_note_create_public_course), # Tworzy public_course_id
+                ("NOTE: Share Note A to Public Course", self.t_note_share_to_public_course),
+                ("NOTE: Verify Note A shows both Courses", self.t_note_verify_note_shows_both),
+                ("NOTE: Unshare Note A from Course 1 (User)", self.t_note_unshare_from_course1),
+                ("NOTE: Verify Note A shows only Public Course", self.t_note_verify_note_shows_public_only),
+                ("NOTE: Unshare Note A from Public Course (User)", self.t_note_unshare_from_public_course),
+                ("NOTE: Verify Note A shows no Courses and is private", self.t_note_verify_note_shows_none_private),
+                ("NOTE: Unshare already unshared (idempotent)", self.t_note_unshare_idempotent),
+                # Testy DELETE
+                ("NOTE: DELETE note (Note A)", self.t_note_delete_note), # Usuwa notatkę i kaskadowo pliki
+                ("NOTE: Download file after delete → 404", self.t_note_download_after_delete_404), # ZMIANA: Testuje .../files/fileId/download
+                ("NOTE: Index after delete (not present)", self.t_note_index_after_delete),
 
-            # === 4. Course API (Uwzględnia N:M) ===
-            ("COURSE: Index no token → 401/403", self.t_course_index_no_token),
-            ("COURSE: Login (Owner A)", self.t_course_login_A),
-            ("COURSE: Verify Course 1 exists", self.t_course_verify_course1_exists), # Używa course_id_1 z Note API
-            ("COURSE: Download avatar none → 404", self.t_course_download_avatar_none_404),
-            ("COURSE: Create course invalid type", self.t_course_create_course_invalid),
-            ("COURSE: Index courses A contains C1", self.t_course_index_courses_A_contains),
-            ("COURSE: Login (Member B)", self.t_course_login_B),
-            ("COURSE: B cannot download A avatar", self.t_course_download_avatar_B_unauth),
-            ("COURSE: B cannot update A course", self.t_course_B_cannot_update_A_course),
-            ("COURSE: B cannot delete A course", self.t_course_B_cannot_delete_A_course),
-            ("COURSE: Invite B to C1", self.t_course_invite_B), # Zaproszenie B do Course 1
-            ("COURSE: B accepts invite to C1", self.t_course_B_accept),
-            ("COURSE: Index courses B contains C1", self.t_course_index_courses_B_contains),
-            ("COURSE: Course users — member view", self.t_course_users_member_view),
-            ("COURSE: Course users — admin all", self.t_course_users_admin_all),
-            ("COURSE: Course users — filter q & role", self.t_course_users_filter_q_role),
-            ("COURSE: A creates note (used in course)", self.t_course_create_note_A), # Tworzy course_note_id_A
-            ("COURSE: B cannot share A note", self.t_course_B_cannot_share_A_note),
-            ("COURSE: A share note invalid course", self.t_course_A_share_note_invalid_course),
-            ("COURSE: A share Note A -> Course 1", self.t_course_share_note_to_course), # Udostępnia course_note_id_A
-            ("COURSE: Notes C1 (verify shared Note A)", self.t_course_verify_note_shared),
-            ("COURSE: Notes C1 (owner & member view)", self.t_course_notes_owner_member),
-            ("COURSE: Notes C1 outsider private (fail)", self.t_course_notes_outsider_private_403),
-            ("COURSE: Remove B from C1", self.t_course_remove_B), # Usuwa B z Course 1
-            ("COURSE: Index B (not contains C1)", self.t_course_index_courses_B_not_contains),
-            ("COURSE: Remove non-member B again (idempotent)", self.t_course_remove_non_member_true),
-            ("COURSE: Remove owner A (fail)", self.t_course_remove_owner_422),
-            # Role & Moderacja
-            ("COURSE: Login (Admin D)", self.t_course_login_D),
-            ("COURSE: Invite D (admin) to C1", self.t_course_invite_D_admin),
-            ("COURSE: D accept invite to C1", self.t_course_D_accept),
-            ("COURSE: Login (Moderator E)", self.t_course_login_E),
-            ("COURSE: Invite E (moderator) to C1", self.t_course_invite_E_moderator),
-            ("COURSE: E accept invite to C1", self.t_course_E_accept),
-            ("COURSE: D creates note & shares", self.t_course_create_note_D_and_share), # Tworzy course_note_id_D
-            ("COURSE: E creates note & shares", self.t_course_create_note_E_and_share), # Tworzy course_note_id_E
-            ("COURSE: E cannot remove D (fail)", self.t_course_mod_E_cannot_remove_admin_D),
-            ("COURSE: E cannot remove owner A (fail)", self.t_course_mod_E_cannot_remove_owner_A),
-            ("COURSE: Admin D removes moderator E", self.t_course_admin_D_removes_mod_E), # Usuwa E z Course 1
-            ("COURSE: Verify E note NOT in C1 after E removed", self.t_course_verify_E_note_unshared),
-            ("COURSE: E courses after kick (empty)", self.t_course_E_lost_membership),
-            ("COURSE: Owner sets D->admin", self.t_course_owner_sets_D_admin),
-            ("COURSE: Owner demotes D->moderator", self.t_course_owner_demotes_D_to_moderator),
-            ("COURSE: Admin D cannot change self (fail)", self.t_course_admin_cannot_change_admin),
-            ("COURSE: Admin cannot set owner role (fail)", self.t_course_admin_cannot_set_owner_role),
-            ("COURSE: Reinvite E as mod to C1", self.t_course_owner_reinvite_E_as_moderator), # Ponownie zaprasza E
-            ("COURSE: Register F (member)", self.t_course_register_F),
-            ("COURSE: Login F", self.t_course_login_F),
-            ("COURSE: Invite F (member) to C1", self.t_course_invite_F_member),
-            ("COURSE: F accept invite to C1", self.t_course_F_accept),
-            ("COURSE: F creates note & shares", self.t_course_create_and_share_note_F), # Tworzy course_note_id_F
-            ("COURSE: Mod E purges F notes from C1", self.t_course_mod_E_purges_F_notes), # Odpina notatki F
-            ("COURSE: Mod E removes F user from C1", self.t_course_mod_E_removes_F_user), # Usuwa F
-            ("COURSE: Reinvite B to C1 & Owner sets B->moderator", self.t_course_owner_reinvite_B_and_set_moderator), # Ponownie B, zmiana roli
-            ("COURSE: Admin D sets B->member", self.t_course_admin_sets_B_member), # D degraduje B
+                # === 4. Course API (Uwzględnia N:M) ===
+                ("COURSE: Index no token → 401/403", self.t_course_index_no_token),
+                ("COURSE: Login (Owner A)", self.t_course_login_A),
+                ("COURSE: Verify Course 1 exists", self.t_course_verify_course1_exists), # Używa course_id_1 z Note API
+                ("COURSE: Download avatar none → 404", self.t_course_download_avatar_none_404),
+                ("COURSE: Create course invalid type", self.t_course_create_course_invalid),
+                ("COURSE: Index courses A contains C1", self.t_course_index_courses_A_contains),
+                ("COURSE: Login (Member B)", self.t_course_login_B),
+                ("COURSE: B cannot download A avatar", self.t_course_download_avatar_B_unauth),
+                ("COURSE: B cannot update A course", self.t_course_B_cannot_update_A_course),
+                ("COURSE: B cannot delete A course", self.t_course_B_cannot_delete_A_course),
+                ("COURSE: Invite B to C1", self.t_course_invite_B), # Zaproszenie B do Course 1
+                ("COURSE: B accepts invite to C1", self.t_course_B_accept),
+                ("COURSE: Index courses B contains C1", self.t_course_index_courses_B_contains),
+                ("COURSE: Course users — member view", self.t_course_users_member_view),
+                ("COURSE: Course users — admin all", self.t_course_users_admin_all),
+                ("COURSE: Course users — filter q & role", self.t_course_users_filter_q_role),
+                ("COURSE: A creates note (used in course)", self.t_course_create_note_A), # Tworzy course_note_id_A
+                ("COURSE: B cannot share A note", self.t_course_B_cannot_share_A_note),
+                ("COURSE: A share note invalid course", self.t_course_A_share_note_invalid_course),
+                ("COURSE: A share Note A -> Course 1", self.t_course_share_note_to_course), # Udostępnia course_note_id_A
+                ("COURSE: Notes C1 (verify shared Note A)", self.t_course_verify_note_shared),
+                ("COURSE: Notes C1 (owner & member view)", self.t_course_notes_owner_member),
+                ("COURSE: Notes C1 outsider private (fail)", self.t_course_notes_outsider_private_403),
+                ("COURSE: Remove B from C1", self.t_course_remove_B), # Usuwa B z Course 1
+                ("COURSE: Index B (not contains C1)", self.t_course_index_courses_B_not_contains),
+                ("COURSE: Remove non-member B again (idempotent)", self.t_course_remove_non_member_true),
+                ("COURSE: Remove owner A (fail)", self.t_course_remove_owner_422),
+                # Role & Moderacja
+                ("COURSE: Login (Admin D)", self.t_course_login_D),
+                ("COURSE: Invite D (admin) to C1", self.t_course_invite_D_admin),
+                ("COURSE: D accept invite to C1", self.t_course_D_accept),
+                ("COURSE: Login (Moderator E)", self.t_course_login_E),
+                ("COURSE: Invite E (moderator) to C1", self.t_course_invite_E_moderator),
+                ("COURSE: E accept invite to C1", self.t_course_E_accept),
+                ("COURSE: D creates note & shares", self.t_course_create_note_D_and_share), # Tworzy course_note_id_D
+                ("COURSE: E creates note & shares", self.t_course_create_note_E_and_share), # Tworzy course_note_id_E
+                ("COURSE: E cannot remove D (fail)", self.t_course_mod_E_cannot_remove_admin_D),
+                ("COURSE: E cannot remove owner A (fail)", self.t_course_mod_E_cannot_remove_owner_A),
+                ("COURSE: Admin D removes moderator E", self.t_course_admin_D_removes_mod_E), # Usuwa E z Course 1
+                ("COURSE: Verify E note NOT in C1 after E removed", self.t_course_verify_E_note_unshared),
+                ("COURSE: E courses after kick (empty)", self.t_course_E_lost_membership),
+                ("COURSE: Owner sets D->admin", self.t_course_owner_sets_D_admin),
+                ("COURSE: Owner demotes D->moderator", self.t_course_owner_demotes_D_to_moderator),
+                ("COURSE: Admin D cannot change self (fail)", self.t_course_admin_cannot_change_admin),
+                ("COURSE: Admin cannot set owner role (fail)", self.t_course_admin_cannot_set_owner_role),
+                ("COURSE: Reinvite E as mod to C1", self.t_course_owner_reinvite_E_as_moderator), # Ponownie zaprasza E
+                ("COURSE: Register F (member)", self.t_course_register_F),
+                ("COURSE: Login F", self.t_course_login_F),
+                ("COURSE: Invite F (member) to C1", self.t_course_invite_F_member),
+                ("COURSE: F accept invite to C1", self.t_course_F_accept),
+                ("COURSE: F creates note & shares", self.t_course_create_and_share_note_F), # Tworzy course_note_id_F
+                ("COURSE: Mod E purges F notes from C1", self.t_course_mod_E_purges_F_notes), # Odpina notatki F
+                ("COURSE: Mod E removes F user from C1", self.t_course_mod_E_removes_F_user), # Usuwa F
+                ("COURSE: Reinvite B to C1 & Owner sets B->moderator", self.t_course_owner_reinvite_B_and_set_moderator), # Ponownie B, zmiana roli
+                ("COURSE: Admin D sets B->member", self.t_course_admin_sets_B_member), # D degraduje B
 
-            # === NOWE TESTY: Opuszczanie Kursu ===
-            (f"{ICON_LEAVE} COURSE: Leave - Unauthenticated → 401/403", self.t_course_leave_unauth),
-            (f"{ICON_LEAVE} COURSE: Leave - Owner A (fail) → 403", self.t_course_leave_owner_fail),
-            (f"{ICON_LEAVE} COURSE: Leave - Outsider C (fail) → 403", self.t_course_leave_outsider_fail),
-            (f"{ICON_LEAVE} COURSE: Leave - Not Found (fail) → 404", self.t_course_leave_not_found_fail),
-            (f"{ICON_LEAVE} COURSE: Leave - Setup C3 + Note B (N:M)", self.t_course_leave_setup_C3_NoteB), # Tworzy C3, Note B i udostępnia
-            (f"{ICON_LEAVE} COURSE: Leave - B leaves C1 (success)", self.t_course_leave_B_from_C1),
-            (f"{ICON_LEAVE} COURSE: Leave - Verify Note B (after C1 leave)", self.t_course_leave_verify_noteB_after_C1),
-            (f"{ICON_LEAVE} COURSE: Leave - B leaves C3 (last course)", self.t_course_leave_B_from_C3),
-            (f"{ICON_LEAVE} COURSE: Leave - Verify Note B (after C3 leave)", self.t_course_leave_verify_noteB_after_C3),
-            (f"{ICON_LEAVE} COURSE: Leave - Idempotent (B leaves C1 again) → 403", self.t_course_leave_B_from_C1_idempotent),
+                # === NOWE TESTY: Opuszczanie Kursu ===
+                (f"{ICON_LEAVE} COURSE: Leave - Unauthenticated → 401/403", self.t_course_leave_unauth),
+                (f"{ICON_LEAVE} COURSE: Leave - Owner A (fail) → 403", self.t_course_leave_owner_fail),
+                (f"{ICON_LEAVE} COURSE: Leave - Outsider C (fail) → 403", self.t_course_leave_outsider_fail),
+                (f"{ICON_LEAVE} COURSE: Leave - Not Found (fail) → 404", self.t_course_leave_not_found_fail),
+                (f"{ICON_LEAVE} COURSE: Leave - Setup C3 + Note B (N:M)", self.t_course_leave_setup_C3_NoteB), # Tworzy C3, Note B i udostępnia
+                (f"{ICON_LEAVE} COURSE: Leave - B leaves C1 (success)", self.t_course_leave_B_from_C1),
+                (f"{ICON_LEAVE} COURSE: Leave - Verify Note B (after C1 leave)", self.t_course_leave_verify_noteB_after_C1),
+                (f"{ICON_LEAVE} COURSE: Leave - B leaves C3 (last course)", self.t_course_leave_B_from_C3),
+                (f"{ICON_LEAVE} COURSE: Leave - Verify Note B (after C3 leave)", self.t_course_leave_verify_noteB_after_C3),
+                (f"{ICON_LEAVE} COURSE: Leave - Idempotent (B leaves C1 again) → 403", self.t_course_leave_B_from_C1_idempotent),
 
-            # === Odrzucenia zaproszeń ===
-            ("COURSE: Login (Outsider C)", self.t_course_login_C),
-            ("COURSE: Create course #2 (private)", self.t_course_create_course2_A), # Tworzy course_id_2
-            ("COURSE: Invite C #1 to C2", self.t_course_invite_C_1),
-            ("COURSE: C reject invite 1", self.t_course_reject_C_last),
-            ("COURSE: Invite C #2 to C2", self.t_course_invite_C_2),
-            ("COURSE: C reject invite 2", self.t_course_reject_C_last),
-            ("COURSE: Invite C #3 to C2", self.t_course_invite_C_3),
-            ("COURSE: C reject invite 3", self.t_course_reject_C_last),
-            ("COURSE: Invite C #4 blocked (fail)", self.t_course_invite_C_4_blocked), # Oczekuje błędu 400/422
+                # === Odrzucenia zaproszeń ===
+                ("COURSE: Login (Outsider C)", self.t_course_login_C),
+                ("COURSE: Create course #2 (private)", self.t_course_create_course2_A), # Tworzy course_id_2
+                ("COURSE: Invite C #1 to C2", self.t_course_invite_C_1),
+                ("COURSE: C reject invite 1", self.t_course_reject_C_last),
+                ("COURSE: Invite C #2 to C2", self.t_course_invite_C_2),
+                ("COURSE: C reject invite 2", self.t_course_reject_C_last),
+                ("COURSE: Invite C #3 to C2", self.t_course_invite_C_3),
+                ("COURSE: C reject invite 3", self.t_course_reject_C_last),
+                ("COURSE: Invite C #4 blocked (fail)", self.t_course_invite_C_4_blocked), # Oczekuje błędu 400/422
 
-            # === Kurs publiczny ===
-            ("COURSE: Verify Public Course exists", self.t_course_verify_public_course_exists),
-            ("COURSE: Public course notes outsider (fail)", self.t_course_notes_outsider_public_403),
-            ("COURSE: Public course users outsider (fail)", self.t_course_users_outsider_public_401),
+                # === Kurs publiczny ===
+                ("COURSE: Verify Public Course exists", self.t_course_verify_public_course_exists),
+                ("COURSE: Public course notes outsider (fail)", self.t_course_notes_outsider_public_403),
+                ("COURSE: Public course users outsider (fail)", self.t_course_users_outsider_public_401),
 
-            # === Sprzątanie Kursów ===
-            ("COURSE: Delete course #1", self.t_course_delete_course_A),
-            ("COURSE: Delete course #2", self.t_course_delete_course2_A),
-            ("COURSE: Delete course #3", self.t_course_delete_course3_A), # NOWOŚĆ: Sprzątanie C3
-            ("COURSE: Delete public course", self.t_course_delete_public_course_A),
-            ("COURSE: Delete note B", self.t_course_delete_noteB), # NOWOŚĆ: Sprzątanie Note B
+                # === Sprzątanie Kursów ===
+                ("COURSE: Delete course #1", self.t_course_delete_course_A),
+                ("COURSE: Delete course #2", self.t_course_delete_course2_A),
+                ("COURSE: Delete course #3", self.t_course_delete_course3_A), # NOWOŚĆ: Sprzątanie C3
+                ("COURSE: Delete public course", self.t_course_delete_public_course_A),
+                ("COURSE: Delete note B", self.t_course_delete_noteB), # NOWOŚĆ: Sprzątanie Note B
 
-             # === 5. Quiz API (Uwzględnia N:M dla Testów) ===
-            ("QUIZ: Login (Owner A)", self.t_quiz_login_A),
-            ("QUIZ: Create course for quiz", self.t_quiz_create_course), # Tworzy quiz_course_id
-            ("QUIZ: Index user tests initial (empty)", self.t_quiz_index_user_tests_initial),
-            ("QUIZ: Create PRIVATE test", self.t_quiz_create_private_test), # Tworzy test_private_id
-            ("QUIZ: Index user tests contains private", self.t_quiz_index_user_tests_contains_private),
-            ("QUIZ: Show private test", self.t_quiz_show_private_test),
-            ("QUIZ: Update private test (PUT)", self.t_quiz_update_private_test),
-            # Pytania i Odpowiedzi
-            ("QUIZ: Add Q1", self.t_quiz_add_question), # Tworzy question_id
-            ("QUIZ: List questions contains Q1", self.t_quiz_list_questions_contains_q1),
-            ("QUIZ: Update Q1", self.t_quiz_update_question),
-            ("QUIZ: Add A1 invalid first (fail)", self.t_quiz_add_answer_invalid_first),
-            ("QUIZ: Add A1 correct", self.t_quiz_add_answer_correct_first), # Dodaje answer_id
-            ("QUIZ: Add duplicate A1 (fail)", self.t_quiz_add_answer_duplicate),
-            ("QUIZ: Add A2 wrong", self.t_quiz_add_answer_wrong_2), # Dodaje answer_id
-            ("QUIZ: Add A3 wrong", self.t_quiz_add_answer_wrong_3), # Dodaje answer_id
-            ("QUIZ: Add A4 wrong", self.t_quiz_add_answer_wrong_4), # Dodaje answer_id
-            ("QUIZ: Add A5 blocked (limit)", self.t_quiz_add_answer_limit),
-            ("QUIZ: Get answers list", self.t_quiz_get_answers_list),
-            ("QUIZ: Update answer #2 -> correct", self.t_quiz_update_answer),
-            ("QUIZ: Delete answer #3", self.t_quiz_delete_answer),
-            ("QUIZ: Delete Q1", self.t_quiz_delete_question), # Czyści question_id, answer_ids
-            ("QUIZ: Add Qs to reach 20", self.t_quiz_add_questions_to_20),
-            ("QUIZ: Add Q21 blocked (limit)", self.t_quiz_add_21st_question_block),
-            # Udostępnianie Testu N:M
-            ("QUIZ: Create PUBLIC test for sharing", self.t_quiz_create_public_test), # Tworzy test_public_id
-            ("QUIZ: Share Public Test -> Quiz Course 1", self.t_quiz_share_public_test_to_course), # Udostępnia do quiz_course_id
-            ("QUIZ: Quiz Course 1 tests include shared", self.t_quiz_course_tests_include_shared),
-            ("QUIZ: Create Course 2 for sharing test", self.t_quiz_create_course_2), # Tworzy quiz_course_id_2
-            ("QUIZ: Share Public Test -> Quiz Course 2", self.t_quiz_share_public_test_to_course_2), # Udostępnia do quiz_course_id_2
-            ("QUIZ: Verify Public Test details show both courses", self.t_quiz_verify_test_shows_both_courses),
-            ("QUIZ: Unshare Public Test from Quiz Course 1", self.t_quiz_unshare_from_course1),
-            ("QUIZ: Verify Public Test details show course 2 only", self.t_quiz_verify_test_shows_course2_only),
-            ("QUIZ: Unshare Public Test from Quiz Course 2", self.t_quiz_unshare_from_course2),
-            ("QUIZ: Verify Public Test details show no courses", self.t_quiz_verify_test_shows_no_courses),
-            # Uprawnienia
-            ("QUIZ: Register B (for conflict)", self.t_quiz_register_B), # Rejestruje quiz_userB
-            ("QUIZ: Login B", self.t_quiz_login_B), # Loguje quiz_userB (quiz_token = B)
-            ("QUIZ: B cannot show A private test (fail)", self.t_quiz_b_cannot_show_a_test),
-            ("QUIZ: B cannot update A test (fail)", self.t_quiz_b_cannot_modify_a_test),
-            ("QUIZ: B cannot add Q to A test (fail)", self.t_quiz_b_cannot_add_q_to_a_test),
-            ("QUIZ: B cannot delete A test (fail)", self.t_quiz_b_cannot_delete_a_test),
-            # Sprzątanie Quiz
-            ("QUIZ: Cleanup login A", self.t_quiz_cleanup_login_A), # Loguje Owner A (quiz_token = A)
-            ("QUIZ: Cleanup delete public test", self.t_quiz_cleanup_delete_public),
-            ("QUIZ: Cleanup delete private test", self.t_quiz_cleanup_delete_private),
-            ("QUIZ: Cleanup delete Quiz Course 1", self.t_quiz_cleanup_delete_course),
-            ("QUIZ: Cleanup delete Quiz Course 2", self.t_quiz_cleanup_delete_course_2),
-        ]
+                 # === 5. Quiz API (Uwzględnia N:M dla Testów) ===
+                ("QUIZ: Login (Owner A)", self.t_quiz_login_A),
+                ("QUIZ: Create course for quiz", self.t_quiz_create_course), # Tworzy quiz_course_id
+                ("QUIZ: Index user tests initial (empty)", self.t_quiz_index_user_tests_initial),
+                ("QUIZ: Create PRIVATE test", self.t_quiz_create_private_test), # Tworzy test_private_id
+                ("QUIZ: Index user tests contains private", self.t_quiz_index_user_tests_contains_private),
+                ("QUIZ: Show private test", self.t_quiz_show_private_test),
+                ("QUIZ: Update private test (PUT)", self.t_quiz_update_private_test),
+                # Pytania i Odpowiedzi
+                ("QUIZ: Add Q1", self.t_quiz_add_question), # Tworzy question_id
+                ("QUIZ: List questions contains Q1", self.t_quiz_list_questions_contains_q1),
+                ("QUIZ: Update Q1", self.t_quiz_update_question),
+                ("QUIZ: Add A1 invalid first (fail)", self.t_quiz_add_answer_invalid_first),
+                ("QUIZ: Add A1 correct", self.t_quiz_add_answer_correct_first), # Dodaje answer_id
+                ("QUIZ: Add duplicate A1 (fail)", self.t_quiz_add_answer_duplicate),
+                ("QUIZ: Add A2 wrong", self.t_quiz_add_answer_wrong_2), # Dodaje answer_id
+                ("QUIZ: Add A3 wrong", self.t_quiz_add_answer_wrong_3), # Dodaje answer_id
+                ("QUIZ: Add A4 wrong", self.t_quiz_add_answer_wrong_4), # Dodaje answer_id
+                ("QUIZ: Add A5 blocked (limit)", self.t_quiz_add_answer_limit),
+                ("QUIZ: Get answers list", self.t_quiz_get_answers_list),
+                ("QUIZ: Update answer #2 -> correct", self.t_quiz_update_answer),
+                ("QUIZ: Delete answer #3", self.t_quiz_delete_answer),
+                ("QUIZ: Delete Q1", self.t_quiz_delete_question), # Czyści question_id, answer_ids
+                ("QUIZ: Add Qs to reach 20", self.t_quiz_add_questions_to_20),
+                ("QUIZ: Add Q21 blocked (limit)", self.t_quiz_add_21st_question_block),
+                # Udostępnianie Testu N:M
+                ("QUIZ: Create PUBLIC test for sharing", self.t_quiz_create_public_test), # Tworzy test_public_id
+                ("QUIZ: Share Public Test -> Quiz Course 1", self.t_quiz_share_public_test_to_course), # Udostępnia do quiz_course_id
+                ("QUIZ: Quiz Course 1 tests include shared", self.t_quiz_course_tests_include_shared),
+                ("QUIZ: Create Course 2 for sharing test", self.t_quiz_create_course_2), # Tworzy quiz_course_id_2
+                ("QUIZ: Share Public Test -> Quiz Course 2", self.t_quiz_share_public_test_to_course_2), # Udostępnia do quiz_course_id_2
+                ("QUIZ: Verify Public Test details show both courses", self.t_quiz_verify_test_shows_both_courses),
+                ("QUIZ: Unshare Public Test from Quiz Course 1", self.t_quiz_unshare_from_course1),
+                ("QUIZ: Verify Public Test details show course 2 only", self.t_quiz_verify_test_shows_course2_only),
+                ("QUIZ: Unshare Public Test from Quiz Course 2", self.t_quiz_unshare_from_course2),
+                ("QUIZ: Verify Public Test details show no courses", self.t_quiz_verify_test_shows_no_courses),
+                # Uprawnienia
+                ("QUIZ: Register B (for conflict)", self.t_quiz_register_B), # Rejestruje quiz_userB
+                ("QUIZ: Login B", self.t_quiz_login_B), # Loguje quiz_userB (quiz_token = B)
+                ("QUIZ: B cannot show A private test (fail)", self.t_quiz_b_cannot_show_a_test),
+                ("QUIZ: B cannot update A test (fail)", self.t_quiz_b_cannot_modify_a_test),
+                ("QUIZ: B cannot add Q to A test (fail)", self.t_quiz_b_cannot_add_q_to_a_test),
+                ("QUIZ: B cannot delete A test (fail)", self.t_quiz_b_cannot_delete_a_test),
+                # Sprzątanie Quiz
+                ("QUIZ: Cleanup login A", self.t_quiz_cleanup_login_A), # Loguje Owner A (quiz_token = A)
+                ("QUIZ: Cleanup delete public test", self.t_quiz_cleanup_delete_public),
+                ("QUIZ: Cleanup delete private test", self.t_quiz_cleanup_delete_private),
+                ("QUIZ: Cleanup delete Quiz Course 1", self.t_quiz_cleanup_delete_course),
+                ("QUIZ: Cleanup delete Quiz Course 2", self.t_quiz_cleanup_delete_course_2),
 
-        total = len(self.steps)
-        print(c(f"\n{ICON_INFO} Rozpoczynanie {total} zintegrowanych testów E2E @ {self.ctx.base_url}\n", Fore.WHITE))
+                # === NOWA SEKCJA: 6. Dashboard API ===
+                (f"{ICON_DASH} DASH: Unauthenticated → 401/403", self.t_dash_unauthenticated),
+                (f"{ICON_DASH} DASH: Setup Data (Owner A, Member B)", self.t_dash_setup_data),
+                (f"{ICON_DASH} DASH: Get All Widgets (Default)", self.t_dash_get_all_widgets_default),
+                (f"{ICON_DASH} DASH: Filter ?include (subset)", self.t_dash_filter_include_subset),
+                (f"{ICON_DASH} DASH: Filter ?include (single)", self.t_dash_filter_include_single),
+                (f"{ICON_DASH} DASH: Filter ?limit (min/max/invalid)", self.t_dash_filter_limit),
+                (f"{ICON_DASH} DASH: Filter Courses (?courses_q/sort)", self.t_dash_filter_courses_q_sort),
+                (f"{ICON_DASH} DASH: Filter Activities (?activities_q/type)", self.t_dash_filter_activities_q_type),
+                (f"{ICON_DASH} DASH: Cleanup Data", self.t_dash_cleanup),
+            ]
 
-        # Pętla wykonująca testy
-        for i, (name, fn) in enumerate(self.steps, 1):
-            self._exec(i, total, name, fn)
+            total = len(self.steps)
+            print(c(f"\n{ICON_INFO} Rozpoczynanie {total} zintegrowanych testów E2E @ {self.ctx.base_url}\n", Fore.WHITE))
+
+            # Pętla wykonująca testy
+            for i, (name, fn) in enumerate(self.steps, 1):
+                self._exec(i, total, name, fn)
 
     # ──────────────────────────────────────────────────────────────────────
     # === Metody pomocnicze ===
@@ -2894,10 +2911,536 @@ class E2ETester:
         """Owner A usuwa kurs Quiz Course 2."""
         return self._delete_course("QUIZ: Cleanup delete Quiz Course 2", self.ctx.quiz_token, self.ctx.quiz_course_id_2)
 
+# ──────────────────────────────────────────────────────────────────────
+    # === 6. Metody testowe: Dashboard API ===
+    # ──────────────────────────────────────────────────────────────────────
 
+    def t_dash_unauthenticated(self):
+        """Sprawdza, czy niezalogowany użytkownik nie ma dostępu do pulpitu (oczekiwany błąd 401/403)."""
+        url = me(self.ctx, "/dashboard")
+        r = http_get(self.ctx, f"{ICON_DASH} DASH: Unauthenticated", url, {"Accept": "application/json"})
+        assert r.status_code in (401, 403), f"Expected 401/403 (Unauthorized), got {r.status_code}"
+        return {"status": r.status_code, "method": "GET", "url": url}
+
+    def t_dash_setup_data(self):
+        """Tworzy kompletny zestaw danych do testowania wszystkich widżetów pulpitu."""
+
+        # 1. Zaloguj głównego użytkownika (Owner A) i członka (Member B)
+        # Używamy tokenów z głównego setupu
+        self.ctx.dash_user_token = self.ctx.tokenOwner
+        self.ctx.dash_member_token = self.ctx.tokenB
+        self.ctx.dash_member_email = self.ctx.emailB
+        assert self.ctx.dash_user_token, "Dashboard test user (Owner A) token missing"
+        assert self.ctx.dash_member_token, "Dashboard test member (Member B) token missing"
+
+        print(c(f" (Using OwnerA: {self.ctx.emailOwner} | MemberB: {self.ctx.emailB})", Fore.MAGENTA), end="")
+
+        # 2. Stwórz zasoby dla widżetu 'myCourses' (Owner A)
+        # Tworzymy 3 kursy, aby przetestować limitowanie
+        c1 = self._create_course("DASH", self.ctx.dash_user_token, "Dash My Course 1 (Zzz)")
+        time.sleep(0.1) # Mała pauza dla różnych timestampów updated_at
+        c2 = self._create_course("DASH", self.ctx.dash_user_token, "Dash My Course 2 (Aaa)")
+        time.sleep(0.1)
+        c3 = self._create_course("DASH", self.ctx.dash_user_token, "Dash My Course 3 (Mmm)")
+        self.ctx.dash_resource_ids["courses_owned"] = [c1, c2, c3]
+
+        # 3. Stwórz zasoby dla widżetu 'memberCourses' (Owner A zaprasza Member B)
+        c_mem1 = self._create_course("DASH", self.ctx.dash_user_token, "Dash Member Course 1")
+        time.sleep(0.1)
+        c_mem2 = self._create_course("DASH", self.ctx.dash_user_token, "Dash Member Course 2 (Qqq)")
+        self.ctx.dash_resource_ids["courses_member"] = [c_mem1, c_mem2] # Owner też je posiada, więc musi je usunąć
+
+        # Zaproś i zaakceptuj dla obu kursów
+        self._invite_user("DASH Setup Invite 1", self.ctx.dash_user_token, self.ctx.dash_member_email, "member", c_mem1)
+        self._accept_invite("DASH Setup Accept 1", self.ctx.dash_member_token, c_mem1)
+
+        self._invite_user("DASH Setup Invite 2", self.ctx.dash_user_token, self.ctx.dash_member_email, "moderator", c_mem2)
+        self._accept_invite("DASH Setup Accept 2", self.ctx.dash_member_token, c_mem2)
+
+        # 4. Stwórz zasoby dla 'recentActivities' (Notatki i Testy dla Owner A)
+        n1 = self._create_note("DASH", self.ctx.dash_user_token, "Dash Note 1 (Recent)", is_private=True)
+        time.sleep(0.1)
+        t1 = self._create_test("DASH", self.ctx.dash_user_token, "Dash Test 1 (Old)", status="private")
+        time.sleep(0.1)
+        n2 = self._create_note("DASH", self.ctx.dash_user_token, "Dash Note 2 (Searchable)", is_private=False)
+        time.sleep(0.1)
+        t2 = self._create_test("DASH", self.ctx.dash_user_token, "Dash Test 2 (Searchable)", status="public")
+        self.ctx.dash_resource_ids["notes"] = [n1, n2]
+        self.ctx.dash_resource_ids["tests"] = [t1, t2]
+
+        # 5. Stwórz zasoby dla 'invitations' (Zaproś Owner A do kursu Membera B)
+        # Member B tworzy kurs i zaprasza Owner A
+        c_inv = self._create_course("DASH", self.ctx.dash_member_token, "Dash Invite Course (from B)")
+        self.ctx.dash_resource_ids["courses_member"].append(c_inv) # Ten kurs należy do B, ale A musi go posprzątać (lub B)
+                                                                    # Poprawka: B musi go posprzątać. Ale A jest Ownerem testu.
+                                                                    # Zmieńmy: Admin D tworzy kurs i zaprasza Owner A
+
+        admin_token = self.ctx.tokenD
+        assert admin_token, "Dashboard setup needs Admin D token"
+        c_inv_admin = self._create_course("DASH", admin_token, "Dash Invite Course (from D)")
+        self.ctx.dash_resource_ids["courses_owned"].append(c_inv_admin) # Dodajemy do sprzątania przez A (choć należy do D)
+                                                                        # Poprawka: Owner A (dash_user) posprząta tylko swoje.
+                                                                        # Musimy dodać to do specjalnej listy sprzątania.
+                                                                        # Uproszczenie: Owner A tworzy kurs i zaprasza B (B nie akceptuje)
+                                                                        # Ale to testuje zaproszenia *otrzymane* przez A.
+
+        # Poprawny setup: Member B tworzy kurs, zaprasza Owner A.
+        # Owner A (dash_user_token) będzie musiał usunąć ten kurs w cleanupie *używając tokenu B*.
+        # Lepsze rozwiązanie: Użyjmy Admina D.
+        c_inv_d = self._create_course("DASH", self.ctx.tokenD, "Dash Invite Course (from D)")
+        self.ctx.dash_resource_ids["courses_owned"].append(c_inv_d) # Zapiszmy do sprzątania (przez A, co się nie uda, ale spróbujemy)
+                                                                   # Poprawka: Zapiszmy do sprzątania przez Admina D w cleanupie.
+                                                                   # Najprościej: Owner A zaprasza B, B nie akceptuje.
+                                                                   # Ale kontroler sprawdza 'invited_email' LUB 'user_id' (wysłane)
+
+        # Ostateczny Setup Zaproszeń:
+        # 1. Wysłane przez A (do C):
+        c_inv_sent = self._create_course("DASH", self.ctx.dash_user_token, "Dash Invite Sent Course")
+        self.ctx.dash_resource_ids["courses_owned"].append(c_inv_sent)
+        self._invite_user("DASH Setup Invite Sent", self.ctx.dash_user_token, self.ctx.emailC, "member", c_inv_sent)
+
+        # 2. Otrzymane przez A (od B):
+        c_inv_recv = self._create_course("DASH", self.ctx.dash_member_token, "Dash Invite Received Course")
+        self.ctx.dash_resource_ids["courses_member"].append(c_inv_recv) # Zapisz do sprzątania przez B
+        self._invite_user("DASH Setup Invite Received", self.ctx.dash_member_token, self.ctx.emailOwner, "member", c_inv_recv)
+
+        print(c(f" (Setup data complete)", Fore.MAGENTA), end="")
+        return {"status": 200} # Status umowny dla kroku setupu
+
+    def t_dash_get_all_widgets_default(self):
+        """Pobiera pulpit z domyślnymi ustawieniami (wszystkie widżety, limit domyślny)."""
+        assert self.ctx.dash_user_token, "Dashboard user token missing"
+        url = me(self.ctx, "/dashboard") # Domyślny URL bez parametrów
+
+        r = http_get(self.ctx, f"{ICON_DASH} DASH: Get All Widgets (Default)", url, auth_headers(self.ctx.dash_user_token))
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}. Response: {trim(r.text)}"
+
+        body = must_json(r)
+        assert "data" in body, "Missing 'data' key in response"
+        data = body.get("data", {})
+
+        # Sprawdź 'meta'
+        assert "meta" in body, "Missing 'meta' key in response"
+        meta = body.get("meta", {})
+        assert meta.get("limit_per_widget") == 5, f"Expected default limit 5, got {meta.get('limit_per_widget')}"
+
+        # Sprawdź widżety (muszą istnieć)
+        expected_widgets = ['stats', 'myCourses', 'memberCourses', 'recentActivities', 'invitations']
+        for widget in expected_widgets:
+            assert widget in data, f"Widget '{widget}' missing from default response"
+
+        # Sprawdź 'stats' (liczby muszą być >= od tego co stworzyliśmy)
+        stats = data.get("stats", {})
+        assert stats.get("courses_owned") >= 3, f"Expected stats.courses_owned >= 3, got {stats.get('courses_owned')}"
+        assert stats.get("courses_member") >= 2, f"Expected stats.courses_member >= 2, got {stats.get('courses_member')}" # Użytkownik B, nie A
+        assert stats.get("notes_total") >= 2, f"Expected stats.notes_total >= 2, got {stats.get('notes_total')}"
+        assert stats.get("tests_total") >= 2, f"Expected stats.tests_total >= 2, got {stats.get('tests_total')}"
+        assert stats.get("invitations_pending") >= 2, f"Expected stats.invitations_pending >= 2 (1 sent, 1 received), got {stats.get('invitations_pending')}"
+
+        # Sprawdź 'myCourses' (powinny być 3)
+        my_courses = data.get("myCourses", [])
+        assert len(my_courses) == 3, f"Expected 3 'myCourses', got {len(my_courses)}"
+
+        # Sprawdź 'memberCourses' (powinny być 2) - UWAGA: Ten test musi być wykonany jako Member B
+        # Kontroler pobiera dane dla zalogowanego użytkownika. Owner A nie jest członkiem.
+        # Musimy wykonać drugie zapytanie jako Member B
+
+        url_b = me(self.ctx, "/dashboard?include=memberCourses")
+        r_b = http_get(self.ctx, f"{ICON_DASH} DASH: Get Member Widgets (Member B)", url_b, auth_headers(self.ctx.dash_member_token))
+        assert r_b.status_code == 200, f"Failed to get dashboard for Member B: {trim(r_b.text)}"
+        body_b = must_json(r_b)
+        data_b = body_b.get("data", {})
+        member_courses = data_b.get("memberCourses", [])
+        assert len(member_courses) == 2, f"Expected 2 'memberCourses' for Member B, got {len(member_courses)}"
+        # Sprawdź, czy role się zgadzają
+        roles = {c.get("title"): c.get("role") for c in member_courses}
+        assert roles.get("Dash Member Course 1") == "member", "Role mismatch for Member Course 1"
+        assert roles.get("Dash Member Course 2 (Qqq)") == "moderator", "Role mismatch for Member Course 2"
+
+        # Wróć do Owner A
+        # Sprawdź 'recentActivities' (powinny być 4, limit domyślny 5)
+        activities = data.get("recentActivities", [])
+        assert len(activities) == 4, f"Expected 4 'recentActivities', got {len(activities)}"
+        assert activities[0].get("title") == "Dash Test 2 (Searchable)", "Activities sorting seems wrong (expected Test 2 first by updated_at)"
+        assert activities[1].get("title") == "Dash Note 2 (Searchable)", "Activities sorting seems wrong (expected Note 2 second)"
+
+        # Sprawdź 'invitations' (powinny być 2 - 1 wysłane, 1 otrzymane)
+        invitations = data.get("invitations", [])
+        assert len(invitations) == 2, f"Expected 2 'invitations', got {len(invitations)}"
+
+        return {"status": r.status_code, "method": "GET", "url": url}
+
+    def t_dash_filter_include_subset(self):
+        """Testuje filtr ?include=stats,recentActivities."""
+        assert self.ctx.dash_user_token, "Dashboard user token missing"
+        url = me(self.ctx, "/dashboard?include=stats,recentActivities")
+
+        r = http_get(self.ctx, f"{ICON_DASH} DASH: Filter ?include (subset)", url, auth_headers(self.ctx.dash_user_token))
+        assert r.status_code == 200
+        body = must_json(r)
+
+        assert "data" in body, "Missing 'data' key in response"
+        data = body.get("data", {})
+
+        # Sprawdź 'meta'
+        assert "meta" in body, "Missing 'meta' key in response"
+        meta = body.get("meta", {})
+        included = meta.get("included_widgets", [])
+        assert len(included) == 2, "Meta 'included_widgets' should have 2 items"
+        assert "stats" in included and "recentActivities" in included, "Meta 'included_widgets' mismatch"
+
+        # Sprawdź 'data'
+        assert "stats" in data, "Widget 'stats' missing"
+        assert "recentActivities" in data, "Widget 'recentActivities' missing"
+        assert "myCourses" not in data, "Widget 'myCourses' should NOT be included"
+        assert "memberCourses" not in data, "Widget 'memberCourses' should NOT be included"
+        assert "invitations" not in data, "Widget 'invitations' should NOT be included"
+
+        return {"status": r.status_code, "method": "GET", "url": url}
+
+    def t_dash_filter_include_single(self):
+        """Testuje filtr ?include=myCourses oraz ?include=invalidWidget."""
+        assert self.ctx.dash_user_token, "Dashboard user token missing"
+
+        # 1. Test ?include=myCourses
+        url_valid = me(self.ctx, "/dashboard?include=myCourses")
+        r_valid = http_get(self.ctx, f"{ICON_DASH} DASH: Filter ?include (single valid)", url_valid, auth_headers(self.ctx.dash_user_token))
+        assert r_valid.status_code == 200
+        body_valid = must_json(r_valid)
+        data_valid = body_valid.get("data", {})
+        meta_valid = body_valid.get("meta", {})
+
+        assert "myCourses" in data_valid, "Widget 'myCourses' missing"
+        assert "stats" not in data_valid, "Widget 'stats' should NOT be included"
+        assert "myCourses" in meta_valid.get("included_widgets", []), "Meta mismatch for single include"
+        assert len(data_valid.get("myCourses", [])) == 3, "myCourses widget should have 3 items"
+
+        # 2. Test ?include=invalidWidget (powinien zwrócić pusty 'data', ale OK)
+        url_invalid = me(self.ctx, "/dashboard?include=invalidWidget,alsoInvalid")
+        r_invalid = http_get(self.ctx, f"{ICON_DASH} DASH: Filter ?include (invalid)", url_invalid, auth_headers(self.ctx.dash_user_token))
+        assert r_invalid.status_code == 200 # Kontroler ignoruje nieznane widżety
+        body_invalid = must_json(r_invalid)
+        data_invalid = body_invalid.get("data", {})
+        meta_invalid = body_invalid.get("meta", {})
+
+        assert len(data_invalid) == 0, "Data block should be empty for invalid include"
+        included_invalid = meta_invalid.get("included_widgets", [])
+        assert "invalidWidget" in included_invalid, "Invalid widget should be listed in meta"
+        assert "alsoInvalid" in included_invalid, "Invalid widget should be listed in meta"
+
+        return {"status": r_invalid.status_code, "method": "GET", "url": url_invalid}
+
+    def t_dash_filter_limit(self):
+        """Testuje filtr ?limit= (wartości min, max i niepoprawne)."""
+        assert self.ctx.dash_user_token, "Dashboard user token missing"
+
+        # 1. Test ?limit=1 (powinien zadziałać, min=1)
+        url_min = me(self.ctx, "/dashboard?include=myCourses&limit=1")
+        r_min = http_get(self.ctx, f"{ICON_DASH} DASH: Filter ?limit=1", url_min, auth_headers(self.ctx.dash_user_token))
+        assert r_min.status_code == 200
+        body_min = must_json(r_min)
+        assert body_min.get("meta", {}).get("limit_per_widget") == 1, "Meta limit should be 1"
+        assert len(body_min.get("data", {}).get("myCourses", [])) == 1, "myCourses should be limited to 1"
+
+        # 2. Test ?limit=0 (powinien zostać podbity do 1)
+        url_zero = me(self.ctx, "/dashboard?include=myCourses&limit=0")
+        r_zero = http_get(self.ctx, f"{ICON_DASH} DASH: Filter ?limit=0 (floor to 1)", url_zero, auth_headers(self.ctx.dash_user_token))
+        assert r_zero.status_code == 200
+        body_zero = must_json(r_zero)
+        assert body_zero.get("meta", {}).get("limit_per_widget") == 1, "Meta limit should be 1 (floored from 0)"
+        assert len(body_zero.get("data", {}).get("myCourses", [])) == 1, "myCourses should be limited to 1"
+
+        # 3. Test ?limit=99 (powinien zostać obcięty do 20)
+        url_max = me(self.ctx, "/dashboard?include=myCourses&limit=99")
+        r_max = http_get(self.ctx, f"{ICON_DASH} DASH: Filter ?limit=99 (cap to 20)", url_max, auth_headers(self.ctx.dash_user_token))
+        assert r_max.status_code == 200
+        body_max = must_json(r_max)
+        assert body_max.get("meta", {}).get("limit_per_widget") == 20, "Meta limit should be 20 (capped from 99)"
+        # Stworzyliśmy tylko 3 kursy, więc tyle powinno wrócić
+        assert len(body_max.get("data", {}).get("myCourses", [])) == 3, "myCourses should return all 3 (limit 20)"
+
+        # 4. Test ?limit=abc (powinien zostać zinterpretowany jako 0 -> podbity do 1)
+        url_inv = me(self.ctx, "/dashboard?include=myCourses&limit=abc")
+        r_inv = http_get(self.ctx, f"{ICON_DASH} DASH: Filter ?limit=abc (floor to 1)", url_inv, auth_headers(self.ctx.dash_user_token))
+        assert r_inv.status_code == 200
+        body_inv = must_json(r_inv)
+        assert body_inv.get("meta", {}).get("limit_per_widget") == 1, "Meta limit should be 1 (floored from 'abc')"
+        assert len(body_inv.get("data", {}).get("myCourses", [])) == 1, "myCourses should be limited to 1"
+
+        return {"status": r_inv.status_code, "method": "GET", "url": url_inv}
+
+    def t_dash_filter_courses_q_sort(self):
+        """Testuje filtry ?courses_q, ?courses_sort, ?courses_order."""
+        assert self.ctx.dash_user_token and self.ctx.dash_member_token, "Dashboard tokens missing"
+
+        # 1. Test ?courses_q (dla myCourses, Owner A)
+        # Szukamy "Dash My Course 2 (Aaa)"
+        url_q_A = me(self.ctx, "/dashboard?include=myCourses&courses_q=Aaa")
+        r_q_A = http_get(self.ctx, f"{ICON_DASH} DASH: Filter ?courses_q=Aaa (Owner A)", url_q_A, auth_headers(self.ctx.dash_user_token))
+        assert r_q_A.status_code == 200
+        data_q_A = must_json(r_q_A).get("data", {})
+        courses_q_A = data_q_A.get("myCourses", [])
+        assert len(courses_q_A) == 1, "Expected 1 result for courses_q=Aaa"
+        assert courses_q_A[0].get("title") == "Dash My Course 2 (Aaa)", "Incorrect course found by courses_q"
+
+        # 2. Test ?courses_sort (dla myCourses, Owner A)
+        # Sortuj po tytule, rosnąco. Oczekiwane: Aaa, Mmm, Zzz
+        url_sort_A = me(self.ctx, "/dashboard?include=myCourses&courses_sort=title&courses_order=asc")
+        r_sort_A = http_get(self.ctx, f"{ICON_DASH} DASH: Filter ?courses_sort=title (Owner A)", url_sort_A, auth_headers(self.ctx.dash_user_token))
+        assert r_sort_A.status_code == 200
+        data_sort_A = must_json(r_sort_A).get("data", {})
+        courses_sort_A = data_sort_A.get("myCourses", [])
+        assert len(courses_sort_A) == 3, "Expected 3 myCourses for sorting"
+        titles_A = [c.get("title") for c in courses_sort_A]
+        assert titles_A == ["Dash My Course 2 (Aaa)", "Dash My Course 3 (Mmm)", "Dash My Course 1 (Zzz)"], "myCourses sort order is incorrect"
+
+        # 3. Test ?courses_q (dla memberCourses, Member B)
+        # Szukamy "Dash Member Course 2 (Qqq)"
+        url_q_B = me(self.ctx, "/dashboard?include=memberCourses&courses_q=Qqq")
+        r_q_B = http_get(self.ctx, f"{ICON_DASH} DASH: Filter ?courses_q=Qqq (Member B)", url_q_B, auth_headers(self.ctx.dash_member_token))
+        assert r_q_B.status_code == 200
+        data_q_B = must_json(r_q_B).get("data", {})
+        courses_q_B = data_q_B.get("memberCourses", [])
+        assert len(courses_q_B) == 1, "Expected 1 result for courses_q=Qqq"
+        assert courses_q_B[0].get("title") == "Dash Member Course 2 (Qqq)", "Incorrect course found by courses_q for Member B"
+
+        return {"status": r_q_B.status_code, "method": "GET", "url": url_q_B}
+
+    def t_dash_filter_activities_q_type(self):
+        """Testuje filtry ?activities_q, ?activities_type, ?activities_sort."""
+        assert self.ctx.dash_user_token, "Dashboard user token missing"
+
+        # Dane setupu:
+        # N1: "Dash Note 1 (Recent)"
+        # T1: "Dash Test 1 (Old)"
+        # N2: "Dash Note 2 (Searchable)"
+        # T2: "Dash Test 2 (Searchable)"
+
+        # 1. Test ?activities_q (szukamy "Searchable")
+        url_q = me(self.ctx, "/dashboard?include=recentActivities&activities_q=Searchable")
+        r_q = http_get(self.ctx, f"{ICON_DASH} DASH: Filter ?activities_q=Searchable", url_q, auth_headers(self.ctx.dash_user_token))
+        assert r_q.status_code == 200
+        data_q = must_json(r_q).get("data", {})
+        activities_q = data_q.get("recentActivities", [])
+        assert len(activities_q) == 2, "Expected 2 results for activities_q=Searchable"
+        titles_q = {a.get("title") for a in activities_q}
+        assert "Dash Note 2 (Searchable)" in titles_q and "Dash Test 2 (Searchable)" in titles_q, "Incorrect items found by activities_q"
+
+        # 2. Test ?activities_type=note
+        url_type_n = me(self.ctx, "/dashboard?include=recentActivities&activities_type=note")
+        r_type_n = http_get(self.ctx, f"{ICON_DASH} DASH: Filter ?activities_type=note", url_type_n, auth_headers(self.ctx.dash_user_token))
+        assert r_type_n.status_code == 200
+        data_type_n = must_json(r_type_n).get("data", {})
+        activities_type_n = data_type_n.get("recentActivities", [])
+        assert len(activities_type_n) == 2, "Expected 2 results for activities_type=note"
+        assert all(a.get("type") == "note" for a in activities_type_n), "Found non-note items when filtering for notes"
+
+        # 3. Test ?activities_type=test
+        url_type_t = me(self.ctx, "/dashboard?include=recentActivities&activities_type=test")
+        r_type_t = http_get(self.ctx, f"{ICON_DASH} DASH: Filter ?activities_type=test", url_type_t, auth_headers(self.ctx.dash_user_token))
+        assert r_type_t.status_code == 200
+        data_type_t = must_json(r_type_t).get("data", {})
+        activities_type_t = data_type_t.get("recentActivities", [])
+        assert len(activities_type_t) == 2, "Expected 2 results for activities_type=test"
+        assert all(a.get("type") == "test" for a in activities_type_t), "Found non-test items when filtering for tests"
+
+        # 4. Test ?activities_q + ?activities_type
+        url_combo = me(self.ctx, "/dashboard?include=recentActivities&activities_q=Searchable&activities_type=note")
+        r_combo = http_get(self.ctx, f"{ICON_DASH} DASH: Filter ?activities_q + ?activities_type", url_combo, auth_headers(self.ctx.dash_user_token))
+        assert r_combo.status_code == 200
+        data_combo = must_json(r_combo).get("data", {})
+        activities_combo = data_combo.get("recentActivities", [])
+        assert len(activities_combo) == 1, "Expected 1 result for combined query"
+        assert activities_combo[0].get("title") == "Dash Note 2 (Searchable)", "Incorrect item found by combined query"
+
+        # 5. Test ?activities_sort=title&activities_order=asc
+        url_sort = me(self.ctx, "/dashboard?include=recentActivities&activities_sort=title&activities_order=asc")
+        r_sort = http_get(self.ctx, f"{ICON_DASH} DASH: Filter ?activities_sort=title", url_sort, auth_headers(self.ctx.dash_user_token))
+        assert r_sort.status_code == 200
+        data_sort = must_json(r_sort).get("data", {})
+        activities_sort = data_sort.get("recentActivities", [])
+        assert len(activities_sort) == 4, "Expected 4 activities for sorting"
+        titles_sort = [a.get("title") for a in activities_sort]
+        expected_titles = [
+            "Dash Note 1 (Recent)",
+            "Dash Note 2 (Searchable)",
+            "Dash Test 1 (Old)",
+            "Dash Test 2 (Searchable)"
+        ]
+        assert titles_sort == expected_titles, "Activities sort order is incorrect"
+
+        return {"status": r_sort.status_code, "method": "GET", "url": url_sort}
+
+    def t_dash_cleanup(self):
+        """Usuwa wszystkie zasoby utworzone podczas testów pulpitu."""
+        assert self.ctx.dash_user_token, "Dashboard user (Owner A) token missing for cleanup"
+        assert self.ctx.dash_member_token, "Dashboard member (Member B) token missing for cleanup"
+
+        print(c(" (Cleaning up dashboard test resources...)", Fore.MAGENTA), end="")
+
+        # 1. Usuń notatki (stworzone przez Owner A, usuwane przez Owner A)
+        note_ids = list(self.ctx.dash_resource_ids["notes"]) # Kopiuj listę, bo _delete_note ją modyfikuje
+        for note_id in note_ids:
+            self._delete_note(f"DASH Cleanup Note {note_id}", self.ctx.dash_user_token, note_id)
+
+        # 2. Usuń testy (stworzone przez Owner A, usuwane przez Owner A)
+        test_ids = list(self.ctx.dash_resource_ids["tests"])
+        for test_id in test_ids:
+            self._delete_test(f"DASH Cleanup Test {test_id}", self.ctx.dash_user_token, test_id)
+
+        # 3. Usuń kursy posiadane przez Owner A
+        # (Obejmuje myCourses, kursy do zaproszeń wysłanych, kursy gdzie B jest członkiem)
+        course_ids_A = list(self.ctx.dash_resource_ids["courses_owned"])
+        for course_id in course_ids_A:
+            self._delete_course(f"DASH Cleanup Course (Owned) {course_id}", self.ctx.dash_user_token, course_id)
+
+        # 4. Usuń kursy posiadane przez Member B (ten, do którego zaprosił A)
+        course_ids_B = list(self.ctx.dash_resource_ids["courses_member"])
+        for course_id in course_ids_B:
+            self._delete_course(f"DASH Cleanup Course (Member) {course_id}", self.ctx.dash_member_token, course_id)
+
+        # Weryfikacja, czy listy są puste
+        assert len(self.ctx.dash_resource_ids["notes"]) == 0, "Not all dashboard notes were cleaned up"
+        assert len(self.ctx.dash_resource_ids["tests"]) == 0, "Not all dashboard tests were cleaned up"
+        assert len(self.ctx.dash_resource_ids["courses_owned"]) == 0, "Not all dashboard owned courses were cleaned up"
+        assert len(self.ctx.dash_resource_ids["courses_member"]) == 0, "Not all dashboard member courses were cleaned up"
+
+        print(c(" (Cleanup complete)", Fore.MAGENTA), end="")
+        return {"status": 200}
     # ──────────────────────────────────────────────────────────────────────
     # === Helpery dla powtarzalnych akcji testowych ===
     # ──────────────────────────────────────────────────────────────────────
+
+
+    def _create_course(self, title_prefix: str, owner_token: str, course_title: str, course_type: str = "private") -> int:
+            """Tworzy kurs i zwraca jego ID."""
+            assert owner_token, f"Owner token missing for '{title_prefix}'"
+            url = me(self.ctx, "/courses")
+            payload = {"title": course_title, "description": f"Auto-created course for {title_prefix}", "type": course_type}
+            r = http_post_json(self.ctx, f"Helper: Create Course '{course_title}'", url, payload, auth_headers(owner_token))
+
+            assert r.status_code in (200, 201), f"'{title_prefix}' failed to create course: Status {r.status_code}. Response: {trim(r.text)}"
+
+            body = must_json(r)
+            course_data = body.get("course", body)
+            course_id = course_data.get("id")
+            assert course_id, f"Course ID not found in '{title_prefix}' response: {trim(course_data)}"
+
+            print(c(f" (Created Course ID: {course_id})", Fore.MAGENTA), end="")
+            return int(course_id)
+
+    def _create_note(self, title_prefix: str, owner_token: str, note_title: str, is_private: bool = True) -> int:
+            """Tworzy notatkę (z jednym plikiem 'files[]') i zwraca jej ID."""
+            assert owner_token, f"Owner token missing for '{title_prefix}'"
+            url = me(self.ctx, "/notes")
+            data_bytes, mime, name = self._note_load_upload_bytes(self.ctx.note_file_path)
+            files_list = [("files[]", (name, data_bytes, mime))]
+
+            # ZMODYFIKOWANO: Używa '1' lub '0' dla pól boolean w multipart/form-data
+            is_private_str = '1' if is_private else '0'
+            note_data = {"title": note_title, "description":f"Auto-created note for {title_prefix}", "is_private": is_private_str}
+
+            r = http_post_multipart(self.ctx, f"Helper: Create Note '{note_title}'", url, data=note_data, files=files_list, headers=auth_headers(owner_token))
+
+            assert r.status_code in (200, 201), f"'{title_prefix}' failed to create note: Status {r.status_code}. Response: {trim(r.text)}"
+
+            body = must_json(r)
+            note_details = body.get("note", body)
+            assert isinstance(note_details, dict), f"Expected 'note' object in response, got {type(note_details)}: {trim(body)}"
+
+            note_id = note_details.get("id")
+            assert note_id, f"Note ID not found in '{title_prefix}' response: {trim(note_details)}"
+
+            files_array = note_details.get("files")
+            assert isinstance(files_array, list), f"'files' should be a list in create note response, got {type(files_array)}"
+            assert len(files_array) > 0, "'files' array missing or empty in create note response"
+
+            print(c(f" (Created Note ID: {note_id})", Fore.MAGENTA), end="")
+            return int(note_id)
+
+    def _create_test(self, title_prefix: str, owner_token: str, test_title: str, status: str = "private") -> int:
+        """Tworzy test (Quiz) i zwraca jego ID."""
+        assert owner_token, f"Owner token missing for '{title_prefix}'"
+        url = me(self.ctx, "/tests")
+        payload = {"title": test_title, "description": f"Auto-created test for {title_prefix}", "status": status}
+        r = http_post_json(self.ctx, f"Helper: Create Test '{test_title}'", url, payload, auth_headers(owner_token))
+
+        assert r.status_code == 201, f"'{title_prefix}' failed to create test: Status {r.status_code}. Response: {trim(r.text)}"
+
+        body = must_json(r)
+        test_data = body.get("test", body)
+        test_id = test_data.get("id")
+        assert test_id, f"Test ID not found in '{title_prefix}' response: {trim(test_data)}"
+
+        print(c(f" (Created Test ID: {test_id})", Fore.MAGENTA), end="")
+        return int(test_id)
+
+    def _delete_course(self, title: str, owner_token: Optional[str], course_id: Optional[int]):
+        """Usuwa kurs, jeśli ID istnieje."""
+        if not course_id:
+            print(c(f" ({title} - skipped, course ID not set)", Fore.YELLOW), end="")
+            return {"status": 200} # Traktuj jako sukces, jeśli kurs nie został stworzony
+        assert owner_token, f"Owner token missing for '{title}'"
+
+        url = me(self.ctx, f"/courses/{course_id}") # Endpoint /me/courses/{id}
+        r = http_delete(self.ctx, title, url, auth_headers(owner_token))
+        assert r.status_code in (200, 204), f"'{title}' failed: Expected 200/204, got {r.status_code}. Response: {trim(r.text)}"
+        print(c(f" (Deleted Course ID: {course_id})", Fore.MAGENTA), end="")
+
+        # Wyczyść ID w kontekście, aby uniknąć błędów w kolejnych testach
+        if course_id == self.ctx.course_id_1: self.ctx.course_id_1 = None
+        if course_id == self.ctx.course_id_2: self.ctx.course_id_2 = None
+        if course_id == self.ctx.course_id_3: self.ctx.course_id_3 = None
+        if course_id == self.ctx.public_course_id: self.ctx.public_course_id = None
+        if course_id == self.ctx.quiz_course_id: self.ctx.quiz_course_id = None
+        if course_id == self.ctx.quiz_course_id_2: self.ctx.quiz_course_id_2 = None
+
+        # NOWOŚĆ: Sprzątanie ID z Dashboardu
+        if course_id in self.ctx.dash_resource_ids["courses_owned"]:
+             self.ctx.dash_resource_ids["courses_owned"].remove(course_id)
+        if course_id in self.ctx.dash_resource_ids["courses_member"]:
+             self.ctx.dash_resource_ids["courses_member"].remove(course_id)
+
+
+        return {"status": r.status_code, "method":"DELETE", "url":url}
+
+    def _delete_note(self, title: str, owner_token: Optional[str], note_id: Optional[int]):
+        """Helper do usuwania notatki (potrzebny w cleanupie dashboardu)."""
+        if not note_id:
+            print(c(f" ({title} - skipped, note ID not set)", Fore.YELLOW), end="")
+            return {"status": 200}
+        assert owner_token, f"Owner token missing for '{title}'"
+
+        url = me(self.ctx, f"/notes/{note_id}")
+        r = http_delete(self.ctx, title, url, auth_headers(owner_token))
+        assert r.status_code in (200, 204), f"'{title}' failed: {r.status_code} {trim(r.text)}"
+        print(c(f" (Deleted Note ID: {note_id})", Fore.MAGENTA), end="")
+
+        if note_id in self.ctx.dash_resource_ids["notes"]:
+            self.ctx.dash_resource_ids["notes"].remove(note_id)
+
+        return {"status": r.status_code, "method":"DELETE", "url":url}
+
+    def _delete_test(self, title: str, owner_token: Optional[str], test_id: Optional[int]):
+        """Helper do usuwania testu (potrzebny w cleanupie dashboardu)."""
+        if not test_id:
+            print(c(f" ({title} - skipped, test ID not set)", Fore.YELLOW), end="")
+            return {"status": 200}
+        assert owner_token, f"Owner token missing for '{title}'"
+
+        # Użyj quiz_token jako aliasu, jeśli testy Quiz API ustawiły token Ownera A
+        token = owner_token or self.ctx.quiz_token
+        assert token, "Token not available for deleting test"
+
+        url = me(self.ctx, f"/tests/{test_id}")
+        r = http_delete(self.ctx, title, url, auth_headers(token))
+        assert r.status_code in (200, 204), f"'{title}' failed: {r.status_code} {trim(r.text)}"
+        print(c(f" (Deleted Test ID: {test_id})", Fore.MAGENTA), end="")
+
+        if test_id in self.ctx.dash_resource_ids["tests"]:
+            self.ctx.dash_resource_ids["tests"].remove(test_id)
+
+        return {"status": r.status_code, "method":"DELETE", "url":url}
 
     def _login_user(self, title: str, email: str, pwd: str, token_attr: str) -> Dict[str, Any]:
         """Loguje użytkownika i zapisuje token w ctx pod podanym atrybutem."""
