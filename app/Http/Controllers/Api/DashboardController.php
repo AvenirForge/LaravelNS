@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB; // <--- WAŻNY IMPORT DLA UNION I DB::RAW
 use Symfony\Component\HttpFoundation\Response as Http;
 
 class DashboardController extends Controller
@@ -67,7 +68,7 @@ class DashboardController extends Controller
             'inviter' => $inv->inviter ? [
                 'id' => $inv->inviter->id,
                 'name' => $inv->inviter->name,
-                'avatar_url' => $inv->inviter->avatar_url, // Użyj akcesora
+                'avatar_url' => $inviter->avatar_url, // Użyj akcesora
             ] : null,
         ];
     }
@@ -78,7 +79,7 @@ class DashboardController extends Controller
      * Pobiera zagregowane dane dla pulpitu zalogowanego użytkownika.
      *
      * Parametry (filtry) z frontendu:
-     * ?include=stats,myCourses,memberCourses,recentNotes,recentTests,invitations
+     * ?include=stats,myCourses,memberCourses,recentActivities,invitations
      * (Domyślnie: wszystkie)
      *
      * ?limit=5
@@ -87,11 +88,12 @@ class DashboardController extends Controller
      * ?courses_q=nazwa&courses_sort=updated_at&courses_order=desc
      * (Filtry dla widżetów kursów)
      *
-     * ?notes_q=tresc&notes_sort=title&notes_order=asc
-     * (Filtry dla widżetu notatek)
-     *
-     * ?tests_q=temat&tests_sort=created_at&tests_order=desc
-     * (Filtry dla widżetu testów)
+     * --- ZMIANA: Wspólne filtry dla Aktywności ---
+     * ?activities_q=tresc
+     * ?activities_sort=updated_at
+     * ?activities_order=desc
+     * ?activities_type=all (all, note, test)
+     * --- KONIEC ZMIANY ---
      */
     public function getDashboard(Request $request): JsonResponse
     {
@@ -108,7 +110,8 @@ class DashboardController extends Controller
         $limit = max(1, min(20, (int) $request->query('limit', 5)));
 
         // Filtr `include` (które widżety dołączyć)
-        $defaultIncludes = 'stats,myCourses,memberCourses,recentNotes,recentTests,invitations';
+        // --- ZMIANA: Zastąpiono recentNotes/recentTests przez recentActivities ---
+        $defaultIncludes = 'stats,myCourses,memberCourses,recentActivities,invitations';
         $includeParam = $request->query('include', $defaultIncludes);
         $includes = array_fill_keys(explode(',', $includeParam), true);
 
@@ -171,18 +174,15 @@ class DashboardController extends Controller
 
         // Widżet: 'memberCourses' (Kursy, do których należę)
         if (isset($includes['memberCourses'])) {
-            // 1. Pobierz kursy, upewnij się, że masz user_id (właściciela)
             $memberCourses = $user->courses()
                 ->wherePivot('status', 'accepted')
-                ->where('courses.user_id', '!=', $userId) // Tylko te, których nie jestem właścicielem
+                ->where('courses.user_id', '!=', $userId)
                 ->when($coursesQuery, fn($q) => $q->where('courses.title', 'like', "%{$coursesQuery}%"))
-                ->orderBy("courses.$coursesSortColumn", $coursesOrder) // Musimy wskazać tabelę
+                ->orderBy("courses.$coursesSortColumn", $coursesOrder)
                 ->limit($limit)
-                // --- ZMIANA (jak poprzednio): Dodano 'courses.user_id' do pobrania właściciela ---
                 ->select('courses.id', 'courses.title', 'courses.avatar', 'courses.type', 'courses.updated_at', 'courses_users.role', 'courses.user_id')
                 ->get();
 
-            // 2. Zbierz ID właścicieli i pobierz ich dane jednym zapytaniem
             $ownerIds = $memberCourses->pluck('user_id')->unique()->filter();
             $owners = collect();
             if ($ownerIds->isNotEmpty()) {
@@ -192,125 +192,151 @@ class DashboardController extends Controller
                     ->keyBy('id');
             }
 
-            // 3. Zmapuj wyniki, dołączając ręcznie dane właściciela
             $response['data']['memberCourses'] = $memberCourses->map(function(Course $course) use ($owners) {
                 $owner = $owners->get($course->user_id);
-
-                // Użyj helpera do formatowania kursu
                 $formattedCourse = $this->formatCourse($course, $course->pivot->role);
-
-                // --- ZMIANA (jak poprzednio): Dołącz dane właściciela (z akcesorem avatar_url) ---
                 $formattedCourse['owner'] = $owner ? [
                     'id' => $owner->id,
                     'name' => $owner->name,
-                    'avatar_url' => $owner->avatar_url // Użyj akcesora
+                    'avatar_url' => $owner->avatar_url
                 ] : null;
-
                 return $formattedCourse;
             });
         }
 
-        // Widżet: 'recentNotes' (Moje ostatnie notatki)
-        if (isset($includes['recentNotes'])) {
-            $notesQuery = $request->query('notes_q');
-            $notesSort = $request->query('notes_sort', 'updated_at');
-            $notesOrder = $request->query('notes_order', 'desc');
-            $notesSortColumn = in_array($notesSort, ['title', 'created_at', 'updated_at']) ? $notesSort : 'updated_at';
 
-            $response['data']['recentNotes'] = Note::where('user_id', $userId)
-                ->when($notesQuery, fn($q) => $q->where(function($sub) use ($notesQuery) {
-                    $sub->where('title', 'like', "%{$notesQuery}%")
-                        ->orWhere('description', 'like', "%{$notesQuery}%");
-                }))
-                // --- ZMIANA: Załaduj relacje 'user', 'files' i 'courses' (tylko ID) ---
-                ->withCount('files') // Zachowaj licznik dla szybkiego podglądu
-                ->with([
-                    'user:id,name,avatar', // Autor notatki (czyli zalogowany user)
-                    'files',               // Pełna lista plików notatki (zamiast tylko licznika)
-                    'courses:id'           // Relacje do kursów (tylko ID dla normalizacji)
-                ])
-                // --- KONIEC ZMIANY ---
-                ->select('id', 'title', 'is_private', 'updated_at', 'created_at', 'user_id')
-                ->orderBy($notesSortColumn, $notesOrder)
+        // --- ZMIANA: Scalony widżet 'recentActivities' ---
+        if (isset($includes['recentActivities'])) {
+            // 1. Pobierz filtry dla aktywności
+            $activitiesQuery = $request->query('activities_q');
+            $activitiesSort = $request->query('activities_sort', 'updated_at');
+            $activitiesOrder = $request->query('activities_order', 'desc');
+            $activitiesType = $request->query('activities_type', 'all'); // 'all', 'note', 'test'
+            $activitiesSortColumn = in_array($activitiesSort, ['title', 'created_at', 'updated_at']) ? $activitiesSort : 'updated_at';
+
+            // 2. Zbuduj bazowe zapytania (tylko te, które są potrzebne)
+            $notesQuery = null;
+            if (in_array($activitiesType, ['all', 'note'])) {
+                $notesQuery = Note::where('user_id', $userId)
+                    // Wybierz kolumny potrzebne do UNION i filtrowania
+                    ->select(
+                        'id',
+                        DB::raw("'note' as type"), // Ręcznie dodaj typ
+                        'title',
+                        'description', // Potrzebne do 'activities_q'
+                        'updated_at',
+                        'created_at',
+                        'user_id' // Potrzebne do późniejszej hydracji
+                    )
+                    // Zastosuj filtr 'q' (przed UNION dla wydajności)
+                    ->when($activitiesQuery, function($q) use ($activitiesQuery) {
+                        $q->where(function($sub) use ($activitiesQuery) {
+                            $sub->where('title', 'like', "%{$activitiesQuery}%")
+                                ->orWhere('description', 'like', "%{$activitiesQuery}%");
+                        });
+                    });
+            }
+
+            $testsQuery = null;
+            if (in_array($activitiesType, ['all', 'test'])) {
+                $testsQuery = Test::where('user_id', $userId)
+                    ->select(
+                        'id',
+                        DB::raw("'test' as type"),
+                        'title',
+                        'description',
+                        'updated_at',
+                        'created_at',
+                        'user_id'
+                    )
+                    ->when($activitiesQuery, function($q) use ($activitiesQuery) {
+                        $q->where(function($sub) use ($activitiesQuery) {
+                            $sub->where('title', 'like', "%{$activitiesQuery}%")
+                                ->orWhere('description', 'like', "%{$activitiesQuery}%");
+                        });
+                    });
+            }
+
+            // 3. Połącz zapytania (UNION)
+            if ($activitiesType === 'note') {
+                $combinedQuery = $notesQuery;
+            } elseif ($activitiesType === 'test') {
+                $combinedQuery = $testsQuery;
+            } else {
+                // Jeśli $notesQuery lub $testsQuery jest null (co nie powinno się zdarzyć przy 'all', ale dla bezpieczeństwa)
+                if ($notesQuery) {
+                    $combinedQuery = $notesQuery->unionAll($testsQuery);
+                } else {
+                    $combinedQuery = $testsQuery;
+                }
+            }
+
+            // 4. Wykonaj posortowane i ograniczone zapytanie UNION
+            // Musimy to zrobić przez DB::table(), aby posortować WYNIK unii
+            $sortedActivities = DB::table($combinedQuery, 'activities')
+                ->orderBy($activitiesSortColumn, $activitiesOrder)
                 ->limit($limit)
-                ->get()
-                // --- ZMIANA: Zmapuj, aby dodać 'avatar_url' i znormalizować 'course_ids' ---
-                ->map(function (Note $note) {
-                    // toArray() serializuje model ORAZ załadowane relacje ('user', 'files', 'courses')
-                    $data = $note->toArray();
+                ->get(); // Zwraca kolekcję stdClass
 
-                    // Ręcznie wywołaj akcesor avatar_url i dodaj go do serializowanej tablicy
-                    if (isset($data['user']) && $note->user) {
-                        $data['user']['avatar_url'] = $note->user->avatar_url;
-                    }
+            // 5. Re-Hydracja: Pobierz pełne modele Eloquent dla wyników
+            $noteIds = $sortedActivities->where('type', 'note')->pluck('id');
+            $testIds = $sortedActivities->where('type', 'test')->pluck('id');
 
-                    // --- NOWA ZMIANA: Normalizacja ID kursów ---
-                    // Przekształć załadowaną relację 'courses' w prostą tablicę ID
-                    if (isset($data['courses'])) {
-                        // $note->courses to kolekcja modeli Course, pluck('id') wyciąga tylko ID
-                        $data['course_ids'] = $note->courses->pluck('id');
-                        // Usuń pełną tablicę 'courses', aby uniknąć duplikacji danych
-                        unset($data['courses']);
-                    } else {
-                        // Upewnij się, że klucz istnieje, nawet jeśli jest pusty
-                        $data['course_ids'] = [];
-                    }
-                    // --- KONIEC NOWEJ ZMIANY ---
+            // Pobierz modele notatek wraz z *wszystkimi* wymaganymi relacjami
+            $notes = Note::with([
+                'user:id,name,avatar', // Autor
+                'files',               // Pliki notatki
+                'courses:id'           // Kursy (tylko ID dla normalizacji)
+            ])
+                ->findMany($noteIds)
+                ->keyBy('id'); // Kluczem jest ID notatki
 
-                    // Klucze 'files' (z with('files')) i 'files_count' (z withCount)
-                    // są już automatycznie obecne w $data dzięki toArray()
-
-                    return $data;
-                });
-        }
-
-        // Widżet: 'recentTests' (Moje ostatnie testy)
-        if (isset($includes['recentTests'])) {
-            $testsQuery = $request->query('tests_q');
-            $testsSort = $request->query('tests_sort', 'updated_at');
-            $testsOrder = $request->query('tests_order', 'desc');
-            $testsSortColumn = in_array($testsSort, ['title', 'created_at', 'updated_at']) ? $testsSort : 'updated_at';
-
-            $response['data']['recentTests'] = Test::where('user_id', $userId)
-                ->when($testsQuery, fn($q) => $q->where(function($sub) use ($testsQuery) {
-                    $sub->where('title', 'like', "%{$testsQuery}%")
-                        ->orWhere('description', 'like', "%{$testsQuery}%");
-                }))
+            // Pobierz modele testów wraz z *wszystkimi* wymaganymi relacjami
+            $tests = Test::with([
+                'user:id,name,avatar', // Autor
+                'courses:id',          // Kursy (tylko ID)
+            ])
                 ->withCount('questions') // Licznik pytań
-                // --- ZMIANA: Załaduj relacje 'user' i 'courses' (tylko ID) ---
-                ->with([
-                    'user:id,name,avatar', // Autor testu
-                    'courses:id'           // Relacje do kursów (tylko ID dla normalizacji)
-                ])
-                // --- KONIEC ZMIANY ---
-                ->select('id', 'title', 'status', 'updated_at', 'created_at', 'user_id')
-                ->orderBy($testsSortColumn, $testsOrder)
-                ->limit($limit)
-                ->get()
-                // --- ZMIANA: Zmapuj, aby dodać 'avatar_url' i znormalizować 'course_ids' ---
-                ->map(function (Test $test) {
-                    // toArray() serializuje model ORAZ załadowane relacje
-                    $data = $test->toArray();
+                ->findMany($testIds)
+                ->keyBy('id'); // Kluczem jest ID testu
 
-                    // Ręcznie wywołaj akcesor avatar_url
-                    if (isset($data['user']) && $test->user) {
-                        $data['user']['avatar_url'] = $test->user->avatar_url;
-                    }
+            // 6. Zbuduj ostateczną, posortowaną tablicę odpowiedzi
+            $response['data']['recentActivities'] = $sortedActivities->map(function ($item) use ($notes, $tests) {
+                $model = null;
+                if ($item->type === 'note') {
+                    $model = $notes->get($item->id);
+                } elseif ($item->type === 'test') {
+                    $model = $tests->get($item->id);
+                }
 
-                    // --- NOWA ZMIANA: Normalizacja ID kursów ---
-                    if (isset($data['courses'])) {
-                        $data['course_ids'] = $test->courses->pluck('id');
-                        unset($data['courses']);
-                    } else {
-                        $data['course_ids'] = [];
-                    }
-                    // --- KONIEC NOWEJ ZMIANY ---
+                if (!$model) {
+                    return null; // Model mógł zostać usunięty między zapytaniami
+                }
 
-                    // Klucz 'questions_count' jest już obecny
+                // Przekształć model Eloquent (z relacjami) w tablicę
+                $data = $model->toArray();
+                // Dodaj pole 'type'
+                $data['type'] = $item->type;
 
-                    return $data;
-                });
+                // Dodaj 'avatar_url' do autora (jeśli istnieje)
+                if (isset($data['user']) && $model->user) {
+                    $data['user']['avatar_url'] = $model->user->avatar_url;
+                }
+
+                // Znormalizuj relacje kursów do tablicy ID
+                if (isset($data['courses'])) {
+                    $data['course_ids'] = $model->courses->pluck('id');
+                    unset($data['courses']); // Usuń pełne obiekty, aby nie powielać danych
+                } else {
+                    $data['course_ids'] = [];
+                }
+
+                return $data;
+
+            })->filter(); // Usuń ewentualne nulle
         }
+        // --- KONIEC ZMIANY: 'recentActivities' ---
+
 
         // Widżet: 'invitations' (Oczekujące zaproszenia)
         if (isset($includes['invitations'])) {
