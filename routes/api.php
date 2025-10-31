@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\CourseController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\InvitationController;
 use App\Http\Controllers\Api\TestController;
 use App\Http\Controllers\Api\UserController;
@@ -15,6 +16,8 @@ Route::post('/refresh', [UserController::class, 'refresh']);
 Route::middleware('auth:api')->group(function () {
 
     Route::prefix('me')->group(function () {
+
+        Route::get('/dashboard', [DashboardController::class, 'getDashboard']);
         // Profile
         Route::get('/profile', [UserController::class, 'show']);
         Route::get('/profile/avatar', [UserController::class, 'downloadAvatar']);
