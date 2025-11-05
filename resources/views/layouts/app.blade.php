@@ -6,10 +6,10 @@
     <title>@yield('title', 'NoteSync — Twoje notatki zawsze pod ręką')</title>
     <meta name="description" content="@yield('meta_description', 'NoteSync to szybka i bezpieczna aplikacja do tworzenia, organizacji i synchronizacji notatek.')" />
 
-    <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('favicon.jpg') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('favicon.ico') }}">
 
-    <link rel="icon" type="image/jpeg" sizes="32x32" href="{{ asset('favicon.jpg') }}">
-    <link rel="icon" type="image/jpeg" sizes="16x16" href="{{ asset('favicon.jpg') }}">
+    <link rel="icon" type="image/jpeg" sizes="32x32" href="{{ asset('favicon.ico') }}">
+    <link rel="icon" type="image/jpeg" sizes="16x16" href="{{ asset('favicon.ico') }}">
 
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet" />
