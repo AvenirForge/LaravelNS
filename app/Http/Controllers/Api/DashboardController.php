@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB; // <--- WAŻNY IMPORT DLA UNION I DB::RAW
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response as Http;
 
 class DashboardController extends Controller
@@ -63,12 +63,12 @@ class DashboardController extends Controller
             'course' => $inv->course ? [
                 'id' => $inv->course->id,
                 'title' => $inv->course->title,
-                'avatar_url' => $inv->course->avatar_url, // Użyj akcesora
+                'avatar_url' => $inv->course->avatar_url,
             ] : null,
             'inviter' => $inv->inviter ? [
                 'id' => $inv->inviter->id,
                 'name' => $inv->inviter->name,
-                'avatar_url' => $inviter->avatar_url, // Użyj akcesora
+                'avatar_url' => $inv->inviter->avatar_url,
             ] : null,
         ];
     }
@@ -77,23 +77,7 @@ class DashboardController extends Controller
      * GET /api/me/dashboard
      *
      * Pobiera zagregowane dane dla pulpitu zalogowanego użytkownika.
-     *
-     * Parametry (filtry) z frontendu:
-     * ?include=stats,myCourses,memberCourses,recentActivities,invitations
-     * (Domyślnie: wszystkie)
-     *
-     * ?limit=5
-     * (Domyślnie: 5, Max: 20) - Liczba elementów w listach "recent"
-     *
-     * ?courses_q=nazwa&courses_sort=updated_at&courses_order=desc
-     * (Filtry dla widżetów kursów)
-     *
-     * --- ZMIANA: Wspólne filtry dla Aktywności ---
-     * ?activities_q=tresc
-     * ?activities_sort=updated_at
-     * ?activities_order=desc
-     * ?activities_type=all (all, note, test)
-     * --- KONIEC ZMIANY ---
+     * Wyświetla treści (notatki/testy) użytkownika ORAZ treści z grup, do których należy.
      */
     public function getDashboard(Request $request): JsonResponse
     {
@@ -110,7 +94,6 @@ class DashboardController extends Controller
         $limit = max(1, min(20, (int) $request->query('limit', 5)));
 
         // Filtr `include` (które widżety dołączyć)
-        // --- ZMIANA: Zastąpiono recentNotes/recentTests przez recentActivities ---
         $defaultIncludes = 'stats,myCourses,memberCourses,recentActivities,invitations';
         $includeParam = $request->query('include', $defaultIncludes);
         $includes = array_fill_keys(explode(',', $includeParam), true);
@@ -125,17 +108,34 @@ class DashboardController extends Controller
             'data' => [],
         ];
 
+        // --- KROK KLUCZOWY: Pobierz ID kursów, do których użytkownik ma dostęp ---
+        // Potrzebne do sekcji recentActivities oraz stats
+
+        // 1. Kursy, których jest właścicielem
+        $ownedCourseIds = Course::where('user_id', $userId)->pluck('id')->toArray();
+
+        // 2. Kursy, w których jest członkiem (status accepted/active itp.)
+        $memberCourseIds = DB::table('courses_users')
+            ->where('user_id', $userId)
+            ->whereIn('status', ['accepted', 'active', 'approved', 'joined'])
+            ->pluck('course_id')
+            ->toArray();
+
+        // Scalona lista unikalnych ID kursów
+        $allAllowedCourseIds = array_unique(array_merge($ownedCourseIds, $memberCourseIds));
+
+
         // --- 2. Pobieranie danych dla widżetów ---
 
         // Widżet: 'stats' (Statystyki / Liczniki)
         if (isset($includes['stats'])) {
-            $myCoursesCount = Course::where('user_id', $userId)->count();
-            // Liczy kursy, gdzie jestem członkiem (status 'accepted'), ale NIE jestem właścicielem
-            $memberCoursesCount = $user->courses()
-                ->wherePivot('status', 'accepted')
-                ->where('courses.user_id', '!=', $userId)
-                ->count();
+            $myCoursesCount = count($ownedCourseIds);
+            $memberCoursesCount = count($memberCourseIds); // Liczymy te z courses_users (bez własnych, jeśli właściciel nie jest w pivocie zduplikowany)
+
+            // Notatki: własne
             $notesCount = Note::where('user_id', $userId)->count();
+
+            // Testy: własne
             $testsCount = Test::where('user_id', $userId)->count();
 
             $meNorm = $this->canonicalEmail($user->email);
@@ -148,7 +148,7 @@ class DashboardController extends Controller
 
             $response['data']['stats'] = [
                 'courses_owned' => $myCoursesCount,
-                'courses_member' => $memberCoursesCount,
+                'courses_member' => $memberCoursesCount, // Kursy gdzie jestem członkiem (nie właścicielem)
                 'notes_total' => $notesCount,
                 'tests_total' => $testsCount,
                 'invitations_pending' => $invitationsCount,
@@ -175,14 +175,15 @@ class DashboardController extends Controller
         // Widżet: 'memberCourses' (Kursy, do których należę)
         if (isset($includes['memberCourses'])) {
             $memberCourses = $user->courses()
-                ->wherePivot('status', 'accepted')
-                ->where('courses.user_id', '!=', $userId)
+                ->wherePivotIn('status', ['accepted', 'active', 'approved', 'joined'])
+                ->where('courses.user_id', '!=', $userId) // Wyklucz kursy, których jestem właścicielem
                 ->when($coursesQuery, fn($q) => $q->where('courses.title', 'like', "%{$coursesQuery}%"))
                 ->orderBy("courses.$coursesSortColumn", $coursesOrder)
                 ->limit($limit)
                 ->select('courses.id', 'courses.title', 'courses.avatar', 'courses.type', 'courses.updated_at', 'courses_users.role', 'courses.user_id')
                 ->get();
 
+            // Pobierz właścicieli dla tych kursów
             $ownerIds = $memberCourses->pluck('user_id')->unique()->filter();
             $owners = collect();
             if ($ownerIds->isNotEmpty()) {
@@ -205,7 +206,7 @@ class DashboardController extends Controller
         }
 
 
-        // --- ZMIANA: Scalony widżet 'recentActivities' ---
+        // --- WIDŻET: 'recentActivities' (Scalony: Moje + Grupowe) ---
         if (isset($includes['recentActivities'])) {
             // 1. Pobierz filtry dla aktywności
             $activitiesQuery = $request->query('activities_q');
@@ -214,21 +215,28 @@ class DashboardController extends Controller
             $activitiesType = $request->query('activities_type', 'all'); // 'all', 'note', 'test'
             $activitiesSortColumn = in_array($activitiesSort, ['title', 'created_at', 'updated_at']) ? $activitiesSort : 'updated_at';
 
-            // 2. Zbuduj bazowe zapytania (tylko te, które są potrzebne)
+            // 2. Zbuduj zapytanie dla NOTATEK
+            // Warunek: (Moje notatki) LUB (Notatki w moich kursach)
             $notesQuery = null;
             if (in_array($activitiesType, ['all', 'note'])) {
-                $notesQuery = Note::where('user_id', $userId)
-                    // Wybierz kolumny potrzebne do UNION i filtrowania
+                $notesQuery = Note::query()
+                    ->where(function (EloquentBuilder $q) use ($userId, $allAllowedCourseIds) {
+                        $q->where('user_id', $userId) // Moje
+                        ->orWhereHas('courses', function ($cq) use ($allAllowedCourseIds) {
+                            $cq->whereIn('courses.id', $allAllowedCourseIds); // Udostępnione w moich grupach
+                        });
+                    })
+                    // Wybierz kolumny potrzebne do UNION
                     ->select(
                         'id',
-                        DB::raw("'note' as type"), // Ręcznie dodaj typ
+                        DB::raw("'note' as type"),
                         'title',
-                        'description', // Potrzebne do 'activities_q'
+                        'description',
                         'updated_at',
                         'created_at',
-                        'user_id' // Potrzebne do późniejszej hydracji
+                        'user_id'
                     )
-                    // Zastosuj filtr 'q' (przed UNION dla wydajności)
+                    // Zastosuj filtr wyszukiwania tekstowego 'q'
                     ->when($activitiesQuery, function($q) use ($activitiesQuery) {
                         $q->where(function($sub) use ($activitiesQuery) {
                             $sub->where('title', 'like', "%{$activitiesQuery}%")
@@ -237,9 +245,17 @@ class DashboardController extends Controller
                     });
             }
 
+            // 3. Zbuduj zapytanie dla TESTÓW
+            // Warunek: (Moje testy) LUB (Testy w moich kursach)
             $testsQuery = null;
             if (in_array($activitiesType, ['all', 'test'])) {
-                $testsQuery = Test::where('user_id', $userId)
+                $testsQuery = Test::query()
+                    ->where(function (EloquentBuilder $q) use ($userId, $allAllowedCourseIds) {
+                        $q->where('user_id', $userId) // Moje
+                        ->orWhereHas('courses', function ($cq) use ($allAllowedCourseIds) {
+                            $cq->whereIn('courses.id', $allAllowedCourseIds); // Udostępnione w moich grupach
+                        });
+                    })
                     ->select(
                         'id',
                         DB::raw("'test' as type"),
@@ -257,50 +273,56 @@ class DashboardController extends Controller
                     });
             }
 
-            // 3. Połącz zapytania (UNION)
+            // 4. Połącz zapytania (UNION)
+            $combinedQuery = null;
             if ($activitiesType === 'note') {
                 $combinedQuery = $notesQuery;
             } elseif ($activitiesType === 'test') {
                 $combinedQuery = $testsQuery;
             } else {
-                // Jeśli $notesQuery lub $testsQuery jest null (co nie powinno się zdarzyć przy 'all', ale dla bezpieczeństwa)
-                if ($notesQuery) {
+                if ($notesQuery && $testsQuery) {
                     $combinedQuery = $notesQuery->unionAll($testsQuery);
+                } elseif ($notesQuery) {
+                    $combinedQuery = $notesQuery;
                 } else {
                     $combinedQuery = $testsQuery;
                 }
             }
 
-            // 4. Wykonaj posortowane i ograniczone zapytanie UNION
-            // Musimy to zrobić przez DB::table(), aby posortować WYNIK unii
-            $sortedActivities = DB::table($combinedQuery, 'activities')
-                ->orderBy($activitiesSortColumn, $activitiesOrder)
-                ->limit($limit)
-                ->get(); // Zwraca kolekcję stdClass
+            // 5. Wykonaj zapytanie, posortuj i ogranicz wyniki
+            $sortedActivities = collect();
+            if ($combinedQuery) {
+                // distinct() jest ważne, jeśli notatka należy do kilku moich kursów naraz, aby nie wyświetlała się podwójnie
+                $sortedActivities = DB::table($combinedQuery, 'activities')
+                    ->distinct()
+                    ->orderBy($activitiesSortColumn, $activitiesOrder)
+                    ->limit($limit)
+                    ->get();
+            }
 
-            // 5. Re-Hydracja: Pobierz pełne modele Eloquent dla wyników
+            // 6. Re-Hydracja: Pobierz pełne modele Eloquent dla wyników
             $noteIds = $sortedActivities->where('type', 'note')->pluck('id');
             $testIds = $sortedActivities->where('type', 'test')->pluck('id');
 
-            // Pobierz modele notatek wraz z *wszystkimi* wymaganymi relacjami
+            // Pobierz notatki z relacjami
             $notes = Note::with([
                 'user:id,name,avatar', // Autor
-                'files',               // Pliki notatki
-                'courses:id'           // Kursy (tylko ID dla normalizacji)
+                'files',               // Pliki
+                'courses:id,title'     // Kursy (tytuł przydatny do wyświetlenia "Udostępniono w...")
             ])
                 ->findMany($noteIds)
-                ->keyBy('id'); // Kluczem jest ID notatki
+                ->keyBy('id');
 
-            // Pobierz modele testów wraz z *wszystkimi* wymaganymi relacjami
+            // Pobierz testy z relacjami
             $tests = Test::with([
                 'user:id,name,avatar', // Autor
-                'courses:id',          // Kursy (tylko ID)
+                'courses:id,title'     // Kursy
             ])
-                ->withCount('questions') // Licznik pytań
+                ->withCount('questions')
                 ->findMany($testIds)
-                ->keyBy('id'); // Kluczem jest ID testu
+                ->keyBy('id');
 
-            // 6. Zbuduj ostateczną, posortowaną tablicę odpowiedzi
+            // 7. Mapowanie wyników do finalnej tablicy
             $response['data']['recentActivities'] = $sortedActivities->map(function ($item) use ($notes, $tests) {
                 $model = null;
                 if ($item->type === 'note') {
@@ -309,33 +331,27 @@ class DashboardController extends Controller
                     $model = $tests->get($item->id);
                 }
 
-                if (!$model) {
-                    return null; // Model mógł zostać usunięty między zapytaniami
-                }
+                if (!$model) return null;
 
-                // Przekształć model Eloquent (z relacjami) w tablicę
                 $data = $model->toArray();
-                // Dodaj pole 'type'
                 $data['type'] = $item->type;
 
-                // Dodaj 'avatar_url' do autora (jeśli istnieje)
+                // Formatowanie autora
                 if (isset($data['user']) && $model->user) {
                     $data['user']['avatar_url'] = $model->user->avatar_url;
                 }
 
-                // Znormalizuj relacje kursów do tablicy ID
-                if (isset($data['courses'])) {
-                    $data['course_ids'] = $model->courses->pluck('id');
-                    unset($data['courses']); // Usuń pełne obiekty, aby nie powielać danych
-                } else {
-                    $data['course_ids'] = [];
+                // Formatowanie kursów (aby frontend wiedział, z jakich grup pochodzi wpis)
+                if ($model->relationLoaded('courses')) {
+                    $data['courses'] = $model->courses->map(function($c) {
+                        return ['id' => $c->id, 'title' => $c->title];
+                    });
                 }
 
                 return $data;
 
-            })->filter(); // Usuń ewentualne nulle
+            })->filter()->values(); // filter() usuwa nulle, values() resetuje klucze tablicy
         }
-        // --- KONIEC ZMIANY: 'recentActivities' ---
 
 
         // Widżet: 'invitations' (Oczekujące zaproszenia)
@@ -346,7 +362,7 @@ class DashboardController extends Controller
                     $query->whereRaw('LOWER(TRIM(invited_email)) = ?', [$meNorm])
                         ->orWhere('user_id', $userId);
                 })
-                ->with('course:id,title,avatar', 'inviter:id,name,avatar') // Pobierz relacje
+                ->with('course:id,title,avatar', 'inviter:id,name,avatar')
                 ->orderBy('created_at', 'desc')
                 ->limit($limit)
                 ->get()
