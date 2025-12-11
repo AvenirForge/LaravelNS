@@ -9,10 +9,9 @@ use App\Models\Note;
 use App\Models\Test;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response as Http;
@@ -26,7 +25,10 @@ class DashboardController extends Controller
             return response()->json(['error' => 'Unauthorized'], Http::HTTP_UNAUTHORIZED);
         }
 
+        $page = max(1, (int) $request->query('page', 1));
         $limit = max(1, min(50, (int) $request->query('limit', 10)));
+        $offset = ($page - 1) * $limit;
+
         $includes = explode(',', $request->query('include', 'stats,myCourses,memberCourses,recentActivities,invitations'));
         $includes = array_fill_keys($includes, true);
 
@@ -39,25 +41,27 @@ class DashboardController extends Controller
         }
 
         if (isset($includes['myCourses'])) {
-            $data['myCourses'] = $this->getMyCourses($user->id, $request, $limit);
+            $data['myCourses'] = $this->getMyCourses($user->id, $request, $limit, $offset);
         }
 
         if (isset($includes['memberCourses'])) {
-            $data['memberCourses'] = $this->getMemberCourses($user->id, $request, $limit);
+            $data['memberCourses'] = $this->getMemberCourses($user->id, $request, $limit, $offset);
         }
 
         if (isset($includes['recentActivities'])) {
-            $data['recentActivities'] = $this->getRecentActivities($user->id, $allowedCourseIds, $request, $limit);
+            $data['recentActivities'] = $this->getRecentActivities($user->id, $allowedCourseIds, $request, $limit, $offset);
         }
 
         if (isset($includes['invitations'])) {
-            $data['invitations'] = $this->getInvitations($user, $limit);
+            $data['invitations'] = $this->getInvitations($user, $limit, $offset);
         }
 
         return response()->json([
             'meta' => [
                 'requested_at' => now()->toIso8601String(),
                 'included_widgets' => array_keys($includes),
+                'current_page' => $page,
+                'limit' => $limit,
             ],
             'data' => $data,
         ], Http::HTTP_OK);
@@ -101,7 +105,7 @@ class DashboardController extends Controller
         ];
     }
 
-    private function getMyCourses(int $userId, Request $request, int $limit): Collection
+    private function getMyCourses(int $userId, Request $request, int $limit, int $offset): Collection
     {
         $queryStr = $request->query('courses_q');
         $sortCol = $request->query('courses_sort', 'updated_at');
@@ -114,12 +118,13 @@ class DashboardController extends Controller
         return Course::where('user_id', $userId)
             ->when($queryStr, fn($q) => $q->where('title', 'like', "%{$queryStr}%"))
             ->orderBy($sortCol, $sortDir)
+            ->offset($offset)
             ->limit($limit)
             ->get()
             ->map(fn($c) => $this->formatCourse($c, 'owner'));
     }
 
-    private function getMemberCourses(int $userId, Request $request, int $limit): Collection
+    private function getMemberCourses(int $userId, Request $request, int $limit, int $offset): Collection
     {
         $queryStr = $request->query('courses_q');
         $sortCol = $request->query('courses_sort', 'updated_at');
@@ -138,6 +143,7 @@ class DashboardController extends Controller
             ->select('courses.*', 'courses_users.role as pivot_role')
             ->when($queryStr, fn($q) => $q->where('courses.title', 'like', "%{$queryStr}%"))
             ->orderBy("courses.$sortCol", $sortDir)
+            ->offset($offset)
             ->limit($limit)
             ->get()
             ->map(function ($course) {
@@ -153,7 +159,7 @@ class DashboardController extends Controller
             });
     }
 
-    private function getRecentActivities(int $userId, array $allowedCourseIds, Request $request, int $limit): array
+    private function getRecentActivities(int $userId, array $allowedCourseIds, Request $request, int $limit, int $offset): Collection
     {
         $queryStr = $request->query('activities_q');
         $type = $request->query('activities_type', 'all');
@@ -214,9 +220,13 @@ class DashboardController extends Controller
             $unionQuery = $notesQuery->unionAll($testsQuery);
         }
 
-        $paginator = $unionQuery->orderBy($sortCol, $sortDir)->paginate($limit);
+        $items = DB::table($unionQuery, 'activities')
+            ->distinct()
+            ->orderBy($sortCol, $sortDir)
+            ->offset($offset)
+            ->limit($limit)
+            ->get();
 
-        $items = $paginator->getCollection();
         $noteIds = $items->where('type', 'note')->pluck('id');
         $testIds = $items->where('type', 'test')->pluck('id');
 
@@ -231,7 +241,7 @@ class DashboardController extends Controller
             ->get()
             ->keyBy('id');
 
-        $hydrated = $items->map(function ($item) use ($notes, $tests) {
+        return $items->map(function ($item) use ($notes, $tests) {
             $model = match ($item->type) {
                 'note' => $notes->get($item->id),
                 'test' => $tests->get($item->id),
@@ -258,21 +268,9 @@ class DashboardController extends Controller
 
             return $data;
         })->filter()->values();
-
-        return [
-            'data' => $hydrated,
-            'pagination' => [
-                'current_page' => $paginator->currentPage(),
-                'last_page' => $paginator->lastPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
-                'next_page_url' => $paginator->nextPageUrl(),
-                'prev_page_url' => $paginator->previousPageUrl(),
-            ]
-        ];
     }
 
-    private function getInvitations(User $user, int $limit): Collection
+    private function getInvitations(User $user, int $limit, int $offset): Collection
     {
         $canonicalEmail = $this->canonicalEmail($user->email);
 
@@ -283,6 +281,7 @@ class DashboardController extends Controller
             })
             ->with(['course:id,title,avatar', 'inviter:id,name,avatar'])
             ->orderBy('created_at', 'desc')
+            ->offset($offset)
             ->limit($limit)
             ->get()
             ->map(fn($inv) => $this->formatInvitation($inv));
