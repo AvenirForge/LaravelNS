@@ -1,5 +1,5 @@
 <?php
-//
+
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
@@ -12,6 +12,7 @@ use Faker\Factory as FakerFactory;
 
 class DatabaseSeeder extends Seeder
 {
+    // Definicje plików źródłowych
     private array $sourceFiles = [
         'avatars_users' => ['1.avif', '2.avif', '3.avif', '4.avif'],
         'avatars_courses' => ['1.avif', '2.avif', '3.avif', '4.avif'],
@@ -21,59 +22,65 @@ class DatabaseSeeder extends Seeder
 
     public function run(): void
     {
+        // Inicjalizacja generatora danych w języku polskim
         $faker = FakerFactory::create('pl_PL');
 
         $this->cleanStorage();
         $this->truncateTables();
 
         $userIds = collect();
+        $now = now();
 
-        $adminDate = $faker->dateTimeBetween('-4 months', '-3 months');
+        // 1. Administrator
         $adminId = DB::table('users')->insertGetId([
-            'name' => 'Admin Demo',
+            'name' => 'Administrator Systemu',
             'email' => 'admin@notesync.pl',
             'password' => Hash::make('password'),
-            'email_verified_at' => $adminDate,
+            'email_verified_at' => $now,
             'avatar' => $this->storeFile('users/avatars', 'avatars_users'),
-            'created_at' => $adminDate,
-            'updated_at' => $adminDate,
+            'created_at' => $now,
+            'updated_at' => $now,
         ]);
         $userIds->push($adminId);
 
+        // 2. Użytkownicy Demo (15 kont)
         for ($i = 1; $i <= 15; $i++) {
-            $date = $faker->dateTimeBetween('-4 months', '-3 months');
             $id = DB::table('users')->insertGetId([
-                'name' => "Demo User {$i}",
+                'name' => "Użytkownik Demo {$i}",
                 'email' => "demo{$i}@notesync.pl",
-                'password' => Hash::make((string)$i),
-                'email_verified_at' => $date,
+                'password' => Hash::make((string)$i), // Hasło to numer (1, 2, 3...)
+                'email_verified_at' => $now,
                 'avatar' => $this->storeFile('users/avatars', 'avatars_users'),
-                'created_at' => $date,
-                'updated_at' => $date,
+                'created_at' => $now,
+                'updated_at' => $now,
             ]);
             $userIds->push($id);
         }
 
+        // 3. Losowi użytkownicy (polskie imiona i nazwiska)
         for ($i = 0; $i < 20; $i++) {
-            $date = $faker->dateTimeBetween('-4 months', '-3 months');
             $id = DB::table('users')->insertGetId([
-                'name' => $faker->name(),
+                'name' => $faker->name(), // np. Jan Kowalski
                 'email' => $faker->unique()->safeEmail(),
                 'password' => Hash::make('password'),
-                'email_verified_at' => $date,
+                'email_verified_at' => $now,
                 'avatar' => $this->storeFile('users/avatars', 'avatars_users'),
-                'created_at' => $date,
-                'updated_at' => $date,
+                'created_at' => $now,
+                'updated_at' => $now,
             ]);
             $userIds->push($id);
         }
 
+        // 4. Generowanie Kursów i ich zawartości (Notatki/Testy)
         for ($i = 0; $i < 20; $i++) {
             $this->seedCourse($userIds, $faker);
         }
 
+        // 5. Generowanie Zaproszeń
         $this->seedInvitations($userIds, $faker);
     }
+
+    // --- Metody Pomocnicze ---
 
     private function cleanStorage(): void
     {
@@ -109,18 +116,25 @@ class DatabaseSeeder extends Seeder
     private function seedCourse($userIds, $faker): void
     {
         $ownerId = $userIds->random();
-        $courseDate = $faker->dateTimeBetween('-3 months', '-2 months');
+        // Kursy tworzone w ostatnich 4 miesiącach
+        $courseDate = $faker->dateTimeBetween('-4 months', '-1 week');
+
+        // Generowanie polskich tytułów kursów
+        $prefixes = ['Kurs:', 'Wstęp do:', 'Zaawansowany:', 'Warsztaty:', 'Podstawy:', 'Masterclass:'];
+        $subjects = ['Programowania', 'Grafiki', 'Zarządzania', 'Psychologii', 'Marketingu', 'Fotografii', 'Excela', 'Reacta', 'Laravela'];
+        $title = $faker->randomElement($prefixes) . ' ' . $faker->randomElement($subjects) . ' - ' . ucfirst($faker->word());
 
         $courseId = DB::table('courses')->insertGetId([
             'user_id' => $ownerId,
-            'title' => $faker->company() . ' ' . $faker->word(),
-            'description' => $faker->paragraph(),
+            'title' => $title,
+            'description' => $faker->realText(300), // Polski tekst
             'avatar' => $this->storeFile('courses/avatars', 'avatars_courses'),
             'type' => $faker->boolean(70) ? 'public' : 'private',
             'created_at' => $courseDate,
             'updated_at' => $courseDate,
         ]);
 
+        // Właściciel kursu
         DB::table('courses_users')->insert([
             'course_id' => $courseId,
             'user_id' => $ownerId,
@@ -130,8 +144,8 @@ class DatabaseSeeder extends Seeder
             'updated_at' => $courseDate,
         ]);
 
+        // Dodawanie członków (wykluczając właściciela)
         $membersCount = rand(3, 10);
-
         $potentialMembers = $userIds->reject(fn($id) => $id === $ownerId)
             ->shuffle()
             ->take($membersCount);
@@ -148,13 +162,23 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
+        // Pula użytkowników mogących tworzyć treści w kursie
         $allowedUserIds = $potentialMembers->push($ownerId);
 
-        $activitiesCount = rand(8, 15);
+        // Generowanie aktywności (mieszanka notatek i testów)
+        $this->seedActivities($courseId, $allowedUserIds, $faker, $courseDate);
+    }
 
-        for ($i = 0; $i < $activitiesCount; $i++) {
-            $activityDate = $faker->dateTimeBetween($courseDate, 'now');
+    private function seedActivities(int $courseId, $allowedUserIds, $faker, $startDate): void
+    {
+        // Generujemy od 8 do 15 aktywności na kurs
+        $count = rand(8, 15);
 
+        for ($i = 0; $i < $count; $i++) {
+            // Data aktywności od momentu powstania kursu do teraz
+            $activityDate = $faker->dateTimeBetween($startDate, 'now');
+
+            // 60% szans na notatkę, 40% na test
             if ($faker->boolean(60)) {
                 $this->createSingleNote($courseId, $allowedUserIds, $faker, $activityDate);
             } else {
@@ -167,10 +191,13 @@ class DatabaseSeeder extends Seeder
     {
         $authorId = $allowedUserIds->random();
 
+        $prefixes = ['Notatka:', 'Podsumowanie:', 'Wykład:', 'Materiały:', 'Lista zadań:', 'Projekt:'];
+        $title = $faker->randomElement($prefixes) . ' ' . $faker->words(3, true);
+
         $noteId = DB::table('notes')->insertGetId([
             'user_id' => $authorId,
-            'title' => $faker->sentence(4),
-            'description' => $faker->paragraph(),
+            'title' => ucfirst($title),
+            'description' => $faker->realText(500),
             'is_private' => $faker->boolean(20) ? 1 : 0,
             'created_at' => $date,
             'updated_at' => $date,
@@ -181,13 +208,14 @@ class DatabaseSeeder extends Seeder
             'note_id' => $noteId,
         ]);
 
-        $filesCount = rand(1, 4);
+        // Dodawanie plików (PDF i Obrazy)
+        $filesCount = rand(1, 4); // 1-4 pliki na notatkę
         for ($k = 0; $k < $filesCount; $k++) {
-            $isImage = $faker->boolean(60);
-            if ($isImage) {
-                $this->createNoteFile($noteId, 'notes/images', 'note_imgs', 'image/avif', $k, $date);
-            } else {
+            // 40% szans na dokument PDF, 60% na obrazek
+            if ($faker->boolean(40)) {
                 $this->createNoteFile($noteId, 'notes/documents', 'note_docs', 'application/pdf', $k, $date);
+            } else {
+                $this->createNoteFile($noteId, 'notes/images', 'note_imgs', 'image/avif', $k, $date);
             }
         }
     }
@@ -196,10 +224,13 @@ class DatabaseSeeder extends Seeder
     {
         $authorId = $allowedUserIds->random();
 
+        $prefixes = ['Sprawdzian:', 'Quiz:', 'Egzamin:', 'Test wiedzy:', 'Kartkówka:'];
+        $title = $faker->randomElement($prefixes) . ' ' . $faker->words(2, true);
+
         $testId = DB::table('tests')->insertGetId([
             'user_id' => $authorId,
-            'title' => 'Test: ' . $faker->words(3, true),
-            'description' => $faker->text(150),
+            'title' => ucfirst($title),
+            'description' => $faker->realText(200),
             'status' => $faker->randomElement(['public', 'private']),
             'created_at' => $date,
             'updated_at' => $date,
@@ -210,11 +241,12 @@ class DatabaseSeeder extends Seeder
             'test_id' => $testId,
         ]);
 
-        $questionsCount = rand(4, 10);
+        // Pytania i odpowiedzi po polsku
+        $questionsCount = rand(4, 8);
         for ($q = 1; $q <= $questionsCount; $q++) {
             $questionId = DB::table('tests_questions')->insertGetId([
                 'test_id' => $testId,
-                'question' => $faker->sentence() . '?',
+                'question' => $faker->realText(50) . '?',
                 'created_at' => $date,
                 'updated_at' => $date,
             ]);
@@ -224,6 +256,7 @@ class DatabaseSeeder extends Seeder
 
             for ($a = 0; $a < $answersCount; $a++) {
                 $isCorrect = false;
+                // Zapewniamy, że ostatnia odpowiedź jest poprawna jeśli wcześniej nie było poprawnej
                 if (!$hasCorrect && ($a === $answersCount - 1 || $faker->boolean(30))) {
                     $isCorrect = true;
                     $hasCorrect = true;
@@ -231,13 +264,14 @@ class DatabaseSeeder extends Seeder
 
                 DB::table('tests_answers')->insert([
                     'question_id' => $questionId,
-                    'answer' => $faker->sentence(3),
+                    'answer' => ucfirst($faker->words(3, true)),
                     'is_correct' => $isCorrect ? 1 : 0,
                     'created_at' => $date,
                     'updated_at' => $date,
                 ]);
             }
 
+            // Fallback: jeśli losowo nie wybrano poprawnej, ustaw losową na poprawną
             if (!$hasCorrect) {
                 DB::table('tests_answers')
                     ->where('question_id', $questionId)
