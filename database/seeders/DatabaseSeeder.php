@@ -27,41 +27,43 @@ class DatabaseSeeder extends Seeder
         $this->truncateTables();
 
         $userIds = collect();
-        $now = now();
 
+        $adminDate = $faker->dateTimeBetween('-4 months', '-3 months');
         $adminId = DB::table('users')->insertGetId([
             'name' => 'Admin Demo',
             'email' => 'admin@notesync.pl',
             'password' => Hash::make('password'),
-            'email_verified_at' => $now,
+            'email_verified_at' => $adminDate,
             'avatar' => $this->storeFile('users/avatars', 'avatars_users'),
-            'created_at' => $now,
-            'updated_at' => $now,
+            'created_at' => $adminDate,
+            'updated_at' => $adminDate,
         ]);
         $userIds->push($adminId);
 
         for ($i = 1; $i <= 15; $i++) {
+            $date = $faker->dateTimeBetween('-4 months', '-3 months');
             $id = DB::table('users')->insertGetId([
                 'name' => "Demo User {$i}",
                 'email' => "demo{$i}@notesync.pl",
                 'password' => Hash::make((string)$i),
-                'email_verified_at' => $now,
+                'email_verified_at' => $date,
                 'avatar' => $this->storeFile('users/avatars', 'avatars_users'),
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => $date,
+                'updated_at' => $date,
             ]);
             $userIds->push($id);
         }
 
         for ($i = 0; $i < 20; $i++) {
+            $date = $faker->dateTimeBetween('-4 months', '-3 months');
             $id = DB::table('users')->insertGetId([
                 'name' => $faker->name(),
                 'email' => $faker->unique()->safeEmail(),
                 'password' => Hash::make('password'),
-                'email_verified_at' => $now,
+                'email_verified_at' => $date,
                 'avatar' => $this->storeFile('users/avatars', 'avatars_users'),
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => $date,
+                'updated_at' => $date,
             ]);
             $userIds->push($id);
         }
@@ -107,7 +109,7 @@ class DatabaseSeeder extends Seeder
     private function seedCourse($userIds, $faker): void
     {
         $ownerId = $userIds->random();
-        $now = now();
+        $courseDate = $faker->dateTimeBetween('-3 months', '-2 months');
 
         $courseId = DB::table('courses')->insertGetId([
             'user_id' => $ownerId,
@@ -115,8 +117,8 @@ class DatabaseSeeder extends Seeder
             'description' => $faker->paragraph(),
             'avatar' => $this->storeFile('courses/avatars', 'avatars_courses'),
             'type' => $faker->boolean(70) ? 'public' : 'private',
-            'created_at' => $now,
-            'updated_at' => $now,
+            'created_at' => $courseDate,
+            'updated_at' => $courseDate,
         ]);
 
         DB::table('courses_users')->insert([
@@ -124,8 +126,8 @@ class DatabaseSeeder extends Seeder
             'user_id' => $ownerId,
             'role' => 'owner',
             'status' => 'accepted',
-            'created_at' => $now,
-            'updated_at' => $now,
+            'created_at' => $courseDate,
+            'updated_at' => $courseDate,
         ]);
 
         $membersCount = rand(3, 10);
@@ -135,112 +137,113 @@ class DatabaseSeeder extends Seeder
             ->take($membersCount);
 
         foreach ($potentialMembers as $memberId) {
+            $joinDate = $faker->dateTimeBetween($courseDate, 'now');
             DB::table('courses_users')->insert([
                 'course_id' => $courseId,
                 'user_id' => $memberId,
                 'role' => $faker->randomElement(['admin', 'moderator', 'member', 'member']),
                 'status' => 'accepted',
-                'created_at' => $faker->dateTimeBetween('-1 month'),
-                'updated_at' => $now,
+                'created_at' => $joinDate,
+                'updated_at' => $joinDate,
             ]);
         }
 
         $allowedUserIds = $potentialMembers->push($ownerId);
-        $this->seedNotes($courseId, $allowedUserIds, $faker);
-        $this->seedTests($courseId, $allowedUserIds, $faker);
-    }
 
-    private function seedNotes(int $courseId, $allowedUserIds, $faker): void
-    {
-        $notesCount = rand(3, 8);
-        $now = now();
+        $activitiesCount = rand(8, 15);
 
-        for ($j = 0; $j < $notesCount; $j++) {
-            $authorId = $allowedUserIds->random();
+        for ($i = 0; $i < $activitiesCount; $i++) {
+            $activityDate = $faker->dateTimeBetween($courseDate, 'now');
 
-            $noteId = DB::table('notes')->insertGetId([
-                'user_id' => $authorId,
-                'title' => $faker->sentence(4),
-                'description' => $faker->paragraph(),
-                'is_private' => $faker->boolean(20) ? 1 : 0,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-
-            DB::table('course_note')->insert([
-                'course_id' => $courseId,
-                'note_id' => $noteId,
-            ]);
-
-            $filesCount = rand(1, 4);
-            for ($k = 0; $k < $filesCount; $k++) {
-                $isImage = $faker->boolean(60);
-                if ($isImage) {
-                    $this->createNoteFile($noteId, 'notes/images', 'note_imgs', 'image/avif', $k);
-                } else {
-                    $this->createNoteFile($noteId, 'notes/documents', 'note_docs', 'application/pdf', $k);
-                }
+            if ($faker->boolean(60)) {
+                $this->createSingleNote($courseId, $allowedUserIds, $faker, $activityDate);
+            } else {
+                $this->createSingleTest($courseId, $allowedUserIds, $faker, $activityDate);
             }
         }
     }
 
-    private function seedTests(int $courseId, $allowedUserIds, $faker): void
+    private function createSingleNote(int $courseId, $allowedUserIds, $faker, $date): void
     {
-        $testsCount = rand(2, 5);
-        $now = now();
+        $authorId = $allowedUserIds->random();
 
-        for ($t = 0; $t < $testsCount; $t++) {
-            $authorId = $allowedUserIds->random();
+        $noteId = DB::table('notes')->insertGetId([
+            'user_id' => $authorId,
+            'title' => $faker->sentence(4),
+            'description' => $faker->paragraph(),
+            'is_private' => $faker->boolean(20) ? 1 : 0,
+            'created_at' => $date,
+            'updated_at' => $date,
+        ]);
 
-            $testId = DB::table('tests')->insertGetId([
-                'user_id' => $authorId,
-                'title' => 'Test: ' . $faker->words(3, true),
-                'description' => $faker->text(150),
-                'status' => $faker->randomElement(['public', 'private']),
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
+        DB::table('course_note')->insert([
+            'course_id' => $courseId,
+            'note_id' => $noteId,
+        ]);
 
-            DB::table('course_test')->insert([
-                'course_id' => $courseId,
+        $filesCount = rand(1, 4);
+        for ($k = 0; $k < $filesCount; $k++) {
+            $isImage = $faker->boolean(60);
+            if ($isImage) {
+                $this->createNoteFile($noteId, 'notes/images', 'note_imgs', 'image/avif', $k, $date);
+            } else {
+                $this->createNoteFile($noteId, 'notes/documents', 'note_docs', 'application/pdf', $k, $date);
+            }
+        }
+    }
+
+    private function createSingleTest(int $courseId, $allowedUserIds, $faker, $date): void
+    {
+        $authorId = $allowedUserIds->random();
+
+        $testId = DB::table('tests')->insertGetId([
+            'user_id' => $authorId,
+            'title' => 'Test: ' . $faker->words(3, true),
+            'description' => $faker->text(150),
+            'status' => $faker->randomElement(['public', 'private']),
+            'created_at' => $date,
+            'updated_at' => $date,
+        ]);
+
+        DB::table('course_test')->insert([
+            'course_id' => $courseId,
+            'test_id' => $testId,
+        ]);
+
+        $questionsCount = rand(4, 10);
+        for ($q = 1; $q <= $questionsCount; $q++) {
+            $questionId = DB::table('tests_questions')->insertGetId([
                 'test_id' => $testId,
+                'question' => $faker->sentence() . '?',
+                'created_at' => $date,
+                'updated_at' => $date,
             ]);
 
-            $questionsCount = rand(4, 10);
-            for ($q = 1; $q <= $questionsCount; $q++) {
-                $questionId = DB::table('tests_questions')->insertGetId([
-                    'test_id' => $testId,
-                    'question' => $faker->sentence() . '?',
-                    'created_at' => $now,
-                    'updated_at' => $now,
+            $answersCount = rand(2, 4);
+            $hasCorrect = false;
+
+            for ($a = 0; $a < $answersCount; $a++) {
+                $isCorrect = false;
+                if (!$hasCorrect && ($a === $answersCount - 1 || $faker->boolean(30))) {
+                    $isCorrect = true;
+                    $hasCorrect = true;
+                }
+
+                DB::table('tests_answers')->insert([
+                    'question_id' => $questionId,
+                    'answer' => $faker->sentence(3),
+                    'is_correct' => $isCorrect ? 1 : 0,
+                    'created_at' => $date,
+                    'updated_at' => $date,
                 ]);
+            }
 
-                $answersCount = rand(2, 4);
-                $hasCorrect = false;
-
-                for ($a = 0; $a < $answersCount; $a++) {
-                    $isCorrect = false;
-                    if (!$hasCorrect && ($a === $answersCount - 1 || $faker->boolean(30))) {
-                        $isCorrect = true;
-                        $hasCorrect = true;
-                    }
-
-                    DB::table('tests_answers')->insert([
-                        'question_id' => $questionId,
-                        'answer' => $faker->sentence(3),
-                        'is_correct' => $isCorrect ? 1 : 0,
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ]);
-                }
-
-                if (!$hasCorrect) {
-                    DB::table('tests_answers')
-                        ->where('question_id', $questionId)
-                        ->inRandomOrder()
-                        ->limit(1)
-                        ->update(['is_correct' => 1]);
-                }
+            if (!$hasCorrect) {
+                DB::table('tests_answers')
+                    ->where('question_id', $questionId)
+                    ->inRandomOrder()
+                    ->limit(1)
+                    ->update(['is_correct' => 1]);
             }
         }
     }
@@ -249,11 +252,11 @@ class DatabaseSeeder extends Seeder
     {
         $courses = DB::table('courses')->pluck('id');
         if ($courses->isEmpty()) return;
-        $now = now();
 
         for ($i = 0; $i < 30; $i++) {
             $inviterId = $userIds->random();
             $courseId = $courses->random();
+            $date = $faker->dateTimeBetween('-1 month', 'now');
 
             DB::table('invitations')->insert([
                 'inviter_id' => $inviterId,
@@ -263,8 +266,8 @@ class DatabaseSeeder extends Seeder
                 'role' => $faker->randomElement(['member', 'moderator']),
                 'status' => 'pending',
                 'expires_at' => now()->addDays(7),
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => $date,
+                'updated_at' => $date,
             ]);
         }
     }
@@ -297,7 +300,7 @@ class DatabaseSeeder extends Seeder
         return $storagePath;
     }
 
-    private function createNoteFile(int $noteId, string $sourceSubDir, string $sourceKey, string $mimeType, int $order): void
+    private function createNoteFile(int $noteId, string $sourceSubDir, string $sourceKey, string $mimeType, int $order, $date): void
     {
         if (!isset($this->sourceFiles[$sourceKey])) return;
 
@@ -317,8 +320,8 @@ class DatabaseSeeder extends Seeder
                 'original_name' => $filename,
                 'mime_type' => $mimeType,
                 'order' => $order,
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => $date,
+                'updated_at' => $date,
             ]);
         }
     }
