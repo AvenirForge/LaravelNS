@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
@@ -27,7 +28,7 @@ class Course extends Model
     public function notes(): BelongsToMany { return $this->belongsToMany(Note::class, 'course_note'); }
     public function invitations(): HasMany { return $this->hasMany(Invitation::class); }
     public function tests(): BelongsToMany { return $this->belongsToMany(Test::class, 'course_test'); }
-
+    public function user(): BelongsTo{ return $this->belongsTo(User::class); }
     public function getAvatarUrlAttribute(): ?string
     {
         $rel = $this->avatar ?: self::DEFAULT_AVATAR_RELATIVE;
