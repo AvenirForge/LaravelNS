@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Faker\Factory as FakerFactory;
 
 class DatabaseSeeder extends Seeder
 {
@@ -20,6 +21,8 @@ class DatabaseSeeder extends Seeder
 
     public function run(): void
     {
+        $faker = FakerFactory::create('pl_PL');
+
         $this->cleanStorage();
         $this->truncateTables();
 
@@ -40,7 +43,7 @@ class DatabaseSeeder extends Seeder
         for ($i = 1; $i <= 15; $i++) {
             $id = DB::table('users')->insertGetId([
                 'name' => "Demo User {$i}",
-                'email' => "demo{$i}",
+                'email' => "demo{$i}@notesync.pl",
                 'password' => Hash::make((string)$i),
                 'email_verified_at' => $now,
                 'avatar' => $this->storeFile('users/avatars', 'avatars_users'),
@@ -52,8 +55,8 @@ class DatabaseSeeder extends Seeder
 
         for ($i = 0; $i < 20; $i++) {
             $id = DB::table('users')->insertGetId([
-                'name' => fake()->name(),
-                'email' => fake()->unique()->safeEmail(),
+                'name' => $faker->name(),
+                'email' => $faker->unique()->safeEmail(),
                 'password' => Hash::make('password'),
                 'email_verified_at' => $now,
                 'avatar' => $this->storeFile('users/avatars', 'avatars_users'),
@@ -64,10 +67,10 @@ class DatabaseSeeder extends Seeder
         }
 
         for ($i = 0; $i < 20; $i++) {
-            $this->seedCourse($userIds);
+            $this->seedCourse($userIds, $faker);
         }
 
-        $this->seedInvitations($userIds);
+        $this->seedInvitations($userIds, $faker);
     }
 
     private function cleanStorage(): void
@@ -101,17 +104,17 @@ class DatabaseSeeder extends Seeder
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
     }
 
-    private function seedCourse($userIds): void
+    private function seedCourse($userIds, $faker): void
     {
         $ownerId = $userIds->random();
         $now = now();
 
         $courseId = DB::table('courses')->insertGetId([
             'user_id' => $ownerId,
-            'title' => fake()->company() . ' ' . fake()->word(),
-            'description' => fake()->paragraph(),
+            'title' => $faker->company() . ' ' . $faker->word(),
+            'description' => $faker->paragraph(),
             'avatar' => $this->storeFile('courses/avatars', 'avatars_courses'),
-            'type' => fake()->boolean(70) ? 'public' : 'private',
+            'type' => $faker->boolean(70) ? 'public' : 'private',
             'created_at' => $now,
             'updated_at' => $now,
         ]);
@@ -135,19 +138,19 @@ class DatabaseSeeder extends Seeder
             DB::table('courses_users')->insert([
                 'course_id' => $courseId,
                 'user_id' => $memberId,
-                'role' => fake()->randomElement(['admin', 'moderator', 'member', 'member']),
+                'role' => $faker->randomElement(['admin', 'moderator', 'member', 'member']),
                 'status' => 'accepted',
-                'created_at' => fake()->dateTimeBetween('-1 month'),
+                'created_at' => $faker->dateTimeBetween('-1 month'),
                 'updated_at' => $now,
             ]);
         }
 
         $allowedUserIds = $potentialMembers->push($ownerId);
-        $this->seedNotes($courseId, $allowedUserIds);
-        $this->seedTests($courseId, $allowedUserIds);
+        $this->seedNotes($courseId, $allowedUserIds, $faker);
+        $this->seedTests($courseId, $allowedUserIds, $faker);
     }
 
-    private function seedNotes(int $courseId, $allowedUserIds): void
+    private function seedNotes(int $courseId, $allowedUserIds, $faker): void
     {
         $notesCount = rand(3, 8);
         $now = now();
@@ -157,9 +160,9 @@ class DatabaseSeeder extends Seeder
 
             $noteId = DB::table('notes')->insertGetId([
                 'user_id' => $authorId,
-                'title' => fake()->sentence(4),
-                'description' => fake()->paragraph(),
-                'is_private' => fake()->boolean(20) ? 1 : 0,
+                'title' => $faker->sentence(4),
+                'description' => $faker->paragraph(),
+                'is_private' => $faker->boolean(20) ? 1 : 0,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
@@ -171,7 +174,7 @@ class DatabaseSeeder extends Seeder
 
             $filesCount = rand(1, 4);
             for ($k = 0; $k < $filesCount; $k++) {
-                $isImage = fake()->boolean(60);
+                $isImage = $faker->boolean(60);
                 if ($isImage) {
                     $this->createNoteFile($noteId, 'notes/images', 'note_imgs', 'image/avif', $k);
                 } else {
@@ -181,7 +184,7 @@ class DatabaseSeeder extends Seeder
         }
     }
 
-    private function seedTests(int $courseId, $allowedUserIds): void
+    private function seedTests(int $courseId, $allowedUserIds, $faker): void
     {
         $testsCount = rand(2, 5);
         $now = now();
@@ -191,9 +194,9 @@ class DatabaseSeeder extends Seeder
 
             $testId = DB::table('tests')->insertGetId([
                 'user_id' => $authorId,
-                'title' => 'Test: ' . fake()->bs(),
-                'description' => fake()->text(150),
-                'status' => fake()->randomElement(['public', 'private']),
+                'title' => 'Test: ' . $faker->words(3, true),
+                'description' => $faker->text(150),
+                'status' => $faker->randomElement(['public', 'private']),
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
@@ -207,7 +210,7 @@ class DatabaseSeeder extends Seeder
             for ($q = 1; $q <= $questionsCount; $q++) {
                 $questionId = DB::table('tests_questions')->insertGetId([
                     'test_id' => $testId,
-                    'question' => fake()->sentence() . '?',
+                    'question' => $faker->sentence() . '?',
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);
@@ -217,14 +220,14 @@ class DatabaseSeeder extends Seeder
 
                 for ($a = 0; $a < $answersCount; $a++) {
                     $isCorrect = false;
-                    if (!$hasCorrect && ($a === $answersCount - 1 || fake()->boolean(30))) {
+                    if (!$hasCorrect && ($a === $answersCount - 1 || $faker->boolean(30))) {
                         $isCorrect = true;
                         $hasCorrect = true;
                     }
 
                     DB::table('tests_answers')->insert([
                         'question_id' => $questionId,
-                        'answer' => fake()->sentence(3),
+                        'answer' => $faker->sentence(3),
                         'is_correct' => $isCorrect ? 1 : 0,
                         'created_at' => $now,
                         'updated_at' => $now,
@@ -242,7 +245,7 @@ class DatabaseSeeder extends Seeder
         }
     }
 
-    private function seedInvitations($userIds): void
+    private function seedInvitations($userIds, $faker): void
     {
         $courses = DB::table('courses')->pluck('id');
         if ($courses->isEmpty()) return;
@@ -255,9 +258,9 @@ class DatabaseSeeder extends Seeder
             DB::table('invitations')->insert([
                 'inviter_id' => $inviterId,
                 'course_id' => $courseId,
-                'invited_email' => fake()->email(),
+                'invited_email' => $faker->email(),
                 'token' => Str::random(32),
-                'role' => fake()->randomElement(['member', 'moderator']),
+                'role' => $faker->randomElement(['member', 'moderator']),
                 'status' => 'pending',
                 'expires_at' => now()->addDays(7),
                 'created_at' => $now,
