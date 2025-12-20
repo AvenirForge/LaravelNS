@@ -1,3 +1,79 @@
+# ----------------------------------------------------------------------
+# | 1. Definicje typów MIME (AVIF Support)                             |
+# ----------------------------------------------------------------------
+# Upewniamy się, że Apache wie, czym jest AVIF, aby poprawnie go serwować
+<IfModule mod_mime.c>
+  AddType image/avif .avif
+  AddType image/avif-sequence .avifs
+  AddType image/webp .webp
+</IfModule>
+
+# ----------------------------------------------------------------------
+# | 2. Kompresja (Brotli + Gzip)                                       |
+# ----------------------------------------------------------------------
+# Najpierw próbujemy Brotli (wydajniejszy), potem Gzip
+<IfModule mod_brotli.c>
+  AddOutputFilterByType BROTLI_COMPRESS text/html text/plain text/xml text/css text/javascript application/javascript application/json image/svg+xml application/xml+rss
+</IfModule>
+
+<IfModule mod_deflate.c>
+  <IfModule !mod_brotli.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json image/svg+xml application/xml+rss
+  </IfModule>
+</IfModule>
+
+# ----------------------------------------------------------------------
+# | 3. Cache Browsers (Expires & Headers)                              |
+# ----------------------------------------------------------------------
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresDefault "access plus 1 month"
+
+    # HTML/DATA - Nigdy nie cache'uj dynamicznych danych (0 sekund)
+    ExpiresByType text/html "access plus 0 seconds"
+    ExpiresByType application/json "access plus 0 seconds"
+    ExpiresByType application/xml "access plus 0 seconds"
+
+    # MEDIA - Cache na rok (w tym AVIF)
+    ExpiresByType image/avif "access plus 1 year"
+    ExpiresByType image/webp "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType video/mp4 "access plus 1 year"
+    ExpiresByType image/x-icon "access plus 1 year"
+
+    # FONTS - Cache na rok
+    ExpiresByType font/woff2 "access plus 1 year"
+    ExpiresByType font/woff "access plus 1 year"
+    ExpiresByType application/font-woff "access plus 1 year"
+
+    # CSS/JS - Cache na rok (zakładamy versioning plików np. app.css?v=...)
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+</IfModule>
+
+<IfModule mod_headers.c>
+    # Wymuś agresywne cache'owanie dla zasobów statycznych
+    # immutable = przeglądarka nawet nie pyta serwera czy plik się zmienił
+    <FilesMatch "\.(ico|pdf|flv|jpg|jpeg|png|gif|avif|webp|js|css|swf|svg|woff|woff2)$">
+        Header set Cache-Control "max-age=31536000, public, immutable"
+        # Usuwamy ETag, bo przy 'immutable' jest zbędny i oszczędzamy bajty
+        Header unset ETag
+    </FilesMatch>
+
+    # Dla plików PHP/HTML wymuszamy sprawdzanie świeżości
+    <FilesMatch "\.(html|htm|php)$">
+        Header set Cache-Control "max-age=0, no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "Wed, 11 Jan 1984 05:00:00 GMT"
+    </FilesMatch>
+</IfModule>
+
+# ----------------------------------------------------------------------
+# | 4. Standardowa logika Laravel                                      |
+# ----------------------------------------------------------------------
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes
