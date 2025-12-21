@@ -98,10 +98,10 @@
                 NoteSync narodził się z ambicji stworzenia środowiska wolnego od dystrakcji. Projektujemy narzędzia klasy biznesowej, które inteligentnie wspierają proces twórczy, pozostając niemal niezauważalne w codziennej pracy.
             </p>
             <div class="stack" style="display: flex; gap: 12px; flex-wrap: wrap;">
-                <span class="pill-tech">React Native 0.76</span>
-                <span class="pill-tech">Laravel 11</span>
-                <span class="pill-tech">Expo Turbo</span>
-                <span class="pill-tech">Edge Computing</span>
+                <span class="pill-tech">React Native</span>
+                <span class="pill-tech">Laravel</span>
+                <span class="pill-tech">Blade</span>
+                <span class="pill-tech">Expo GO</span>
             </div>
         </div>
 
