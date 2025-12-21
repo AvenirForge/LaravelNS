@@ -301,17 +301,16 @@
             background: var(--bg); /* Solid bg for performance or blurry */
         }
 
-        /* Opcjonalnie: Glassmorphism na mobile (może być ciężkie dla starych tel) */
         @supports (backdrop-filter: blur(20px)) {
             .modal-card {
-                background: rgba(10, 10, 10, 0.85); /* Bardziej przezroczyste */
+                background: rgba(10, 10, 10, 0.9);
                 backdrop-filter: blur(20px) saturate(180%);
                 -webkit-backdrop-filter: blur(20px) saturate(180%);
                 border: 1px solid rgba(255,255,255,0.1);
                 border-bottom: none;
             }
             html[data-theme="light"] .modal-card {
-                background: rgba(255, 255, 255, 0.85);
+                background: rgba(255, 255, 255, 0.9);
             }
         }
 
@@ -379,7 +378,7 @@
             </p>
         </div>
 
-        <a href="exp://u.expo.dev/7624933a-67a8-4444-934c-6232537f597b?channel-name=default" class="btn-expo-direct">
+        <a href="exp://57.128.224.234:8081" class="btn-expo-direct">
             <svg class="btn-icon-svg" style="margin-right: 12px;" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M17.525 21.015L24 12L17.525 2.985H6.475L0 12L6.475 21.015H17.525Z"/>
             </svg>
@@ -404,12 +403,10 @@
         if (openBtn) openBtn.addEventListener('click', () => toggleModal(true));
         if (closeBtn) closeBtn.addEventListener('click', () => toggleModal(false));
 
-        // Close on clicking backdrop
         window.addEventListener('click', (e) => {
             if (e.target === modal) toggleModal(false);
         });
 
-        // Close on Swipe Down (Simple implementation for mobile)
         let touchStartY = 0;
         modal.addEventListener('touchstart', e => {
             touchStartY = e.changedTouches[0].screenY;
@@ -417,7 +414,7 @@
 
         modal.addEventListener('touchend', e => {
             const touchEndY = e.changedTouches[0].screenY;
-            if (touchStartY < touchEndY - 50) { // If swiped down more than 50px
+            if (touchStartY < touchEndY - 50) {
                 toggleModal(false);
             }
         }, {passive: true});
