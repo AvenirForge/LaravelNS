@@ -1,51 +1,70 @@
-<IfModule mod_mime.c>
-  AddType image/avif .avif
-  AddType image/avif-sequence .avifs
-  AddType image/webp .webp
-  AddType font/woff2 .woff2
+<IfModule mod_rewrite.c>
+    <IfModule mod_negotiation.c>
+        Options -MultiViews -Indexes
+    </IfModule>
+
+    RewriteEngine On
+
+    # Wymuś HTTPS
+    RewriteCond %{HTTPS} off
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # Autoryzacja dla API (JWT)
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Przekierowanie trailing slashes
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} (.+)/$
+    RewriteRule ^ %1 [L,R=301]
+
+    # --- BLOCK 1: STATIC ASSETS (Cache na 1 rok) ---
+    # Jeśli plik istnieje fizycznie (obrazki, fonty, css, js), serwuj go bezpośrednio
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^ - [L]
+
+    # --- BLOCK 2: LARAVEL ROUTING ---
+    # Wszystko inne idzie do index.php
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+# --- BLOCK 3: HEADERS & CACHE CONTROL ---
+<IfModule mod_headers.c>
+    # 1. ZASOBY STATYCZNE (Obrazy, Fonty, CSS, JS) - Cache Publiczny, Immutable
+    <FilesMatch "\.(ico|pdf|flv|jpg|jpeg|png|gif|avif|webp|js|css|swf|svg|woff|woff2)$">
+        Header set Cache-Control "max-age=31536000, public, immutable"
+        # Usuwamy ETag, bo przy immutable jest zbędny
+        Header unset ETag
+        FileETag None
+    </FilesMatch>
+
+    # 2. API i PLIKI DYNAMICZNE (JSON, PHP, HTML) - Brak Cache
+    # Ważne dla API, aby nie cache'ować odpowiedzi z tokenami czy danymi użytkownika
+    <FilesMatch "\.(php|html|json)$">
+        Header set Cache-Control "max-age=0, no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "Wed, 11 Jan 1984 05:00:00 GMT"
+    </FilesMatch>
+
+    # Bezpieczeństwo i Optymalizacja
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set Connection keep-alive
+</IfModule>
+
+# --- BLOCK 4: KOMPRESJA ---
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json image/svg+xml application/xml+rss font/woff2
 </IfModule>
 
 <IfModule mod_expires.c>
     ExpiresActive On
     ExpiresDefault "access plus 1 month"
-
-    # HTML/JSON - brak cache dla danych dynamicznych
-    ExpiresByType text/html "access plus 0 seconds"
-    ExpiresByType application/json "access plus 0 seconds"
-
-    # MEDIA - 1 rok (wymóg PageSpeed)
     ExpiresByType image/avif "access plus 1 year"
     ExpiresByType image/webp "access plus 1 year"
-    ExpiresByType image/png "access plus 1 year"
-    ExpiresByType image/jpeg "access plus 1 year"
-    ExpiresByType image/svg+xml "access plus 1 year"
-    ExpiresByType image/x-icon "access plus 1 year"
-
-    # FONTS - 1 rok
     ExpiresByType font/woff2 "access plus 1 year"
-    ExpiresByType application/font-woff2 "access plus 1 year"
-
-    # CSS/JS - 1 rok
-    ExpiresByType text/css "access plus 1 year"
-    ExpiresByType application/javascript "access plus 1 year"
-</IfModule>
-
-<IfModule mod_headers.c>
-    # Wymuszenie Cache-Control dla plików statycznych
-    <FilesMatch "\.(avif|webp|png|jpg|jpeg|ico|woff2|css|js|svg)$">
-        Header set Cache-Control "max-age=31536000, public, immutable"
-        Header unset ETag
-        FileETag None
-    </FilesMatch>
-
-    # Poprawne cache'owanie wersji skompresowanych
-    Header append Vary Accept-Encoding
-</IfModule>
-
-# Standardowa logika Laravel
-<IfModule mod_rewrite.c>
-    RewriteEngine On
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteRule ^ index.php [L]
+    ExpiresByType application/json "access plus 0 seconds"
 </IfModule>
