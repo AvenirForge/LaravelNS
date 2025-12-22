@@ -1,18 +1,14 @@
 <!doctype html>
 <html lang="{{ str_replace('_', '-', App::getLocale()) }}" data-theme="dark">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="description" content="NoteSync to nowoczesne narzędzie do synchronizacji notatek zapewniające bezpieczeństwo, szybkość i minimalistyczny design dla profesjonalistów." />
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="NoteSync to nowoczesne narzędzie do synchronizacji notatek zapewniające bezpieczeństwo, szybkość i minimalistyczny design dla profesjonalistów.">
     <title>{{ __('messages.title') ?? 'NoteSync - Twoje notatki' }}</title>
 
-    {{--
-        PRELOAD - Wymuszenie ładowania czcionek priorytetowo.
-        Zmniejsza to LCP i eliminuje opóźnienie ścieżki krytycznej.
-    --}}
     <link rel="preload" href="{{ asset('fonts/Inter-Regular.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="{{ asset('fonts/Inter-Medium.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="{{ asset('fonts/Inter-SemiBold.woff2') }}" as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="{{ asset('fonts/Inter-ExtraBold.woff2') }}" as="font" type="font/woff2" crossorigin>
 
     <style>
         @font-face {
@@ -42,14 +38,6 @@
             font-weight: 800;
             font-display: swap;
             src: url('{{ asset('fonts/Inter-ExtraBold.woff2') }}') format('woff2');
-        }
-
-        @font-face {
-            font-family: 'Pacifico';
-            font-style: normal;
-            font-weight: 400;
-            font-display: swap;
-            src: url('{{ asset('fonts/Pacifico-Regular.woff2') }}') format('woff2');
         }
 
         :root {
@@ -87,9 +75,7 @@
 
         * { box-sizing: border-box; outline-color: var(--primary); -webkit-tap-highlight-color: transparent; }
 
-        html {
-            scroll-behavior: smooth;
-        }
+        html { scroll-behavior: smooth; }
 
         body {
             min-height: 100vh;
@@ -101,6 +87,7 @@
             background: var(--bg);
             transition: color .3s ease, background-color .3s ease;
             line-height: 1.6;
+            text-rendering: optimizeLegibility;
         }
 
         a { color: inherit; text-decoration: none; transition: color 0.2s ease; }
@@ -122,6 +109,7 @@
             background:
                 radial-gradient(circle at 15% 50%, color-mix(in srgb, var(--primary) 8%, transparent), transparent 25%),
                 radial-gradient(circle at 85% 30%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 25%);
+            will-change: opacity;
         }
 
         html[data-theme="light"] .page-bg-mesh {
@@ -156,7 +144,7 @@
 
 <div class="page-wrapper" style="position: relative; isolation: isolate;">
     <div class="page-bg-mesh"></div>
-    {!! $slot !!}
+    {{ $slot }}
 </div>
 
 <script>
