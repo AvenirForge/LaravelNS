@@ -44,10 +44,15 @@
 
     .footer-copy {
         font-size: 13px;
-        color: var(--fg-muted);
+        /* Zmieniono z --fg-muted na kolor o wyższym kontraście */
+        color: #A3A3A3;
         font-weight: 500;
         border-left: 1px solid var(--border);
         padding-left: 12px;
+    }
+
+    html[data-theme="light"] .footer-copy {
+        color: #4B5563;
     }
 
     .scroll-up-subtle {
@@ -56,7 +61,7 @@
         background: transparent;
         border: 1px solid var(--border);
         border-radius: 10px;
-        color: var(--fg-muted);
+        color: var(--fg);
         display: grid;
         place-items: center;
         cursor: pointer;
@@ -66,7 +71,7 @@
 
     .scroll-up-subtle:hover {
         border-color: var(--fg);
-        color: var(--fg);
+        color: var(--primary);
         transform: translateY(-2px);
         background: var(--bg2);
     }
