@@ -6,8 +6,15 @@
     <meta name="description" content="NoteSync to nowoczesne narzędzie do synchronizacji notatek zapewniające bezpieczeństwo, szybkość i minimalistyczny design dla profesjonalistów." />
     <title>{{ __('messages.title') ?? 'NoteSync - Twoje notatki' }}</title>
 
+    {{--
+        PRELOAD - Wymuszenie ładowania czcionek priorytetowo.
+        Zmniejsza to LCP i eliminuje opóźnienie ścieżki krytycznej.
+    --}}
+    <link rel="preload" href="{{ asset('fonts/Inter-Regular.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="{{ asset('fonts/Inter-SemiBold.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="{{ asset('fonts/Inter-ExtraBold.woff2') }}" as="font" type="font/woff2" crossorigin>
+
     <style>
-        /* INTER - Lokalna implementacja wag 400, 500, 600, 800 */
         @font-face {
             font-family: 'Inter';
             font-style: normal;
@@ -37,7 +44,6 @@
             src: url('{{ asset('fonts/Inter-ExtraBold.woff2') }}') format('woff2');
         }
 
-        /* PACIFICO - Lokalna implementacja */
         @font-face {
             font-family: 'Pacifico';
             font-style: normal;
