@@ -60,6 +60,7 @@
     .shot {
         width: 100%;
         height: auto;
+        aspect-ratio: 400 / 866;
         border-radius: 20px;
         display: block;
         object-fit: contain;
@@ -89,6 +90,9 @@
     .lightbox img {
         max-width: 100%;
         max-height: 90vh;
+        width: auto;
+        height: auto;
+        aspect-ratio: 400 / 866;
         object-fit: contain;
         border-radius: 24px;
         box-shadow: 0 50px 120px rgba(0,0,0,0.8);
@@ -172,7 +176,7 @@
             <button class="lightbox-close" aria-label="Zamknij podgląd">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
-            <img id="lbImg" src="" alt="Podgląd zrzutu ekranu" />
+            <img id="lbImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Podgląd zrzutu ekranu" width="400" height="866" />
         `;
         document.body.appendChild(lb);
         const lbImg = lb.querySelector('#lbImg');
