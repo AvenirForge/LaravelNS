@@ -5,20 +5,20 @@
   AddType image/avif .avif
   AddType image/avif-sequence .avifs
   AddType image/webp .webp
-  # Dodajemy obsługę czcionek w standardzie Apache
   AddType font/woff2 .woff2
+  AddType font/woff .woff
 </IfModule>
 
 # ----------------------------------------------------------------------
 # | 2. Kompresja (Brotli + Gzip)                                       |
 # ----------------------------------------------------------------------
 <IfModule mod_brotli.c>
-  AddOutputFilterByType BROTLI_COMPRESS text/html text/plain text/xml text/css text/javascript application/javascript application/json image/svg+xml application/xml+rss
+  AddOutputFilterByType BROTLI_COMPRESS text/html text/plain text/xml text/css text/javascript application/javascript application/json image/svg+xml application/xml+rss font/woff2
 </IfModule>
 
 <IfModule mod_deflate.c>
   <IfModule !mod_brotli.c>
-    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json image/svg+xml application/xml+rss
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json image/svg+xml application/xml+rss font/woff2
   </IfModule>
 </IfModule>
 
@@ -34,7 +34,7 @@
     ExpiresByType application/json "access plus 0 seconds"
     ExpiresByType application/xml "access plus 0 seconds"
 
-    # MEDIA - 1 rok
+    # MEDIA - 1 rok (Zgodnie z wymogami PageSpeed)
     ExpiresByType image/avif "access plus 1 year"
     ExpiresByType image/webp "access plus 1 year"
     ExpiresByType image/gif "access plus 1 year"
@@ -47,20 +47,27 @@
     # FONTS - 1 rok
     ExpiresByType font/woff2 "access plus 1 year"
     ExpiresByType font/woff "access plus 1 year"
-    ExpiresByType application/font-woff "access plus 1 year"
+    ExpiresByType application/font-woff2 "access plus 1 year"
+    ExpiresByType application/x-font-woff "access plus 1 year"
 
     # CSS/JS - 1 rok
     ExpiresByType text/css "access plus 1 year"
     ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType text/javascript "access plus 1 year"
 </IfModule>
 
 <IfModule mod_headers.c>
-    # Zasoby statyczne: cache publiczny, długi termin, immutable (nie pyta serwera o zmiany)
+    # Zasoby statyczne: cache publiczny, długi termin, immutable
     <FilesMatch "\.(ico|pdf|flv|jpg|jpeg|png|gif|avif|webp|js|css|swf|svg|woff|woff2)$">
         Header set Cache-Control "max-age=31536000, public, immutable"
         Header unset ETag
         FileETag None
     </FilesMatch>
+
+    # Vary: Accept-Encoding - Kluczowe dla poprawnego cache'owania wersji skompresowanych
+    <IfModule mod_filter.c>
+        Header append Vary Accept-Encoding
+    </IfModule>
 
     # Zasoby dynamiczne: wymuszona rewalidacja
     <FilesMatch "\.(html|htm|php)$">
@@ -68,7 +75,7 @@
         Header set Pragma "no-cache"
     </FilesMatch>
 
-    # Dodatkowa optymalizacja PageSpeed: Utrzymanie połączenia i Security Headers
+    # Optymalizacja PageSpeed
     Header set Connection keep-alive
     Header set X-Content-Type-Options "nosniff"
 </IfModule>
@@ -83,7 +90,7 @@
 
     RewriteEngine On
 
-    # Przekierowanie na HTTPS (zalecane dla bezpieczeństwa i SEO)
+    # Przekierowanie na HTTPS
     RewriteCond %{HTTPS} off
     RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
