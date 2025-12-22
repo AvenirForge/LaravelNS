@@ -1,113 +1,50 @@
-# ----------------------------------------------------------------------
-# | 1. Definicje typów MIME (AVIF & WebP Support)                      |
-# ----------------------------------------------------------------------
 <IfModule mod_mime.c>
   AddType image/avif .avif
   AddType image/avif-sequence .avifs
   AddType image/webp .webp
   AddType font/woff2 .woff2
-  AddType font/woff .woff
 </IfModule>
 
-# ----------------------------------------------------------------------
-# | 2. Kompresja (Brotli + Gzip)                                       |
-# ----------------------------------------------------------------------
-<IfModule mod_brotli.c>
-  AddOutputFilterByType BROTLI_COMPRESS text/html text/plain text/xml text/css text/javascript application/javascript application/json image/svg+xml application/xml+rss font/woff2
-</IfModule>
-
-<IfModule mod_deflate.c>
-  <IfModule !mod_brotli.c>
-    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json image/svg+xml application/xml+rss font/woff2
-  </IfModule>
-</IfModule>
-
-# ----------------------------------------------------------------------
-# | 3. Cache Browsers (Expires & Headers)                              |
-# ----------------------------------------------------------------------
 <IfModule mod_expires.c>
     ExpiresActive On
     ExpiresDefault "access plus 1 month"
 
-    # HTML/DATA - Natychmiastowe sprawdzanie świeżości
+    # HTML/JSON - brak cache dla danych dynamicznych
     ExpiresByType text/html "access plus 0 seconds"
     ExpiresByType application/json "access plus 0 seconds"
-    ExpiresByType application/xml "access plus 0 seconds"
 
-    # MEDIA - 1 rok (Zgodnie z wymogami PageSpeed)
+    # MEDIA - 1 rok (wymóg PageSpeed)
     ExpiresByType image/avif "access plus 1 year"
     ExpiresByType image/webp "access plus 1 year"
-    ExpiresByType image/gif "access plus 1 year"
     ExpiresByType image/png "access plus 1 year"
     ExpiresByType image/jpeg "access plus 1 year"
     ExpiresByType image/svg+xml "access plus 1 year"
-    ExpiresByType video/mp4 "access plus 1 year"
     ExpiresByType image/x-icon "access plus 1 year"
 
     # FONTS - 1 rok
     ExpiresByType font/woff2 "access plus 1 year"
-    ExpiresByType font/woff "access plus 1 year"
     ExpiresByType application/font-woff2 "access plus 1 year"
-    ExpiresByType application/x-font-woff "access plus 1 year"
 
     # CSS/JS - 1 rok
     ExpiresByType text/css "access plus 1 year"
     ExpiresByType application/javascript "access plus 1 year"
-    ExpiresByType text/javascript "access plus 1 year"
 </IfModule>
 
 <IfModule mod_headers.c>
-    # Zasoby statyczne: cache publiczny, długi termin, immutable
-    <FilesMatch "\.(ico|pdf|flv|jpg|jpeg|png|gif|avif|webp|js|css|swf|svg|woff|woff2)$">
+    # Wymuszenie Cache-Control dla plików statycznych
+    <FilesMatch "\.(avif|webp|png|jpg|jpeg|ico|woff2|css|js|svg)$">
         Header set Cache-Control "max-age=31536000, public, immutable"
         Header unset ETag
         FileETag None
     </FilesMatch>
 
-    # Vary: Accept-Encoding - Kluczowe dla poprawnego cache'owania wersji skompresowanych
-    <IfModule mod_filter.c>
-        Header append Vary Accept-Encoding
-    </IfModule>
-
-    # Zasoby dynamiczne: wymuszona rewalidacja
-    <FilesMatch "\.(html|htm|php)$">
-        Header set Cache-Control "max-age=0, no-cache, no-store, must-revalidate"
-        Header set Pragma "no-cache"
-    </FilesMatch>
-
-    # Optymalizacja PageSpeed
-    Header set Connection keep-alive
-    Header set X-Content-Type-Options "nosniff"
+    # Poprawne cache'owanie wersji skompresowanych
+    Header append Vary Accept-Encoding
 </IfModule>
 
-# ----------------------------------------------------------------------
-# | 4. Standardowa logika Laravel                                      |
-# ----------------------------------------------------------------------
+# Standardowa logika Laravel
 <IfModule mod_rewrite.c>
-    <IfModule mod_negotiation.c>
-        Options -MultiViews -Indexes
-    </IfModule>
-
     RewriteEngine On
-
-    # Przekierowanie na HTTPS
-    RewriteCond %{HTTPS} off
-    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
-
-    # Handle Authorization Header
-    RewriteCond %{HTTP:Authorization} .
-    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
-
-    # Handle X-XSRF-Token Header
-    RewriteCond %{HTTP:x-xsrf-token} .
-    RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
-
-    # Redirect Trailing Slashes If Not A Folder...
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteCond %{REQUEST_URI} (.+)/$
-    RewriteRule ^ %1 [L,R=301]
-
-    # Send Requests To Front Controller...
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
