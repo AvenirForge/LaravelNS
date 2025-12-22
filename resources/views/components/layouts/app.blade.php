@@ -3,12 +3,31 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>{{ $title ?? 'NoteSync - Twoje notatki' }}</title>
+    <meta name="description" content="{{ $description ?? 'NoteSync to nowoczesne narzędzie do synchronizacji notatek zapewniające bezpieczeństwo, szybkość i minimalistyczny design dla profesjonalistów.' }}">
+
+    <link rel="icon" href="{{ asset('favicon.avif') }}" type="image/avif">
+    <link rel="apple-touch-icon" href="{{ asset('favicon.avif') }}">
+    <meta name="theme-color" content="#050505">
+
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ url()->current() }}">
+    <meta property="og:title" content="{{ $title ?? 'NoteSync - Twoje notatki' }}">
+    <meta property="og:description" content="{{ $description ?? 'NoteSync to nowoczesne narzędzie do synchronizacji notatek zapewniające bezpieczeństwo, szybkość i minimalistyczny design.' }}">
+    <meta property="og:image" content="{{ asset('og-image.jpg') }}">
+    <meta property="og:site_name" content="NoteSync">
+    <meta property="og:locale" content="{{ App::getLocale() }}">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="{{ url()->current() }}">
+    <meta name="twitter:title" content="{{ $title ?? 'NoteSync - Twoje notatki' }}">
+    <meta name="twitter:description" content="{{ $description ?? 'NoteSync to nowoczesne narzędzie do synchronizacji notatek zapewniające bezpieczeństwo i szybkość.' }}">
+    <meta name="twitter:image" content="{{ asset('og-image.jpg') }}">
+
     <link rel="preload" href="{{ asset('fonts/Inter-ExtraBold.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="{{ asset('fonts/Inter-SemiBold.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="{{ asset('fonts/Inter-Regular.woff2') }}" as="font" type="font/woff2" crossorigin>
-
-    <meta name="description" content="NoteSync to nowoczesne narzędzie do synchronizacji notatek zapewniające bezpieczeństwo, szybkość i minimalistyczny design dla profesjonalistów.">
-    <title>{{ __('messages.title') ?? 'NoteSync - Twoje notatki' }}</title>
 
     <style>
         @font-face {
@@ -108,6 +127,11 @@
             try {
                 const theme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
                 document.documentElement.setAttribute('data-theme', theme);
+
+                const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+                if (metaThemeColor) {
+                    metaThemeColor.setAttribute('content', theme === 'dark' ? '#050505' : '#F2F4F7');
+                }
             } catch (e) {}
         })();
     </script>
