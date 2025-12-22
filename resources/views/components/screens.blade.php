@@ -7,7 +7,6 @@
     }
 
     .container-ultra-wide {
-        /* Poszerzenie o kolejne 20% - teraz 1720px dla maksymalnej ekspozycji interfejsu */
         max-width: 1720px;
         margin: 0 auto;
         padding: 0 clamp(20px, 4vw, 60px);
@@ -16,7 +15,6 @@
     .gridShots {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
-        /* Zwiększony odstęp dla oddechu przy dużej skali */
         gap: clamp(20px, 3vw, 40px);
         align-items: start;
     }
@@ -65,11 +63,9 @@
         border-radius: 20px;
         display: block;
         object-fit: contain;
-        /* Wyłączenie wygładzania dla krawędzi przy dużym zoomie */
         image-rendering: auto;
     }
 
-    /* Lightbox Premium - Pełna immersja */
     .lightbox {
         position: fixed;
         inset: 0;
@@ -126,7 +122,6 @@
         filter: brightness(0.9);
     }
 
-    /* Kaskadowe ujawnianie zrzutów */
     .gridShots > [data-reveal] {
         transition-duration: 0.8s;
     }
@@ -140,8 +135,8 @@
     <div class="container-ultra-wide">
         <div class="gridShots">
             @foreach($shots as $num)
-                <button class="shot-btn" data-shot-num="{{ $num }}" data-reveal>
-                    <img class="shot" data-shot-img="{{ $num }}" src="" alt="Interfejs NoteSync Pro {{ $num }}" loading="lazy" />
+                <button class="shot-btn" data-shot-num="{{ $num }}" data-reveal aria-label="Powiększ zrzut ekranu {{ $num }}">
+                    <img class="shot" data-shot-img="{{ $num }}" src="/assets/images/dark/{{ $num }}.avif" alt="Interfejs NoteSync Pro - Ekran {{ $num }}" loading="lazy" width="400" height="866" />
                 </button>
             @endforeach
         </div>
@@ -154,32 +149,39 @@
 
         const refreshImages = () => {
             const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+
+            if (theme === 'dark') return;
+
             document.querySelectorAll('[data-shot-img]').forEach(img => {
                 img.src = getUrl(img.getAttribute('data-shot-img'), theme);
             });
         };
 
-        refreshImages();
+        new MutationObserver(m => {
+            if(m[0].attributeName === 'data-theme') {
+                const theme = document.documentElement.getAttribute('data-theme');
+                document.querySelectorAll('[data-shot-img]').forEach(img => {
+                    img.src = getUrl(img.getAttribute('data-shot-img'), theme);
+                });
+            }
+        }).observe(document.documentElement, { attributes: true });
 
-        // Obserwator zmian motywu dla natychmiastowej reakcji grafik
-        new MutationObserver(m => m[0].attributeName === 'data-theme' && refreshImages())
-            .observe(document.documentElement, { attributes: true });
-
-        // Inicjalizacja Lightboxa
         const lb = document.createElement('div');
         lb.className = 'lightbox';
         lb.innerHTML = `
-            <button class="lightbox-close">
+            <button class="lightbox-close" aria-label="Zamknij podgląd">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
-            <img id="lbImg" src="" />
+            <img id="lbImg" src="" alt="Podgląd zrzutu ekranu" />
         `;
         document.body.appendChild(lb);
         const lbImg = lb.querySelector('#lbImg');
 
         document.querySelectorAll('.shot-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                lbImg.src = btn.querySelector('img').src;
+                const sourceImg = btn.querySelector('img');
+                lbImg.src = sourceImg.src;
+                lbImg.alt = sourceImg.alt;
                 lb.classList.add('open');
                 document.body.style.overflow = 'hidden';
             });
@@ -192,5 +194,7 @@
 
         lb.addEventListener('click', e => (e.target === lb || e.target.closest('.lightbox-close')) && close());
         document.addEventListener('keydown', e => e.key === 'Escape' && close());
+
+        refreshImages();
     })();
 </script>

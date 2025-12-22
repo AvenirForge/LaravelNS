@@ -246,7 +246,7 @@
 <nav class="navbar" id="navbar">
     <div class="nav-pill">
         <a href="#top" class="brand">
-            <img src="{{ asset('logo.avif') }}" class="brand-logo" alt="Logo" loading="lazy" />
+            <img src="{{ asset('logo.avif') }}" class="brand-logo" alt="NoteSync Home" loading="lazy" width="28" height="28" />
             <span>NoteSync</span>
         </a>
 
@@ -262,7 +262,7 @@
                 <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
             </button>
 
-            <button id="menuToggle" class="icon-btn burger" aria-label="Menu" aria-expanded="false">
+            <button id="menuToggle" class="icon-btn burger" aria-label="Otwórz menu" aria-expanded="false">
                 <div class="burger-line"></div>
                 <div class="burger-line"></div>
             </button>
