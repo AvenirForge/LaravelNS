@@ -61,14 +61,9 @@ Role w kursie:
 - `owner` – pełna kontrola nad kursem i użytkownikami
 - `admin` – zarządzanie treścią i członkami
 - `moderator` – moderacja treści
-- `member` – dostęp do odczytu i dodawania treści
+- `member` – dostęp tylko do odczytu
 
 Zastosowano hierarchię ról – użytkownik o wyższej roli może zarządzać użytkownikiem o niższej (`canModerateUser`).
-
-**Zarządzanie tożsamością**  
-Adresy e-mail są normalizowane (`canonicalEmail`) w celu eliminacji duplikacji kont:
-- obsługa aliasów Gmail (`user+tag@gmail.com`),
-- konwersja domen IDN do ASCII.
 
 Hasła są bezpiecznie hashowane przy użyciu bcrypt.
 
@@ -191,42 +186,134 @@ API będzie dostępne pod adresem: `http://localhost:8000`
 
 ## 📡 Dokumentacja API
 
-### Uwierzytelnianie
+Poniżej znajduje się **aktualna i kompletna dokumentacja endpointów**, zgodna 1:1 z plikiem `routes/api.php`.
+
+### 🔐 Publiczne (bez autoryzacji)
 
 | Metoda | Endpoint | Opis |
 |------|---------|------|
-| POST | `/api/login` | Logowanie i pobranie tokenu JWT |
-| POST | `/api/users/register` | Rejestracja użytkownika |
-| GET | `/api/me/profile` | Pobranie profilu zalogowanego użytkownika |
+| POST | `/api/login` | Logowanie użytkownika (JWT) |
+| POST | `/api/users/register` | Rejestracja nowego użytkownika |
+| POST | `/api/refresh` | Odświeżenie tokenu JWT |
+
+---
+
+### 👤 /me – konto zalogowanego użytkownika (`auth:api`)
+
+#### Dashboard
+
+| Metoda | Endpoint | Opis |
+|------|---------|------|
+| GET | `/api/me/dashboard` | Dane dashboardu (statystyki, aktywności) |
+
+#### Profil
+
+| Metoda | Endpoint | Opis |
+|------|---------|------|
+| GET | `/api/me/profile` | Pobranie profilu |
 | PATCH | `/api/me/profile` | Aktualizacja profilu |
+| DELETE | `/api/me/profile` | Usunięcie konta |
+| POST | `/api/me/logout` | Wylogowanie |
+| GET | `/api/me/profile/avatar` | Pobranie avatara |
+| POST | `/api/me/profile/avatar` | Aktualizacja avatara |
 
-### Kursy
+---
 
-| Metoda | Endpoint | Opis |
-|------|---------|------|
-| GET | `/api/courses` | Lista kursów użytkownika |
-| POST | `/api/courses` | Utworzenie nowego kursu |
-| POST | `/api/courses/{id}/invite-user` | Zaproszenie użytkownika |
-| DELETE | `/api/courses/{id}/users/{userId}` | Usunięcie użytkownika z kursu |
-
-### Notatki
+#### Kursy użytkownika
 
 | Metoda | Endpoint | Opis |
 |------|---------|------|
-| GET | `/api/me/notes` | Pobranie notatek (paginacja) |
-| POST | `/api/me/notes` | Utworzenie notatki (z plikami) |
-| POST | `/api/me/notes/{id}/files` | Dodanie pliku do notatki |
-| POST | `/api/me/notes/{id}/share/{courseId}` | Udostępnienie notatki w kursie |
+| GET | `/api/me/courses` | Lista kursów użytkownika |
+| POST | `/api/me/courses` | Utworzenie kursu |
+| PATCH | `/api/me/courses/{id}` | Aktualizacja kursu |
+| DELETE | `/api/me/courses/{id}` | Usunięcie kursu |
+| GET | `/api/me/courses/{id}/avatar` | Pobranie avatara kursu |
+| POST | `/api/me/courses/{id}/avatar` | Aktualizacja avatara kursu |
 
-### Dashboard
+---
+
+#### Notatki
 
 | Metoda | Endpoint | Opis |
 |------|---------|------|
-| GET | `/api/dashboard` | Statystyki, aktywności, zaproszenia |
+| GET | `/api/me/notes` | Lista notatek (z tablicą `files`) |
+| POST | `/api/me/notes` | Utworzenie notatki (`files[]`) |
+| GET | `/api/me/notes/{id}` | Szczegóły notatki |
+| PUT / PATCH | `/api/me/notes/{id}` | Edycja metadanych notatki |
+| DELETE | `/api/me/notes/{id}` | Usunięcie notatki |
+| POST | `/api/me/notes/{noteId}/files` | Dodanie pliku do notatki |
+| DELETE | `/api/me/notes/{noteId}/files/{fileId}` | Usunięcie pliku |
+| GET | `/api/me/notes/{noteId}/files/{fileId}/download` | Pobranie pliku |
+| POST | `/api/me/notes/{noteId}/share/{courseId}` | Udostępnienie notatki w kursie |
+| DELETE | `/api/me/notes/{noteId}/share/{courseId}` | Cofnięcie udostępnienia |
+
+---
+
+#### Testy użytkownika
+
+| Metoda | Endpoint | Opis |
+|------|---------|------|
+| GET | `/api/me/tests` | Lista testów |
+| POST | `/api/me/tests` | Utworzenie testu |
+| GET | `/api/me/tests/{id}` | Szczegóły testu |
+| PUT | `/api/me/tests/{id}` | Aktualizacja testu |
+| DELETE | `/api/me/tests/{id}` | Usunięcie testu |
+| GET | `/api/me/tests/{testId}/questions` | Pytania testu |
+| POST | `/api/me/tests/{testId}/questions` | Dodanie pytania |
+| PUT | `/api/me/tests/{testId}/questions/{questionId}` | Edycja pytania |
+| DELETE | `/api/me/tests/{testId}/questions/{questionId}` | Usunięcie pytania |
+| GET | `/api/me/tests/{testId}/questions/{questionId}/answers` | Odpowiedzi |
+| POST | `/api/me/tests/{testId}/questions/{questionId}/answers` | Dodanie odpowiedzi |
+| PUT | `/api/me/tests/{testId}/questions/{questionId}/answers/{answerId}` | Edycja odpowiedzi |
+| DELETE | `/api/me/tests/{testId}/questions/{questionId}/answers/{answerId}` | Usunięcie odpowiedzi |
+| POST | `/api/me/tests/{testId}/share` | Udostępnienie testu w kursie |
+| DELETE | `/api/me/tests/{testId}/share` | Cofnięcie udostępnienia |
+
+---
+
+### 🎓 Kursy (akcje globalne, `auth:api`)
+
+| Metoda | Endpoint | Opis |
+|------|---------|------|
+| POST | `/api/courses/{courseId}/invite-user` | Zaproszenie użytkownika |
+| DELETE | `/api/courses/{courseId}/leave` | Opuszczenie kursu |
+| POST | `/api/courses/{courseId}/remove-user` | Usunięcie użytkownika |
+| PATCH | `/api/courses/{courseId}/users/{userId}/role` | Zmiana roli użytkownika |
+| POST | `/api/courses/{courseId}/set-role-by-email` | Zmiana roli po e-mailu |
+| DELETE | `/api/courses/{courseId}/users/{userId}/notes` | Usunięcie notatek użytkownika |
+| DELETE | `/api/courses/{courseId}/users/{userId}/tests` | Usunięcie testów użytkownika |
+| DELETE | `/api/courses/{courseId}/notes/{noteId}` | Admin: cofnięcie notatki |
+| DELETE | `/api/courses/{courseId}/tests/{testId}` | Admin: cofnięcie testu |
+| GET | `/api/courses/{courseId}/users` | Lista użytkowników kursu |
+| GET | `/api/courses/{courseId}/notes` | Notatki w kursie |
+
+---
+
+### ✉️ Zaproszenia
+
+| Metoda | Endpoint | Opis |
+|------|---------|------|
+| GET | `/api/me/invitations-received` | Otrzymane zaproszenia |
+| GET | `/api/me/invitations-sent` | Wysłane zaproszenia |
+| POST | `/api/invitations/{token}/accept` | Akceptacja zaproszenia |
+| POST | `/api/invitations/{token}/reject` | Odrzucenie zaproszenia |
+
+---
+
+### 🧪 Testy w kontekście kursu
+
+| Metoda | Endpoint | Opis |
+|------|---------|------|
+| GET | `/api/courses/{courseId}/tests` | Lista testów kursu |
+| POST | `/api/courses/{courseId}/tests` | Utworzenie testu w kursie |
+| GET | `/api/courses/{courseId}/tests/{testId}` | Szczegóły testu |
+| PUT | `/api/courses/{courseId}/tests/{testId}` | Aktualizacja testu |
+| DELETE | `/api/courses/{courseId}/tests/{testId}` | Usunięcie testu |
 
 ---
 
 ## 🧪 Testy End-to-End (E2E)
+
 
 Projekt zawiera **pełne testy End-to-End** napisane w Pythonie, zlokalizowane w:
 
@@ -258,7 +345,7 @@ python tests/E2E/E2E.py \
 - reset bazy przed testami:
 
 ```bash
-php artisan migrate:fresh --seed
+php artisan migrate:fresh
 ```
 
 ---
