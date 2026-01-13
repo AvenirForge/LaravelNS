@@ -181,7 +181,8 @@ class DatabaseSeeder extends Seeder
         $authorId = $allowedUserIds->random();
 
         $prefixes = ['Wykład:', 'Skrypt:', 'Lista zagadnień:', 'Notatki z zajęć:', 'Projekt zaliczeniowy:'];
-        $title = $faker->randomElement($prefixes) . ' ' . $date->format('d.m.Y');
+        $topic = Str::ucfirst($faker->words(rand(2, 4), true));
+        $title = $faker->randomElement($prefixes) . ' ' . $topic;
 
         $noteId = DB::table('notes')->insertGetId([
             'user_id' => $authorId,
@@ -215,12 +216,14 @@ class DatabaseSeeder extends Seeder
             'Kolokwium zaliczeniowe', 'Egzamin połówkowy', 'Quiz sprawdzający wiedzę',
             'Kartkówka wejściowa', 'Test semestralny', 'Sprawdzian wiedzy praktycznej'
         ];
-        $title = $faker->randomElement($testNames) . ': ' . $subject;
+
+        $topic = Str::ucfirst($faker->words(rand(1, 3), true));
+        $title = $faker->randomElement($testNames) . ': ' . $subject . ' - ' . $topic;
 
         $testId = DB::table('tests')->insertGetId([
             'user_id' => $authorId,
             'title' => $title,
-            'description' => 'Test weryfikujący wiedzę z zakresu przedmiotu: ' . $subject . '. Czas trwania: 45 min.',
+            'description' => 'Test weryfikujący wiedzę z zakresu przedmiotu: ' . $subject . '. Temat: ' . $topic . '. Czas trwania: 45 min.',
             'status' => $faker->randomElement(['public', 'private']),
             'created_at' => $date,
             'updated_at' => $date,
