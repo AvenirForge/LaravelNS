@@ -340,14 +340,6 @@ python tests/E2E/E2E.py \
   --avatar "C:\\xampp\\htdocs\\LaravelNS\\tests\\E2E\\sample_data\\avatar.jpg"
 ```
 
-⚠️ **Uwaga:** testy operują na żywej bazie danych. Zalecane jest:
-- używanie osobnej bazy testowej (np. SQLite), lub
-- reset bazy przed testami:
-
-```bash
-php artisan migrate:fresh
-```
-
 ---
 
 ## 📄 Licencja
