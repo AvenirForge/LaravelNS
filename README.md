@@ -28,7 +28,7 @@ NoteSync API rozwiązuje problem rozproszonych materiałów edukacyjnych, dostar
 - **Współpracy** – kursy z rozbudowanym systemem ról i uprawnień.
 - **Bezpieczeństwa** – pełna autoryzacja oparta o JWT i kontrolę dostępu na poziomie zasobów.
 
-API pełni rolę **Backend-for-Frontend**, agregując logikę biznesową i dane w formie optymalnej dla aplikacji klienckich (web, mobile).
+API pełni rolę **Backend-for-Frontend**, agregując logikę biznesową i dane w formie optymalnej dla aplikacji klienckich.
 
 ---
 
